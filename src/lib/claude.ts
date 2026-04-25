@@ -193,7 +193,26 @@ Rules:
 - Extract ALL fields accurately — do not skip or truncate any content
 - If the recipe has multiple ingredient sections (e.g. "For the sauce:", "For the bowls:"), include EVERY ingredient from EVERY section as a flat list in the "ingredients" array. Do not omit any section.
 - For ingredient quantities that are vague ("to taste", "a pinch", "1 can"), set quantity and unit to null, and preserve the exact original text in the "raw" field
-- Assign each ingredient a category: PRODUCE, PROTEIN, DAIRY, GRAINS, PANTRY, SPICES, FROZEN, BEVERAGES, or OTHER
+
+INGREDIENT NAME RULES (critical):
+- The "name" field must contain ONLY the ingredient name — never quantities, units, or measurements
+- Examples: "100g / 3.5 oz chickpea flour" → name: "chickpea flour", quantity: 100, unit: "g"
+- Examples: "150ml / 10 tbsp soy milk" → name: "soy milk", quantity: 150, unit: "ml"
+- Examples: "500g / 17.6 oz firm tofu" → name: "firm tofu", quantity: 500, unit: "g"
+- When a recipe lists dual measurements (metric / imperial), pick ONE (prefer metric) for quantity+unit; put only the ingredient name in "name"
+- The "raw" field should contain the full original text as written in the recipe
+
+CATEGORY RULES — assign each ingredient to exactly one:
+- PRODUCE: fresh fruits, fresh vegetables, fresh herbs (basil, parsley, cilantro, mint, etc.), garlic, onion, ginger, lemons, limes
+- PROTEIN: meat, poultry, fish, seafood, eggs, tofu, tempeh, legumes (beans, lentils, chickpeas)
+- DAIRY: milk, cream, butter, cheese, yogurt, sour cream (including plant-based/vegan alternatives)
+- GRAINS: flour, bread, pasta, rice, oats, cereals, crackers, breadcrumbs, cornmeal, chickpea flour, nutritional yeast
+- PANTRY: oils, vinegars, sauces, stocks, broths, canned goods, sugar, honey, baking soda, baking powder, vanilla
+- SPICES: salt, pepper, ALL dried spices (paprika, cumin, turmeric, coriander, chili powder, garlic powder, onion powder, etc.), ALL dried herbs (oregano, thyme, rosemary, bay leaves, etc.), spice blends, seasoning mixes
+- FROZEN: frozen vegetables, frozen fruits, frozen meals
+- BEVERAGES: water, juice, wine, beer, broth used as a beverage, coffee, tea
+- OTHER: anything that does not clearly fit the above categories
+
 - Convert prep/cook times to minutes (integers)
 - Estimate difficulty: EASY (< 30 min, simple steps), HARD (> 90 min or complex technique), MEDIUM otherwise
 - Generate 3-6 relevant tags (cuisine type, dietary restrictions, cooking method, etc.)

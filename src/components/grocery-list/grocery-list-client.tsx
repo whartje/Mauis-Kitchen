@@ -134,6 +134,9 @@ export default function GroceryListClient({
   // Share / copy state
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied">("idle");
 
+  // Per-item delete
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
+
   // ── Generate / Regenerate ────────────────────────────────────────────────
 
   const generateList = useCallback(async () => {
@@ -250,6 +253,43 @@ export default function GroceryListClient({
       setClearingChecked(false);
     }
   }, [list]);
+
+  // ── Delete individual item ───────────────────────────────────────────────
+
+  const deleteItem = useCallback(
+    async (itemId: string) => {
+      if (!list) return;
+      setDeletingItemId(itemId);
+
+      // Optimistic removal
+      const prevItems = list.items;
+      setList((prev) => {
+        if (!prev) return prev;
+        return { ...prev, items: prev.items.filter((it) => it.id !== itemId) };
+      });
+
+      try {
+        const res = await fetch(`/api/grocery-list/${list.id}/items/${itemId}`, {
+          method: "DELETE",
+        });
+        if (!res.ok) {
+          // Revert
+          setList((prev) => {
+            if (!prev) return prev;
+            return { ...prev, items: prevItems };
+          });
+        }
+      } catch {
+        setList((prev) => {
+          if (!prev) return prev;
+          return { ...prev, items: prevItems };
+        });
+      } finally {
+        setDeletingItemId(null);
+      }
+    },
+    [list]
+  );
 
   // ── Add custom item ──────────────────────────────────────────────────────
 
@@ -549,7 +589,7 @@ export default function GroceryListClient({
                     {items.map((item) => (
                       <li
                         key={item.id}
-                        className="flex items-center gap-3 px-4 py-3"
+                        className="group flex items-center gap-3 px-4 py-3"
                       >
                         {/* Checkbox */}
                         <button
@@ -596,6 +636,20 @@ export default function GroceryListClient({
                             {formatQuantity(item)}
                           </span>
                         )}
+
+                        {/* Delete button — visible on hover (always visible on touch) */}
+                        <button
+                          onClick={() => deleteItem(item.id)}
+                          disabled={deletingItemId === item.id}
+                          className="flex-shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground/40 hover:text-red-400 disabled:opacity-30"
+                          aria-label={`Remove ${item.name}`}
+                        >
+                          {deletingItemId === item.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <X className="w-3.5 h-3.5" />
+                          )}
+                        </button>
                       </li>
                     ))}
                   </ul>

@@ -70,6 +70,24 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Clean ingredient names that accidentally include quantity/unit text
+  // e.g. "g / 3.5 oz chickpea flour" → "chickpea flour"
+  // e.g. "/ 10 tbsp soy milk" → "soy milk"
+  function cleanIngredientName(raw: string): string {
+    const units = "ml|l|g|kg|oz|lb|cup|cups|tbsp|tsp|teaspoon|tablespoon|pint|quart|gallon|fl oz";
+    const cleaned = raw
+      // "100g / 3.5 oz name" or "100 g / 3.5 oz name"
+      .replace(new RegExp(`^[\\d.]+\\s*(${units})\\s*\\/\\s*[\\d.]+\\s*(${units})\\s+`, "i"), "")
+      // "g / 3.5 oz name" (missing leading number)
+      .replace(new RegExp(`^(${units})\\s*\\/\\s*[\\d.]+\\s*(${units})\\s+`, "i"), "")
+      // "/ 3.5 oz name" or "/ 10 tbsp name"
+      .replace(new RegExp(`^\\/\\s*[\\d.]+\\s*(${units})\\s+`, "i"), "")
+      // "100g name" or "100 g name" with nothing after (whole string is just units)
+      .replace(new RegExp(`^[\\d.]+\\s*(${units})$`, "i"), "")
+      .trim();
+    return cleaned || raw; // fall back to original if we over-stripped
+  }
+
   // Consolidate ingredients: group by normalized name + unit
   type ConsolidatedIngredient = {
     name: string;
@@ -84,7 +102,8 @@ export async function POST(req: NextRequest) {
 
   for (const planItem of mealPlan.items) {
     for (const ingredient of planItem.recipe.ingredients) {
-      const normalizedName = ingredient.name.toLowerCase().trim();
+      const cleanedName = cleanIngredientName(ingredient.name);
+      const normalizedName = cleanedName.toLowerCase().trim();
       const normalizedUnit = ingredient.unit
         ? ingredient.unit.toLowerCase().trim()
         : "";
@@ -92,7 +111,6 @@ export async function POST(req: NextRequest) {
 
       const existing = consolidated.get(key);
       if (existing) {
-        // Keep the prettier (original case) name — prefer the one already stored
         // Try to sum quantities if both are numeric
         if (
           existing.numericQty &&
@@ -100,14 +118,12 @@ export async function POST(req: NextRequest) {
           ingredient.quantity !== undefined
         ) {
           existing.quantity = (existing.quantity ?? 0) + ingredient.quantity;
-        } else if (ingredient.quantity !== null && ingredient.quantity !== undefined) {
-          // Existing was not numeric, keep as-is (non-numeric raw)
         }
       } else {
         const hasNumericQty =
           ingredient.quantity !== null && ingredient.quantity !== undefined;
         consolidated.set(key, {
-          name: ingredient.name,
+          name: cleanedName,
           quantity: ingredient.quantity ?? null,
           unit: ingredient.unit ?? null,
           raw: ingredient.raw,
