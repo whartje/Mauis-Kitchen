@@ -1,0 +1,45 @@
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { prisma } from "@/lib/prisma";
+
+async function verifyOwner(planId: string, userId: string) {
+  const plan = await prisma.mealPlan.findUnique({ where: { id: planId } });
+  return plan?.userId === userId ? plan : null;
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ planId: string; itemId: string }> }
+) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { planId, itemId } = await params;
+  if (!(await verifyOwner(planId, userId))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  await prisma.mealPlanRecipe.delete({ where: { id: itemId } });
+  return NextResponse.json({ ok: true });
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ planId: string; itemId: string }> }
+) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { planId, itemId } = await params;
+  if (!(await verifyOwner(planId, userId))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const { isLocked } = await req.json();
+  const item = await prisma.mealPlanRecipe.update({
+    where: { id: itemId },
+    data: { isLocked },
+  });
+
+  return NextResponse.json(item);
+}

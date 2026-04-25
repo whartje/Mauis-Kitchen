@@ -1,0 +1,207 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// RECIPES
+// ─────────────────────────────────────────────
+
+model Recipe {
+  id          String     @id @default(cuid())
+  userId      String
+  title       String
+  description String?
+  servings    Int        @default(4)
+  prepTime    Int?
+  cookTime    Int?
+  totalTime   Int?
+  difficulty  Difficulty @default(MEDIUM)
+  rating      Float?
+  imageUrl    String?
+  sourceUrl   String?
+  sourceName  String?
+  collection  String?    // Cookbook or user-defined collection name
+  isFavorite  Boolean    @default(false)
+  madeCount   Int        @default(0)
+  lastMadeAt  DateTime?
+  importedAt  DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  tags        String[]
+
+  ingredients   Ingredient[]
+  instructions  Instruction[]
+  nutrition     NutritionFact?
+  mealPlanItems MealPlanRecipe[]
+
+  @@index([userId])
+  @@index([userId, isFavorite])
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+model Ingredient {
+  id       String             @id @default(cuid())
+  recipeId String
+  recipe   Recipe             @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  name     String
+  quantity Float?
+  unit     String?
+  raw      String
+  notes    String?
+  category IngredientCategory @default(OTHER)
+  sortOrder Int               @default(0)
+
+  @@index([recipeId])
+  @@index([name])
+}
+
+enum IngredientCategory {
+  PRODUCE
+  PROTEIN
+  DAIRY
+  GRAINS
+  PANTRY
+  SPICES
+  FROZEN
+  BEVERAGES
+  OTHER
+}
+
+model Instruction {
+  id         String @id @default(cuid())
+  recipeId   String
+  recipe     Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  stepNumber Int
+  text       String
+
+  @@index([recipeId])
+}
+
+model NutritionFact {
+  id          String  @id @default(cuid())
+  recipeId    String  @unique
+  recipe      Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  calories    Float?
+  protein     Float?
+  carbs       Float?
+  fat         Float?
+  fiber       Float?
+  sugar       Float?
+  sodium      Float?
+  servingSize String?
+}
+
+// ─────────────────────────────────────────────
+// MEAL PLANS
+// ─────────────────────────────────────────────
+
+model MealPlan {
+  id            String         @id @default(cuid())
+  userId        String
+  name          String         @default("This Week")
+  weekStartDate DateTime
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  items MealPlanRecipe[]
+
+  @@index([userId])
+  @@index([userId, weekStartDate])
+}
+
+model MealPlanRecipe {
+  id         String   @id @default(cuid())
+  mealPlanId String
+  mealPlan   MealPlan @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
+  recipeId   String
+  recipe     Recipe   @relation(fields: [recipeId], references: [id])
+  dayOfWeek  Int?
+  mealType   MealType @default(DINNER)
+  servings   Int      @default(4)
+  isLocked   Boolean  @default(false)
+
+  @@unique([mealPlanId, recipeId, dayOfWeek, mealType])
+  @@index([mealPlanId])
+}
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+// ─────────────────────────────────────────────
+// PANTRY
+// ─────────────────────────────────────────────
+
+model PantryItem {
+  id        String             @id @default(cuid())
+  userId    String
+  name      String
+  quantity  Float?
+  unit      String?
+  raw       String
+  category  IngredientCategory @default(OTHER)
+  addedAt   DateTime           @default(now())
+  expiresAt DateTime?
+
+  @@index([userId])
+  @@index([userId, name])
+}
+
+// ─────────────────────────────────────────────
+// GROCERY LISTS
+// ─────────────────────────────────────────────
+
+model GroceryList {
+  id          String   @id @default(cuid())
+  userId      String
+  mealPlanId  String?
+  name        String   @default("Grocery List")
+  createdAt   DateTime @default(now())
+  sentToAlexa Boolean  @default(false)
+  alexaSentAt DateTime?
+
+  items GroceryListItem[]
+
+  @@index([userId])
+}
+
+model GroceryListItem {
+  id            String             @id @default(cuid())
+  groceryListId String
+  groceryList   GroceryList        @relation(fields: [groceryListId], references: [id], onDelete: Cascade)
+  name          String
+  quantity      Float?
+  unit          String?
+  raw           String
+  category      IngredientCategory @default(OTHER)
+  isChecked     Boolean            @default(false)
+  sortOrder     Int                @default(0)
+
+  @@index([groceryListId])
+}
+
+// ─────────────────────────────────────────────
+// ALEXA INTEGRATION
+// ─────────────────────────────────────────────
+
+model AlexaCredential {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+  listId       String?
+  updatedAt    DateTime @updatedAt
+}

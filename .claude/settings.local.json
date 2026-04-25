@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm audit:*)",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(cmd /c \"taskkill /F /IM node.exe\")",
+      "Bash(curl -s -L \"https://www.lazycatkitchen.com/cauliflower-fritters/\" -A \"Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/124.0.0.0 Safari/537.36\")",
+      "Bash(npx tsc:*)",
+      "WebFetch(domain:thehappypear.ie)",
+      "WebFetch(domain:minimalistbaker.com)",
+      "WebFetch(domain:rainbowplantlife.com)",
+      "WebFetch(domain:ohsheglows.com)",
+      "WebFetch(domain:lazycatkitchen.com)",
+      "WebFetch(domain:simple-veganista.com)",
+      "Bash(ls \"C:\\\\Users\\\\willi\\\\Maui''s Kitchen\\\\src\\\\app\\\\\\(dashboard\\)\"\" 2>/dev/null || echo \"directory does not exist \")",
+      "Bash(ls '/c/Users/willi/Mauis Kitchen/src/app/\\(dashboard\\)/')",
+      "Bash(ls \"C:/Users/willi/Maui''s Kitchen/src/app/\\(dashboard\\)/\")",
+      "Bash(ls \"C:/Users/willi/Maui''s Kitchen/src/app/\\(dashboard\\)/grocery-list/\")",
+      "Bash(npm pkg:*)",
+      "Bash(findstr supabase:*)"
+    ]
+  }
+}

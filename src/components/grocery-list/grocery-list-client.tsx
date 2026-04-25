@@ -1,0 +1,748 @@
+"use client";
+
+import { useState, useCallback, useEffect } from "react";
+import {
+  Check,
+  Plus,
+  Trash2,
+  RefreshCw,
+  ShoppingCart,
+  Loader2,
+  X,
+  Mic,
+  CheckCircle2,
+  AlertTriangle,
+  Unlink,
+} from "lucide-react";
+import Link from "next/link";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type IngredientCategory =
+  | "PRODUCE"
+  | "PROTEIN"
+  | "DAIRY"
+  | "GRAINS"
+  | "PANTRY"
+  | "SPICES"
+  | "FROZEN"
+  | "BEVERAGES"
+  | "OTHER";
+
+interface GroceryListItem {
+  id: string;
+  groceryListId: string;
+  name: string;
+  quantity: number | null;
+  unit: string | null;
+  raw: string;
+  category: IngredientCategory;
+  isChecked: boolean;
+  sortOrder: number;
+}
+
+interface GroceryListWithItems {
+  id: string;
+  userId: string;
+  mealPlanId: string | null;
+  name: string;
+  createdAt: Date | string;
+  sentToAlexa: boolean;
+  alexaSentAt: Date | string | null;
+  items: GroceryListItem[];
+}
+
+interface Props {
+  initialList: GroceryListWithItems | null;
+  currentWeekStart: string;
+  currentWeekLabel: string;
+  hasMealPlan: boolean;
+  alexaConnected: boolean;
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const CATEGORY_ORDER: IngredientCategory[] = [
+  "PRODUCE",
+  "PROTEIN",
+  "DAIRY",
+  "GRAINS",
+  "PANTRY",
+  "SPICES",
+  "FROZEN",
+  "BEVERAGES",
+  "OTHER",
+];
+
+const CATEGORY_META: Record<IngredientCategory, { emoji: string; label: string }> = {
+  PRODUCE: { emoji: "🥦", label: "Produce" },
+  PROTEIN: { emoji: "🥩", label: "Protein" },
+  DAIRY: { emoji: "🥛", label: "Dairy" },
+  GRAINS: { emoji: "🌾", label: "Grains & Bread" },
+  PANTRY: { emoji: "🫙", label: "Pantry" },
+  SPICES: { emoji: "🧂", label: "Spices & Seasonings" },
+  FROZEN: { emoji: "❄️", label: "Frozen" },
+  BEVERAGES: { emoji: "🧃", label: "Beverages" },
+  OTHER: { emoji: "📦", label: "Other" },
+};
+
+const CATEGORY_OPTIONS: IngredientCategory[] = [
+  "PRODUCE",
+  "PROTEIN",
+  "DAIRY",
+  "GRAINS",
+  "PANTRY",
+  "SPICES",
+  "FROZEN",
+  "BEVERAGES",
+  "OTHER",
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatQuantity(item: GroceryListItem): string {
+  const parts: string[] = [];
+  if (item.quantity !== null && item.quantity !== undefined) {
+    parts.push(String(item.quantity));
+  }
+  if (item.unit) {
+    parts.push(item.unit);
+  }
+  return parts.join(" ");
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export default function GroceryListClient({
+  initialList,
+  currentWeekStart,
+  currentWeekLabel,
+  hasMealPlan,
+  alexaConnected: initialAlexaConnected,
+}: Props) {
+  const [list, setList] = useState<GroceryListWithItems | null>(initialList);
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [clearingChecked, setClearingChecked] = useState(false);
+
+  // Add item form state
+  const [addName, setAddName] = useState("");
+  const [addQuantity, setAddQuantity] = useState("");
+  const [addUnit, setAddUnit] = useState("");
+  const [addCategory, setAddCategory] = useState<IngredientCategory>("OTHER");
+  const [addingItem, setAddingItem] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+
+  // Alexa state
+  const [alexaConnected, setAlexaConnected] = useState(initialAlexaConnected);
+  const [alexaPushing, setAlexaPushing] = useState(false);
+  const [alexaStatus, setAlexaStatus] = useState<"idle" | "success" | "warning" | "error">("idle");
+  const [alexaMessage, setAlexaMessage] = useState<string | null>(null);
+
+  // Handle OAuth redirect feedback via URL params
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get("alexa_connected") === "1") {
+      setAlexaConnected(true);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    if (sp.get("alexa_error")) {
+      const errMap: Record<string, string> = {
+        access_denied: "Amazon account access was denied.",
+        invalid_state: "Session expired. Please try again.",
+        token_exchange: "Could not connect to Amazon. Please try again.",
+        missing_params: "Something went wrong with the connection. Please try again.",
+      };
+      const code = sp.get("alexa_error")!;
+      setAlexaStatus("error");
+      setAlexaMessage(errMap[code] ?? "Could not connect Alexa. Please try again.");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  // ── Generate / Regenerate ────────────────────────────────────────────────
+
+  const generateList = useCallback(async () => {
+    setGenerating(true);
+    setGenerateError(null);
+    try {
+      const res = await fetch("/api/grocery-list", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weekStart: currentWeekStart }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setGenerateError(data.error ?? "Failed to generate list");
+        return;
+      }
+      const data = await res.json();
+      setList(data.list);
+    } catch {
+      setGenerateError("Something went wrong. Please try again.");
+    } finally {
+      setGenerating(false);
+    }
+  }, [currentWeekStart]);
+
+  // ── Toggle isChecked ─────────────────────────────────────────────────────
+
+  const toggleItem = useCallback(
+    async (itemId: string, currentChecked: boolean) => {
+      if (!list) return;
+
+      // Optimistic update
+      setList((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          items: prev.items.map((it) =>
+            it.id === itemId ? { ...it, isChecked: !currentChecked } : it
+          ),
+        };
+      });
+
+      try {
+        const res = await fetch(
+          `/api/grocery-list/${list.id}/items/${itemId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isChecked: !currentChecked }),
+          }
+        );
+        if (!res.ok) {
+          // Revert
+          setList((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              items: prev.items.map((it) =>
+                it.id === itemId ? { ...it, isChecked: currentChecked } : it
+              ),
+            };
+          });
+        }
+      } catch {
+        // Revert
+        setList((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            items: prev.items.map((it) =>
+              it.id === itemId ? { ...it, isChecked: currentChecked } : it
+            ),
+          };
+        });
+      }
+    },
+    [list]
+  );
+
+  // ── Clear checked items ──────────────────────────────────────────────────
+
+  const clearChecked = useCallback(async () => {
+    if (!list) return;
+    const checkedItems = list.items.filter((it) => it.isChecked);
+    if (checkedItems.length === 0) return;
+
+    setClearingChecked(true);
+
+    // Optimistic update — remove checked items immediately
+    const prevItems = list.items;
+    setList((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        items: prev.items.filter((it) => !it.isChecked),
+      };
+    });
+
+    try {
+      await Promise.all(
+        checkedItems.map((item) =>
+          fetch(`/api/grocery-list/${list.id}/items/${item.id}`, {
+            method: "DELETE",
+          })
+        )
+      );
+    } catch {
+      // Revert on error
+      setList((prev) => {
+        if (!prev) return prev;
+        return { ...prev, items: prevItems };
+      });
+    } finally {
+      setClearingChecked(false);
+    }
+  }, [list]);
+
+  // ── Add custom item ──────────────────────────────────────────────────────
+
+  const addItem = useCallback(async () => {
+    if (!list || !addName.trim()) return;
+    setAddingItem(true);
+    setAddError(null);
+
+    const qtyNum = addQuantity.trim() ? parseFloat(addQuantity) : undefined;
+
+    try {
+      const res = await fetch(`/api/grocery-list/${list.id}/items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: addName.trim(),
+          quantity: qtyNum,
+          unit: addUnit.trim() || undefined,
+          category: addCategory,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        setAddError(data.error ?? "Failed to add item");
+        return;
+      }
+
+      const data = await res.json();
+      const newItem: GroceryListItem = data.item;
+
+      setList((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          items: [...prev.items, newItem],
+        };
+      });
+
+      // Reset form
+      setAddName("");
+      setAddQuantity("");
+      setAddUnit("");
+      setAddCategory("OTHER");
+    } catch {
+      setAddError("Something went wrong. Please try again.");
+    } finally {
+      setAddingItem(false);
+    }
+  }, [list, addName, addQuantity, addUnit, addCategory]);
+
+  // ── Push to Alexa ────────────────────────────────────────────────────────
+
+  const pushToAlexa = useCallback(async () => {
+    if (!list) return;
+    setAlexaPushing(true);
+    setAlexaStatus("idle");
+    setAlexaMessage(null);
+    try {
+      const res = await fetch("/api/alexa/push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listId: list.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAlexaStatus("error");
+        setAlexaMessage(data.error ?? "Failed to send to Alexa.");
+      } else if (data.warning) {
+        setAlexaStatus("warning");
+        setAlexaMessage(data.warning);
+      } else {
+        setAlexaStatus("success");
+        setAlexaMessage(`${data.count} item${data.count !== 1 ? "s" : ""} sent to your Alexa shopping list.`);
+      }
+    } catch {
+      setAlexaStatus("error");
+      setAlexaMessage("Something went wrong. Please try again.");
+    } finally {
+      setAlexaPushing(false);
+    }
+  }, [list]);
+
+  const disconnectAlexa = useCallback(async () => {
+    await fetch("/api/alexa/disconnect", { method: "DELETE" });
+    setAlexaConnected(false);
+    setAlexaStatus("idle");
+    setAlexaMessage(null);
+  }, []);
+
+  // ── Derived state ────────────────────────────────────────────────────────
+
+  const totalItems = list?.items.length ?? 0;
+  const checkedCount = list?.items.filter((it) => it.isChecked).length ?? 0;
+  const hasChecked = checkedCount > 0;
+  const progressPercent = totalItems > 0 ? (checkedCount / totalItems) * 100 : 0;
+
+  // Group items by category
+  const groupedItems = CATEGORY_ORDER.reduce<
+    Record<IngredientCategory, GroceryListItem[]>
+  >(
+    (acc, cat) => {
+      acc[cat] = (list?.items ?? [])
+        .filter((it) => it.category === cat)
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+      return acc;
+    },
+    {} as Record<IngredientCategory, GroceryListItem[]>
+  );
+
+  // ── Render ───────────────────────────────────────────────────────────────
+
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="max-w-2xl mx-auto px-4 py-8">
+
+        {/* ── Header ── */}
+        <div className="flex items-start justify-between mb-2">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+              <ShoppingCart className="w-6 h-6 text-[#E8834A]" />
+              Grocery List
+            </h1>
+            <p className="text-sm text-muted-foreground mt-0.5">{currentWeekLabel}</p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {list && (
+              <button
+                onClick={generateList}
+                disabled={generating}
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                title="Regenerate from meal plan"
+              >
+                {generating ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+                Regenerate
+              </button>
+            )}
+
+            <div className="relative group">
+              <button
+                onClick={!hasMealPlan ? undefined : generateList}
+                disabled={generating || !hasMealPlan}
+                className={[
+                  "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                  hasMealPlan
+                    ? "bg-[#E8834A] hover:bg-[#d4733c] text-white cursor-pointer disabled:opacity-60"
+                    : "bg-[#E8834A]/40 text-white/60 cursor-not-allowed",
+                ].join(" ")}
+              >
+                {generating ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <ShoppingCart className="w-4 h-4" />
+                )}
+                Generate from Meal Plan
+              </button>
+
+              {!hasMealPlan && (
+                <div className="absolute right-0 top-full mt-1.5 z-10 hidden group-hover:block">
+                  <div className="bg-card border border-border text-muted-foreground text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-lg">
+                    Add recipes to your meal plan first
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {generateError && (
+          <div className="mt-2 flex items-center gap-2 text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">
+            <X className="w-4 h-4 flex-shrink-0" />
+            {generateError}
+          </div>
+        )}
+
+        {/* ── Alexa bar ── */}
+        {list && (
+          <div className="mt-4 flex items-center gap-3 flex-wrap">
+            {alexaConnected ? (
+              <>
+                <button
+                  onClick={pushToAlexa}
+                  disabled={alexaPushing}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1B6FCB] hover:bg-[#155dab] text-white text-sm font-medium transition-colors disabled:opacity-60"
+                >
+                  {alexaPushing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Mic className="w-4 h-4" />
+                  )}
+                  {alexaPushing ? "Sending…" : "Push to Alexa"}
+                </button>
+                <button
+                  onClick={disconnectAlexa}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  title="Disconnect Alexa"
+                >
+                  <Unlink className="w-3.5 h-3.5" />
+                  Disconnect
+                </button>
+              </>
+            ) : (
+              <a
+                href="/api/alexa/auth"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-[#1B6FCB]/50 hover:bg-[#1B6FCB]/5 text-sm font-medium transition-colors"
+              >
+                <Mic className="w-4 h-4" />
+                Connect Alexa
+              </a>
+            )}
+
+            {/* Alexa feedback */}
+            {alexaStatus === "success" && alexaMessage && (
+              <div className="flex items-center gap-1.5 text-sm text-green-400">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                {alexaMessage}
+              </div>
+            )}
+            {alexaStatus === "warning" && alexaMessage && (
+              <div className="flex items-center gap-1.5 text-sm text-amber-400">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                {alexaMessage}
+              </div>
+            )}
+            {alexaStatus === "error" && alexaMessage && (
+              <div className="flex items-center gap-1.5 text-sm text-red-400">
+                <X className="w-4 h-4 flex-shrink-0" />
+                {alexaMessage}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Progress Bar ── */}
+        {list && totalItems > 0 && (
+          <div className="mt-4 mb-6">
+            <div className="flex items-center justify-between text-sm text-muted-foreground mb-1.5">
+              <span>
+                {checkedCount} of {totalItems} items
+              </span>
+              {hasChecked && (
+                <button
+                  onClick={clearChecked}
+                  disabled={clearingChecked}
+                  className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
+                >
+                  {clearingChecked ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-3 h-3" />
+                  )}
+                  Clear checked
+                </button>
+              )}
+            </div>
+            <div className="h-2 bg-border rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#E8834A] rounded-full transition-all duration-300"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ── Empty States ── */}
+        {!list && !hasMealPlan && (
+          <div className="mt-8 bg-card border border-border rounded-xl p-8 text-center">
+            <ShoppingCart className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <h2 className="text-lg font-semibold text-foreground mb-2">
+              No grocery list yet
+            </h2>
+            <p className="text-muted-foreground text-sm mb-6">
+              Plan your meals first, then generate your grocery list automatically.
+            </p>
+            <Link
+              href="/meal-plan"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#E8834A] hover:bg-[#d4733c] text-white text-sm font-medium transition-colors"
+            >
+              Go to Meal Plan
+            </Link>
+          </div>
+        )}
+
+        {!list && hasMealPlan && (
+          <div className="mt-8 bg-card border border-border rounded-xl p-8 text-center">
+            <ShoppingCart className="w-12 h-12 text-[#E8834A] mx-auto mb-4" />
+            <h2 className="text-lg font-semibold text-foreground mb-2">
+              Ready to generate
+            </h2>
+            <p className="text-muted-foreground text-sm mb-6">
+              Generate your grocery list from this week&apos;s meal plan.
+            </p>
+            <button
+              onClick={generateList}
+              disabled={generating}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#E8834A] hover:bg-[#d4733c] text-white text-sm font-medium transition-colors disabled:opacity-60"
+            >
+              {generating ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <ShoppingCart className="w-4 h-4" />
+              )}
+              Generate Grocery List
+            </button>
+          </div>
+        )}
+
+        {/* ── Items grouped by category ── */}
+        {list && (
+          <div className="space-y-6 mt-2">
+            {CATEGORY_ORDER.map((cat) => {
+              const items = groupedItems[cat];
+              if (items.length === 0) return null;
+              const meta = CATEGORY_META[cat];
+
+              return (
+                <div key={cat} className="bg-card border border-border rounded-xl overflow-hidden">
+                  {/* Category header */}
+                  <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+                    <span className="text-base leading-none">{meta.emoji}</span>
+                    <span className="text-sm font-semibold text-foreground">
+                      {meta.label}
+                    </span>
+                    <span className="ml-auto text-xs text-muted-foreground">
+                      {items.filter((it) => it.isChecked).length}/{items.length}
+                    </span>
+                  </div>
+
+                  {/* Items */}
+                  <ul className="divide-y divide-border">
+                    {items.map((item) => (
+                      <li
+                        key={item.id}
+                        className="flex items-center gap-3 px-4 py-3"
+                      >
+                        {/* Checkbox */}
+                        <button
+                          onClick={() => toggleItem(item.id, item.isChecked)}
+                          className={[
+                            "flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
+                            item.isChecked
+                              ? "bg-[#E8834A] border-[#E8834A]"
+                              : "border-border hover:border-[#E8834A]",
+                          ].join(" ")}
+                          aria-label={
+                            item.isChecked
+                              ? `Uncheck ${item.name}`
+                              : `Check ${item.name}`
+                          }
+                        >
+                          {item.isChecked && (
+                            <Check className="w-3 h-3 text-white" />
+                          )}
+                        </button>
+
+                        {/* Name */}
+                        <span
+                          className={[
+                            "flex-1 text-sm transition-colors",
+                            item.isChecked
+                              ? "line-through text-muted-foreground"
+                              : "text-foreground",
+                          ].join(" ")}
+                        >
+                          {item.name}
+                        </span>
+
+                        {/* Quantity + unit */}
+                        {(item.quantity !== null || item.unit) && (
+                          <span
+                            className={[
+                              "text-xs flex-shrink-0",
+                              item.isChecked
+                                ? "text-muted-foreground/60"
+                                : "text-muted-foreground",
+                            ].join(" ")}
+                          >
+                            {formatQuantity(item)}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+
+            {/* ── Add custom item form ── */}
+            <div className="bg-card border border-border rounded-xl p-4">
+              <p className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                <Plus className="w-4 h-4 text-[#E8834A]" />
+                Add item
+              </p>
+
+              {addError && (
+                <div className="mb-3 flex items-center gap-2 text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">
+                  <X className="w-3.5 h-3.5 flex-shrink-0" />
+                  {addError}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                {/* Name input */}
+                <input
+                  type="text"
+                  placeholder="Item name"
+                  value={addName}
+                  onChange={(e) => setAddName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && addName.trim()) addItem();
+                  }}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#E8834A] focus:border-[#E8834A]"
+                />
+
+                {/* Quantity + unit + category row */}
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    placeholder="Qty"
+                    value={addQuantity}
+                    onChange={(e) => setAddQuantity(e.target.value)}
+                    className="w-20 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#E8834A] focus:border-[#E8834A]"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Unit"
+                    value={addUnit}
+                    onChange={(e) => setAddUnit(e.target.value)}
+                    className="w-24 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#E8834A] focus:border-[#E8834A]"
+                  />
+                  <select
+                    value={addCategory}
+                    onChange={(e) =>
+                      setAddCategory(e.target.value as IngredientCategory)
+                    }
+                    className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#E8834A] focus:border-[#E8834A]"
+                  >
+                    {CATEGORY_OPTIONS.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {CATEGORY_META[cat].emoji} {CATEGORY_META[cat].label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    onClick={addItem}
+                    disabled={addingItem || !addName.trim()}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#E8834A] hover:bg-[#d4733c] text-white text-sm font-medium transition-colors disabled:opacity-50 flex-shrink-0"
+                  >
+                    {addingItem ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Plus className="w-4 h-4" />
+                    )}
+                    Add
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Dark mode is the default / only mode */
+    --background: 0 0% 10%;           /* #1A1A1A charcoal */
+    --foreground: 39 50% 91%;         /* #F5EDD8 warm cream */
+
+    --card: 0 0% 14%;                 /* #232323 card bg */
+    --card-foreground: 39 50% 91%;
+
+    --popover: 0 0% 14%;
+    --popover-foreground: 39 50% 91%;
+
+    --primary: 25 75% 58%;            /* #E8834A warm orange */
+    --primary-foreground: 0 0% 10%;
+
+    --secondary: 0 0% 18%;
+    --secondary-foreground: 39 50% 91%;
+
+    --muted: 0 0% 18%;
+    --muted-foreground: 39 20% 62%;   /* #C8BC9E muted cream */
+
+    --accent: 25 75% 58%;
+    --accent-foreground: 0 0% 10%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 39 50% 91%;
+
+    --border: 0 0% 18%;               /* #2E2E2E subtle border */
+    --input: 0 0% 18%;
+    --ring: 25 75% 58%;
+
+    --radius: 0.625rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--background));
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground));
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
