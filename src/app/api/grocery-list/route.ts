@@ -170,7 +170,7 @@ export async function POST(req: NextRequest) {
     return { name: raw, unit: existingUnit };
   }
 
-  // Strip recipe qualifiers like ", for drizzling", "(optional)", "to taste"
+  // Strip recipe qualifiers and preparation descriptions for grocery display
   function stripQualifiers(name: string): string {
     return name
       // Parenthetical measurements mid-name: "(about 10 g / 0.35 oz)", "(approx. 1 cup)"
@@ -181,9 +181,10 @@ export async function POST(req: NextRequest) {
       .replace(/^of\s+/i, "")
       // Trailing annotation markers: *, †, ‡, #
       .replace(/[\s*†‡#]+$/, "")
-      // Trailing qualifiers after comma
-      .replace(/,\s*(for\s+.+|to taste|as needed|if desired|if needed|optional|plus more.*|more to taste.*)$/i, "")
-      // " for frying/serving/etc" at end
+      // Strip EVERYTHING after the first comma — preparation descriptions are never
+      // needed on a grocery list ("cherry tomatoes, halved" → "cherry tomatoes")
+      .replace(/,.*$/, "")
+      // " for frying/serving/etc" at end (no comma)
       .replace(/\s+for\s+(frying|drizzling|brushing|serving|garnish(ing)?|topping|coating|greasing|cooking)(\s+and\s+\w+)?$/i, "")
       // Trailing parenthetical qualifiers: (optional), (to taste)
       .replace(/\s*\((optional|to taste|as needed|if desired|if needed)\)\s*$/i, "")
