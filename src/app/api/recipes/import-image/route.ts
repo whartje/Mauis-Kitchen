@@ -79,13 +79,16 @@ export async function POST(request: Request) {
     );
   }
 
-  // Upload first image to Supabase for the recipe thumbnail
-  const firstFile = files[0];
-  const firstBuffer = buffers[0].buffer;
-  const filename = `${userId}/${Date.now()}-${firstFile.name || "recipe.jpg"}`;
+  // Use collage thumbnail if provided, otherwise fall back to first file
+  const thumbnailFile = formData.get("thumbnail") as File | null;
+  const uploadFile = thumbnailFile ?? files[0];
+  const uploadBuffer = thumbnailFile
+    ? Buffer.from(await thumbnailFile.arrayBuffer())
+    : buffers[0].buffer;
+  const filename = `${userId}/${Date.now()}-${uploadFile.name || "recipe.jpg"}`;
   const { error: uploadError } = await supabase.storage
     .from("recipe-images")
-    .upload(filename, firstBuffer, { contentType: firstFile.type });
+    .upload(filename, uploadBuffer, { contentType: uploadFile.type });
 
   // Non-fatal — recipe saves without thumbnail if upload fails
   const imageUrl = uploadError

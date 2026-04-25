@@ -31,6 +31,42 @@ type PhotoStep =
 
 const ALLOWED = ["image/jpeg", "image/png", "image/webp"];
 
+// Create a side-by-side collage of multiple images for the thumbnail
+async function createCollage(files: File[]): Promise<File> {
+  if (files.length === 1) return files[0];
+  return new Promise((resolve) => {
+    const HEIGHT = 800;
+    const imgs: HTMLImageElement[] = [];
+    let loaded = 0;
+    files.forEach((file, i) => {
+      const img = new window.Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        imgs[i] = img;
+        if (++loaded === files.length) {
+          const totalWidth = imgs.reduce((sum, img) => sum + Math.round(img.width * HEIGHT / img.height), 0);
+          const canvas = document.createElement("canvas");
+          canvas.width = totalWidth;
+          canvas.height = HEIGHT;
+          const ctx = canvas.getContext("2d")!;
+          let x = 0;
+          imgs.forEach((img) => {
+            const w = Math.round(img.width * HEIGHT / img.height);
+            ctx.drawImage(img, x, 0, w, HEIGHT);
+            x += w;
+          });
+          canvas.toBlob((blob) => {
+            resolve(blob ? new File([blob], "collage.jpg", { type: "image/jpeg" }) : files[0]);
+          }, "image/jpeg", 0.85);
+        }
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); imgs[i] = new window.Image(); if (++loaded === files.length) resolve(files[0]); };
+      img.src = url;
+    });
+  });
+}
+
 // Compress image to max 1600px and ~80% quality before uploading
 async function compressImage(file: File): Promise<File> {
   return new Promise((resolve) => {
@@ -214,8 +250,11 @@ export function ImportRecipeModal({ open, onClose }: Props) {
     try {
       // Compress images before uploading to reduce upload time on mobile
       const compressed = await Promise.all(pages.map((p) => compressImage(p.file)));
+      // Create collage thumbnail from all pages
+      const thumbnail = await createCollage(compressed);
       const form = new FormData();
       compressed.forEach((f) => form.append("file", f));
+      form.append("thumbnail", thumbnail);
       form.append("collection", collection.trim());
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 120000); // 2 min timeout
