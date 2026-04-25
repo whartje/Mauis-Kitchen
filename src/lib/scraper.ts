@@ -50,7 +50,8 @@ export async function scrapeRecipeFromUrl(url: string): Promise<ScrapeResult> {
   }
 
   // Try JSON-LD first, then microdata
-  const jsonLd = extractJsonLd(html) ?? extractMicrodata(html);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const jsonLd = (extractJsonLd(html) ?? extractMicrodata(html)) as any;
 
   if (!jsonLd || !jsonLd.name) {
     throw new Error("No structured recipe data found on this page.");

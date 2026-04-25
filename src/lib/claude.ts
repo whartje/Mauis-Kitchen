@@ -12,7 +12,8 @@ export const anthropic = new Anthropic({
 // Robustly parse JSON that Claude might return with common issues:
 // - Bare fractions as numbers: "quantity": 1/2  ->  "quantity": 0.5
 // - Markdown code fences (already stripped elsewhere, but handled here too)
-function safeParseJson(text: string): unknown {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function safeParseJson(text: string): any {
   let json = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
 
   // Convert unicode vulgar fractions to decimals
@@ -236,7 +237,7 @@ export async function normalizeRecipeFromImage(
   mediaType: "image/jpeg" | "image/png" | "image/webp" = "image/jpeg"
 ): Promise<{ multipleRecipes: false; recipe: NormalizedRecipe } | { multipleRecipes: true; titles: string[] }> {
   // Build image content blocks
-  type ImageBlock = { type: "image"; source: { type: "base64"; media_type: string; data: string } };
+  type ImageBlock = { type: "image"; source: { type: "base64"; media_type: "image/jpeg" | "image/png" | "image/webp" | "image/gif"; data: string } };
   let imageBlocks: ImageBlock[];
 
   if (typeof imageData === "string") {
@@ -284,10 +285,10 @@ Output ONLY valid JSON. No markdown, no explanation.`,
   if (content.type !== "text") throw new Error("Unexpected Claude response type");
 
   const jsonText = content.text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
-  const parsed = safeParseJson(jsonText);
+  const parsed = safeParseJson(jsonText) as Record<string, unknown>;
 
   if (parsed.multipleRecipes === true) {
-    return { multipleRecipes: true, titles: parsed.titles };
+    return { multipleRecipes: true, titles: parsed.titles as string[] };
   }
 
   const recipe = RecipeNormalizationSchema.parse(parsed);

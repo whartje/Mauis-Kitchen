@@ -242,7 +242,7 @@ export function combineIngredients(
       result.push({
         name,
         quantity: rounded,
-        unit: unit ?? undefined,
+        unit: unit ?? null,
         display: unit ? `${formatQuantity(rounded)} ${unit} ${name}` : `${formatQuantity(rounded)} ${name}`,
         category: group[0].category,
       });
