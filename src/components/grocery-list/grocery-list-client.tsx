@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   Check,
   Plus,
@@ -12,6 +12,7 @@ import {
   Copy,
   CheckCircle2,
   Share2,
+  Mail,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -131,11 +132,24 @@ export default function GroceryListClient({
   const [addingItem, setAddingItem] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
-  // Share / copy state
+  // Share panel state
+  const [showSharePanel, setShowSharePanel] = useState(false);
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied">("idle");
+  const sharePanelRef = useRef<HTMLDivElement>(null);
 
   // Per-item delete
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
+
+  // Close share panel when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (sharePanelRef.current && !sharePanelRef.current.contains(e.target as Node)) {
+        setShowSharePanel(false);
+      }
+    }
+    if (showSharePanel) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showSharePanel]);
 
   // ── Generate / Regenerate ────────────────────────────────────────────────
 
@@ -343,10 +357,8 @@ export default function GroceryListClient({
 
   // ── Share / Copy list ────────────────────────────────────────────────────
 
-  const shareList = useCallback(async () => {
-    if (!list) return;
-
-    // Build a plain-text version grouped by category
+  const buildListText = useCallback(() => {
+    if (!list) return "";
     const lines: string[] = [`🛒 ${list.name || "Grocery List"}`, ""];
     for (const cat of CATEGORY_ORDER) {
       const items = (list.items ?? []).filter((it) => it.category === cat && !it.isChecked);
@@ -359,23 +371,36 @@ export default function GroceryListClient({
       }
       lines.push("");
     }
+    return lines.join("\n").trim();
+  }, [list]);
 
-    const text = lines.join("\n").trim();
-
-    // Try native share sheet (mobile), fall back to clipboard
-    if (navigator.share) {
+  const handleShareClick = useCallback(async () => {
+    // On mobile, use native share sheet (includes Alexa app, Messages, etc.)
+    const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+    if (isMobile && navigator.share) {
       try {
-        await navigator.share({ title: "Grocery List", text });
+        await navigator.share({ title: "Grocery List", text: buildListText() });
         return;
       } catch {
-        // User cancelled or not supported — fall through to clipboard
+        // cancelled — fall through
       }
     }
+    // On desktop, show our custom panel
+    setShowSharePanel((p) => !p);
+  }, [buildListText]);
 
-    await navigator.clipboard.writeText(text);
+  const copyToClipboard = useCallback(async () => {
+    await navigator.clipboard.writeText(buildListText());
     setCopyStatus("copied");
     setTimeout(() => setCopyStatus("idle"), 2500);
-  }, [list]);
+  }, [buildListText]);
+
+  const emailList = useCallback(() => {
+    const text = buildListText();
+    const subject = encodeURIComponent(list?.name || "Grocery List");
+    const body = encodeURIComponent(text);
+    window.open(`mailto:?subject=${subject}&body=${body}`);
+  }, [buildListText, list]);
 
   // ── Derived state ────────────────────────────────────────────────────────
 
@@ -469,23 +494,60 @@ export default function GroceryListClient({
 
         {/* ── Share bar ── */}
         {list && list.items.some((it) => !it.isChecked) && (
-          <div className="mt-4 flex items-center gap-3">
+          <div className="mt-4 flex items-center gap-3 relative" ref={sharePanelRef}>
             <button
-              onClick={shareList}
+              onClick={handleShareClick}
               className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-[#E8834A]/50 hover:bg-[#E8834A]/5 text-sm font-medium transition-colors"
             >
-              {copyStatus === "copied" ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4 text-green-400" />
-                  <span className="text-green-400">Copied!</span>
-                </>
-              ) : (
-                <>
-                  <Share2 className="w-4 h-4" />
-                  Share List
-                </>
-              )}
+              <Share2 className="w-4 h-4" />
+              Share List
             </button>
+
+            {/* Desktop share panel */}
+            {showSharePanel && (
+              <div className="absolute top-full left-0 mt-2 z-50 bg-card border border-border rounded-xl shadow-xl w-72 p-4 space-y-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Share options</p>
+
+                {/* Copy to clipboard */}
+                <button
+                  onClick={copyToClipboard}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-secondary transition-colors text-sm text-left"
+                >
+                  {copyStatus === "copied" ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
+                  ) : (
+                    <Copy className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  )}
+                  <span className={copyStatus === "copied" ? "text-green-400" : "text-foreground"}>
+                    {copyStatus === "copied" ? "Copied!" : "Copy to clipboard"}
+                  </span>
+                </button>
+
+                {/* Email */}
+                <button
+                  onClick={emailList}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-secondary transition-colors text-sm text-left"
+                >
+                  <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  <span className="text-foreground">Email list</span>
+                </button>
+
+                {/* Alexa web */}
+                <a
+                  href="https://alexa.amazon.com/spa/index.html#shopping-list"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={copyToClipboard}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-secondary transition-colors text-sm text-left"
+                >
+                  <span className="text-base leading-none flex-shrink-0">🔵</span>
+                  <div>
+                    <p className="text-foreground">Open Alexa &amp; paste</p>
+                    <p className="text-xs text-muted-foreground">Copies list, then opens Alexa shopping list</p>
+                  </div>
+                </a>
+              </div>
+            )}
           </div>
         )}
 

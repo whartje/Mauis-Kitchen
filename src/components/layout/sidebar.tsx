@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { UserButton } from "@clerk/nextjs";
+import { UserButton, useClerk } from "@clerk/nextjs";
 import {
   LayoutDashboard,
   BookOpen,
@@ -11,6 +11,7 @@ import {
   Package,
   Settings,
   Compass,
+  LogOut,
 } from "lucide-react";
 import { CatIcon } from "@/components/ui/cat-icon";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { signOut } = useClerk();
 
   return (
     <aside className="hidden md:flex flex-col w-56 bg-card border-r border-border shrink-0">
@@ -59,7 +61,7 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Bottom: settings + user */}
+      {/* Bottom: settings + user + logout */}
       <div className="px-3 py-4 border-t border-border space-y-0.5">
         <Link
           href="/settings"
@@ -75,8 +77,15 @@ export function Sidebar() {
         </Link>
         <div className="flex items-center gap-3 px-3 py-2.5">
           <UserButton afterSignOutUrl="/sign-in" />
-          <span className="text-sm text-muted-foreground">Account</span>
+          <span className="text-sm text-muted-foreground flex-1">Account</span>
         </div>
+        <button
+          onClick={() => signOut({ redirectUrl: "/sign-in" })}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-muted-foreground hover:text-red-400 hover:bg-red-400/10 transition-colors w-full"
+        >
+          <LogOut className="w-4 h-4" />
+          Log out
+        </button>
       </div>
     </aside>
   );
