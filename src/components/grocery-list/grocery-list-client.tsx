@@ -9,10 +9,9 @@ import {
   ShoppingCart,
   Loader2,
   X,
-  Mic,
+  Copy,
   CheckCircle2,
-  AlertTriangle,
-  Unlink,
+  Share2,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -57,7 +56,7 @@ interface Props {
   currentWeekStart: string;
   currentWeekLabel: string;
   hasMealPlan: boolean;
-  alexaConnected: boolean;
+  alexaConnected?: boolean; // kept for backwards compat, no longer used
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -118,7 +117,6 @@ export default function GroceryListClient({
   currentWeekStart,
   currentWeekLabel,
   hasMealPlan,
-  alexaConnected: initialAlexaConnected,
 }: Props) {
   const [list, setList] = useState<GroceryListWithItems | null>(initialList);
   const [generating, setGenerating] = useState(false);
@@ -133,32 +131,8 @@ export default function GroceryListClient({
   const [addingItem, setAddingItem] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
-  // Alexa state
-  const [alexaConnected, setAlexaConnected] = useState(initialAlexaConnected);
-  const [alexaPushing, setAlexaPushing] = useState(false);
-  const [alexaStatus, setAlexaStatus] = useState<"idle" | "success" | "warning" | "error">("idle");
-  const [alexaMessage, setAlexaMessage] = useState<string | null>(null);
-
-  // Handle OAuth redirect feedback via URL params
-  useEffect(() => {
-    const sp = new URLSearchParams(window.location.search);
-    if (sp.get("alexa_connected") === "1") {
-      setAlexaConnected(true);
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-    if (sp.get("alexa_error")) {
-      const errMap: Record<string, string> = {
-        access_denied: "Amazon account access was denied.",
-        invalid_state: "Session expired. Please try again.",
-        token_exchange: "Could not connect to Amazon. Please try again.",
-        missing_params: "Something went wrong with the connection. Please try again.",
-      };
-      const code = sp.get("alexa_error")!;
-      setAlexaStatus("error");
-      setAlexaMessage(errMap[code] ?? "Could not connect Alexa. Please try again.");
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-  }, []);
+  // Share / copy state
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied">("idle");
 
   // ── Generate / Regenerate ────────────────────────────────────────────────
 
@@ -327,44 +301,41 @@ export default function GroceryListClient({
     }
   }, [list, addName, addQuantity, addUnit, addCategory]);
 
-  // ── Push to Alexa ────────────────────────────────────────────────────────
+  // ── Share / Copy list ────────────────────────────────────────────────────
 
-  const pushToAlexa = useCallback(async () => {
+  const shareList = useCallback(async () => {
     if (!list) return;
-    setAlexaPushing(true);
-    setAlexaStatus("idle");
-    setAlexaMessage(null);
-    try {
-      const res = await fetch("/api/alexa/push", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ listId: list.id }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setAlexaStatus("error");
-        setAlexaMessage(data.error ?? "Failed to send to Alexa.");
-      } else if (data.warning) {
-        setAlexaStatus("warning");
-        setAlexaMessage(data.warning);
-      } else {
-        setAlexaStatus("success");
-        setAlexaMessage(`${data.count} item${data.count !== 1 ? "s" : ""} sent to your Alexa shopping list.`);
-      }
-    } catch {
-      setAlexaStatus("error");
-      setAlexaMessage("Something went wrong. Please try again.");
-    } finally {
-      setAlexaPushing(false);
-    }
-  }, [list]);
 
-  const disconnectAlexa = useCallback(async () => {
-    await fetch("/api/alexa/disconnect", { method: "DELETE" });
-    setAlexaConnected(false);
-    setAlexaStatus("idle");
-    setAlexaMessage(null);
-  }, []);
+    // Build a plain-text version grouped by category
+    const lines: string[] = [`🛒 ${list.name || "Grocery List"}`, ""];
+    for (const cat of CATEGORY_ORDER) {
+      const items = (list.items ?? []).filter((it) => it.category === cat && !it.isChecked);
+      if (items.length === 0) continue;
+      const meta = CATEGORY_META[cat];
+      lines.push(`${meta.emoji} ${meta.label}`);
+      for (const item of items) {
+        const qty = formatQuantity(item);
+        lines.push(`  • ${item.name}${qty ? ` (${qty})` : ""}`);
+      }
+      lines.push("");
+    }
+
+    const text = lines.join("\n").trim();
+
+    // Try native share sheet (mobile), fall back to clipboard
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Grocery List", text });
+        return;
+      } catch {
+        // User cancelled or not supported — fall through to clipboard
+      }
+    }
+
+    await navigator.clipboard.writeText(text);
+    setCopyStatus("copied");
+    setTimeout(() => setCopyStatus("idle"), 2500);
+  }, [list]);
 
   // ── Derived state ────────────────────────────────────────────────────────
 
@@ -456,61 +427,25 @@ export default function GroceryListClient({
           </div>
         )}
 
-        {/* ── Alexa bar ── */}
-        {list && (
-          <div className="mt-4 flex items-center gap-3 flex-wrap">
-            {alexaConnected ? (
-              <>
-                <button
-                  onClick={pushToAlexa}
-                  disabled={alexaPushing}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1B6FCB] hover:bg-[#155dab] text-white text-sm font-medium transition-colors disabled:opacity-60"
-                >
-                  {alexaPushing ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Mic className="w-4 h-4" />
-                  )}
-                  {alexaPushing ? "Sending…" : "Push to Alexa"}
-                </button>
-                <button
-                  onClick={disconnectAlexa}
-                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  title="Disconnect Alexa"
-                >
-                  <Unlink className="w-3.5 h-3.5" />
-                  Disconnect
-                </button>
-              </>
-            ) : (
-              <a
-                href="/api/alexa/auth"
-                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-[#1B6FCB]/50 hover:bg-[#1B6FCB]/5 text-sm font-medium transition-colors"
-              >
-                <Mic className="w-4 h-4" />
-                Connect Alexa
-              </a>
-            )}
-
-            {/* Alexa feedback */}
-            {alexaStatus === "success" && alexaMessage && (
-              <div className="flex items-center gap-1.5 text-sm text-green-400">
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                {alexaMessage}
-              </div>
-            )}
-            {alexaStatus === "warning" && alexaMessage && (
-              <div className="flex items-center gap-1.5 text-sm text-amber-400">
-                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                {alexaMessage}
-              </div>
-            )}
-            {alexaStatus === "error" && alexaMessage && (
-              <div className="flex items-center gap-1.5 text-sm text-red-400">
-                <X className="w-4 h-4 flex-shrink-0" />
-                {alexaMessage}
-              </div>
-            )}
+        {/* ── Share bar ── */}
+        {list && list.items.some((it) => !it.isChecked) && (
+          <div className="mt-4 flex items-center gap-3">
+            <button
+              onClick={shareList}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-[#E8834A]/50 hover:bg-[#E8834A]/5 text-sm font-medium transition-colors"
+            >
+              {copyStatus === "copied" ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-green-400" />
+                  <span className="text-green-400">Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-4 h-4" />
+                  Share List
+                </>
+              )}
+            </button>
           </div>
         )}
 

@@ -11,7 +11,10 @@ export async function GET() {
 
   const clientId = process.env.AMAZON_CLIENT_ID;
   if (!clientId) {
-    return NextResponse.json({ error: "AMAZON_CLIENT_ID not configured" }, { status: 503 });
+    // Redirect back to grocery list with a friendly error instead of raw JSON
+    return NextResponse.redirect(
+      new URL("/grocery-list?alexa_error=not_configured", process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000")
+    );
   }
 
   const state = crypto.randomBytes(16).toString("hex");

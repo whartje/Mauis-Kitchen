@@ -34,7 +34,7 @@ export default async function GroceryListPage() {
 
   const currentWeekLabel = `${formatShortDate(weekStart)} – ${formatShortDate(weekEnd)}`;
 
-  const [groceryList, mealPlan, alexaCreds] = await Promise.all([
+  const [groceryList, mealPlan] = await Promise.all([
     prisma.groceryList.findFirst({
       where: { userId },
       orderBy: { createdAt: "desc" },
@@ -50,10 +50,6 @@ export default async function GroceryListPage() {
         weekStartDate: weekStart,
       },
     }),
-    prisma.alexaCredential.findUnique({
-      where: { userId },
-      select: { id: true },
-    }),
   ]);
 
   return (
@@ -62,7 +58,6 @@ export default async function GroceryListPage() {
       currentWeekStart={weekStart.toISOString()}
       currentWeekLabel={currentWeekLabel}
       hasMealPlan={mealPlan !== null}
-      alexaConnected={alexaCreds !== null}
     />
   );
 }
