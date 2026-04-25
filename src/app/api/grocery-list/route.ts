@@ -132,33 +132,134 @@ export async function POST(req: NextRequest) {
 
   // ── Name helpers ───────────────────────────────────────────────────────────
 
-  // Strip quantity/unit text accidentally included in the name
-  function cleanIngredientName(raw: string): string {
+  /**
+   * Strip measurement prefixes accidentally baked into the ingredient name by Claude.
+   * Also recovers the unit when it was orphaned into the name (unit field was left null).
+   *
+   * Examples:
+   *  "100g / 3.5oz chickpea flour", unit="g"  → { name:"chickpea flour", unit:"g" }
+   *  "g / 1 cup vegan yogurt",      unit=null  → { name:"vegan yogurt",   unit:"g" }
+   *  "/ 10 tbsp soy milk",          unit="ml"  → { name:"soy milk",       unit:"ml" }
+   */
+  function cleanIngredientName(raw: string, existingUnit: string | null): { name: string; unit: string | null } {
     const u = "ml|l|g|kg|oz|lb|cup|cups|tbsp|tsp|teaspoon|tablespoon|pint|quart|gallon|fl oz";
-    const cleaned = raw
-      .replace(new RegExp(`^[\\d.]+\\s*(${u})\\s*\\/\\s*[\\d.]+\\s*(${u})\\s+`, "i"), "")
-      .replace(new RegExp(`^(${u})\\s*\\/\\s*[\\d.]+\\s*(${u})\\s+`, "i"), "")
-      .replace(new RegExp(`^\\/\\s*[\\d.]+\\s*(${u})\\s+`, "i"), "")
-      .replace(new RegExp(`^[\\d.]+\\s*(${u})$`, "i"), "")
-      .trim();
-    return cleaned || raw;
+    const re1 = new RegExp(`^([\\d.]+)\\s*(${u})\\s*/\\s*[\\d.]+\\s*(${u})\\s+(.+)$`, "i");
+    const re2 = new RegExp(`^(${u})\\s*/\\s*[\\d.]+\\s*(${u})\\s+(.+)$`, "i");
+    const re3 = new RegExp(`^/\\s*[\\d.]+\\s*(${u})\\s+(.+)$`, "i");
+    const re4 = new RegExp(`^[\\d.]+\\s*(${u})$`, "i");
+
+    let m: RegExpMatchArray | null;
+
+    // "100g / 3.5oz chickpea flour"
+    if ((m = raw.match(re1))) {
+      return { name: m[4].trim(), unit: existingUnit ?? canonicalUnit(m[2]) };
+    }
+    // "g / 1 cup vegan yogurt"  (Claude put unit into name, left unit field null)
+    if ((m = raw.match(re2))) {
+      return { name: m[3].trim(), unit: existingUnit ?? canonicalUnit(m[1]) };
+    }
+    // "/ 10 tbsp soy milk"
+    if ((m = raw.match(re3))) {
+      return { name: m[2].trim(), unit: existingUnit };
+    }
+    // "500g" alone (whole string is just a measurement — discard)
+    if (raw.match(re4)) {
+      return { name: "", unit: existingUnit };
+    }
+
+    return { name: raw, unit: existingUnit };
   }
 
-  // Strip recipe qualifiers like ", for drizzling" or ", to taste"
+  // Strip recipe qualifiers like ", for drizzling", "(optional)", "to taste"
   function stripQualifiers(name: string): string {
     return name
+      // Parenthetical measurements mid-name: "(about 10 g / 0.35 oz)", "(approx. 1 cup)"
+      .replace(/\s*\((about|approx\.?|approximately|around)\s+[^)]+\)\s*/gi, " ")
+      // Leading vague quantity phrases: "a small handful of", "a pinch of", etc.
+      .replace(/^a\s+(small\s+|large\s+|heaped\s+|heaping\s+)?(handful|pinch|dash|bunch|few|couple|can|slice|piece)\s+(of\s+)?/i, "")
+      // Leading "of " left over after stripping a phrase
+      .replace(/^of\s+/i, "")
+      // Trailing annotation markers: *, †, ‡, #
+      .replace(/[\s*†‡#]+$/, "")
+      // Trailing qualifiers after comma
       .replace(/,\s*(for\s+.+|to taste|as needed|if desired|if needed|optional|plus more.*|more to taste.*)$/i, "")
+      // " for frying/serving/etc" at end
       .replace(/\s+for\s+(frying|drizzling|brushing|serving|garnish(ing)?|topping|coating|greasing|cooking)(\s+and\s+\w+)?$/i, "")
+      // Trailing parenthetical qualifiers: (optional), (to taste)
+      .replace(/\s*\((optional|to taste|as needed|if desired|if needed)\)\s*$/i, "")
+      .replace(/\s+/g, " ")
       .trim();
   }
 
-  // Normalize name for matching (strip adverbs, lowercase, collapse spaces)
+  // Normalize name for matching: strip adverbs, lowercase, collapse spaces
   function normalizeName(name: string): string {
     return stripQualifiers(name)
       .toLowerCase()
       .replace(/^(freshly|finely|coarsely|roughly|thinly|lightly|heavily|freshly-ground)\s+/i, "")
       .replace(/\s+/g, " ")
       .trim();
+  }
+
+  // ── Compound ingredient splitter ──────────────────────────────────────────
+  // Splits entries like "spices: 1 tsp paprika, 1 tsp cumin, ¼ tsp garlic powder"
+  // into [{name:"smoked paprika", quantity:1, unit:"tsp"}, ...]
+
+  const FRAC_MAP: Record<string, number> = {
+    "¼": 0.25, "½": 0.5, "¾": 0.75,
+    "⅓": 0.3333, "⅔": 0.6667,
+    "⅛": 0.125, "⅜": 0.375, "⅝": 0.625, "⅞": 0.875,
+  };
+  const FRAC_CHARS = Object.keys(FRAC_MAP).join("|");
+  const UNIT_PAT = "ml|l|g|kg|oz|lb|cups?|tbsp|tablespoons?|tsp|teaspoons?|pint|quart";
+
+  function parseQuantity(str: string): number | null {
+    if (str in FRAC_MAP) return FRAC_MAP[str];
+    if (str.includes("/")) {
+      const [n, d] = str.split("/");
+      const val = Number(n) / Number(d);
+      return isNaN(val) ? null : val;
+    }
+    const val = parseFloat(str);
+    return isNaN(val) ? null : val;
+  }
+
+  function splitCompoundIngredient(
+    name: string,
+    category: IngredientCategory
+  ): Array<{ name: string; quantity: number | null; unit: string | null; category: IngredientCategory }> | null {
+    // Must have a "label:" prefix (e.g. "spices:", "for the sauce:")
+    const colonIdx = name.indexOf(":");
+    if (colonIdx === -1) return null;
+
+    const rest = name.slice(colonIdx + 1).trim();
+    if (!rest) return null;
+
+    // Split on commas followed immediately by a quantity (digit or unicode fraction)
+    const parts = rest.split(new RegExp(`,\\s*(?=${FRAC_CHARS}|\\d)`));
+    if (parts.length <= 1) return null;
+
+    const results: Array<{ name: string; quantity: number | null; unit: string | null; category: IngredientCategory }> = [];
+
+    for (const part of parts) {
+      const p = part.trim();
+      // Match: [qty] [unit?] [ingredient name]
+      const m = p.match(
+        new RegExp(`^(${FRAC_CHARS}|\\d+(?:[./]\\d+)?)\\s*(${UNIT_PAT})?\\s+(.+)$`, "i")
+      );
+      if (m) {
+        results.push({
+          name: m[3].trim(),
+          quantity: parseQuantity(m[1]),
+          unit: m[2] ? canonicalUnit(m[2]) : null,
+          category,
+        });
+      } else {
+        // No quantity found — keep as-is
+        results.push({ name: p, quantity: null, unit: null, category });
+      }
+    }
+
+    return results.length > 1 ? results : null;
   }
 
   // ── First pass: group by normalized name ───────────────────────────────────
@@ -174,29 +275,59 @@ export async function POST(req: NextRequest) {
 
   const byName = new Map<string, RawBucket>();
 
+  // Helper to add a single ingredient (name+qty+unit+category) into the byName map
+  function addToBucket(
+    ingredientName: string,
+    quantity: number | null,
+    unit: string | null,
+    raw: string,
+    category: IngredientCategory
+  ) {
+    const { name: cleanedName, unit: recoveredUnit } = cleanIngredientName(ingredientName, unit);
+    const effectiveName = cleanedName || ingredientName;
+    const keyName = normalizeName(effectiveName);
+    const unitCanon = canonicalUnit(recoveredUnit);
+    const hasQty = quantity !== null && quantity !== undefined;
+
+    if (!byName.has(keyName)) {
+      byName.set(keyName, {
+        displayName: stripQualifiers(effectiveName),
+        category,
+        raw,
+        byUnit: new Map(),
+        hasUnquantified: false,
+      });
+    }
+    const bucket = byName.get(keyName)!;
+
+    if (!hasQty) {
+      bucket.hasUnquantified = true;
+    } else {
+      const prev = bucket.byUnit.get(unitCanon) ?? 0;
+      bucket.byUnit.set(unitCanon, prev + quantity!);
+    }
+  }
+
   for (const planItem of mealPlan.items) {
     for (const ingredient of planItem.recipe.ingredients) {
-      const cleanedName = cleanIngredientName(ingredient.name);
-      const keyName = normalizeName(cleanedName);
-      const unitCanon = canonicalUnit(ingredient.unit);
-      const hasQty = ingredient.quantity !== null && ingredient.quantity !== undefined;
+      // Try to split compound entries like "spices: 1 tsp paprika, 1 tsp cumin"
+      const compounds = splitCompoundIngredient(
+        ingredient.name,
+        ingredient.category as IngredientCategory
+      );
 
-      if (!byName.has(keyName)) {
-        byName.set(keyName, {
-          displayName: stripQualifiers(cleanedName),
-          category: ingredient.category as IngredientCategory,
-          raw: ingredient.raw,
-          byUnit: new Map(),
-          hasUnquantified: false,
-        });
-      }
-      const bucket = byName.get(keyName)!;
-
-      if (!hasQty) {
-        bucket.hasUnquantified = true;
+      if (compounds) {
+        for (const c of compounds) {
+          addToBucket(c.name, c.quantity, c.unit, ingredient.raw, c.category);
+        }
       } else {
-        const prev = bucket.byUnit.get(unitCanon) ?? 0;
-        bucket.byUnit.set(unitCanon, prev + ingredient.quantity!);
+        addToBucket(
+          ingredient.name,
+          ingredient.quantity ?? null,
+          ingredient.unit ?? null,
+          ingredient.raw,
+          ingredient.category as IngredientCategory
+        );
       }
     }
   }

@@ -192,6 +192,7 @@ const NORMALIZATION_SYSTEM_PROMPT = `You are a recipe data extraction specialist
 Rules:
 - Extract ALL fields accurately — do not skip or truncate any content
 - If the recipe has multiple ingredient sections (e.g. "For the sauce:", "For the bowls:"), include EVERY ingredient from EVERY section as a flat list in the "ingredients" array. Do not omit any section.
+- If a single line lists multiple ingredients (e.g. "Spices: 1 tsp paprika, 1 tsp cumin, ¼ tsp garlic powder"), ALWAYS split them into separate ingredient objects — one per ingredient. Never keep multiple ingredients merged into a single entry.
 - For ingredient quantities that are vague ("to taste", "a pinch", "1 can"), set quantity and unit to null, and preserve the exact original text in the "raw" field
 
 INGREDIENT NAME RULES (critical):
