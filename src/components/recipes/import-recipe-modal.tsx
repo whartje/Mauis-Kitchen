@@ -190,7 +190,14 @@ export function ImportRecipeModal({ open, onClose }: Props) {
       const form = new FormData();
       pages.forEach((p) => form.append("file", p.file));
       form.append("collection", collection.trim());
-      const res = await fetch("/api/recipes/import-image", { method: "POST", body: form });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 120000); // 2 min timeout
+      let res: Response;
+      try {
+        res = await fetch("/api/recipes/import-image", { method: "POST", body: form, signal: controller.signal });
+      } finally {
+        clearTimeout(timeout);
+      }
       const data = await res.json();
 
       if (!res.ok) {

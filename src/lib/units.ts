@@ -94,14 +94,23 @@ export function scaleQuantity(
 
   const lowerUnit = unit.toLowerCase().trim();
 
-  // Volume unit
+  // Volume unit — keep original unit unless the quantity is too large/small
   if (lowerUnit in VOLUME_TO_ML) {
+    const scaled = roundNicely(rawQuantity);
+    // Stay in original unit if between ⅛ and 16 (avoids awkward conversions like ⅓ cup → fl oz)
+    if (scaled >= 0.125 && scaled <= 16) {
+      return { quantity: scaled, unit: lowerUnit, display: `${formatQuantity(scaled)} ${lowerUnit}` };
+    }
     const ml = rawQuantity * VOLUME_TO_ML[lowerUnit];
     return convertVolume(ml);
   }
 
-  // Weight unit
+  // Weight unit — keep original unit unless the quantity is too large/small
   if (lowerUnit in WEIGHT_TO_GRAMS) {
+    const scaled = roundNicely(rawQuantity);
+    if (scaled >= 0.125 && scaled <= 32) {
+      return { quantity: scaled, unit: lowerUnit, display: `${formatQuantity(scaled)} ${lowerUnit}` };
+    }
     const grams = rawQuantity * WEIGHT_TO_GRAMS[lowerUnit];
     return convertWeight(grams);
   }

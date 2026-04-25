@@ -1,3 +1,5 @@
+export const maxDuration = 120; // Allow up to 2 minutes for Claude Vision
+
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
