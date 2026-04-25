@@ -31,6 +31,31 @@ type PhotoStep =
 
 const ALLOWED = ["image/jpeg", "image/png", "image/webp"];
 
+// Compress image to max 1600px and ~80% quality before uploading
+async function compressImage(file: File): Promise<File> {
+  return new Promise((resolve) => {
+    const MAX_PX = 1600;
+    const img = new window.Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > MAX_PX || height > MAX_PX) {
+        if (width > height) { height = Math.round(height * MAX_PX / width); width = MAX_PX; }
+        else { width = Math.round(width * MAX_PX / height); height = MAX_PX; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+      canvas.toBlob((blob) => {
+        resolve(blob ? new File([blob], file.name || "photo.jpg", { type: "image/jpeg" }) : file);
+      }, "image/jpeg", 0.82);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
 export function ImportRecipeModal({ open, onClose }: Props) {
   const router = useRouter();
 
@@ -187,8 +212,10 @@ export function ImportRecipeModal({ open, onClose }: Props) {
     }, 2500);
 
     try {
+      // Compress images before uploading to reduce upload time on mobile
+      const compressed = await Promise.all(pages.map((p) => compressImage(p.file)));
       const form = new FormData();
-      pages.forEach((p) => form.append("file", p.file));
+      compressed.forEach((f) => form.append("file", f));
       form.append("collection", collection.trim());
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 120000); // 2 min timeout
@@ -215,8 +242,11 @@ export function ImportRecipeModal({ open, onClose }: Props) {
       router.refresh();
       setPhotoStep({ kind: "done" });
       setTimeout(handleClose, 800);
-    } catch {
-      setPhotoError("Something went wrong. Please try again.");
+    } catch (err) {
+      const isTimeout = err instanceof Error && err.name === "AbortError";
+      setPhotoError(isTimeout
+        ? "Scan timed out — try with fewer or smaller photos."
+        : "Something went wrong. Please try again.");
       setPhotoStep({ kind: "idle" });
     } finally {
       clearInterval(interval);

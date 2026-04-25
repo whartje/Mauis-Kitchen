@@ -1,4 +1,4 @@
-export const maxDuration = 120; // Allow up to 2 minutes for Claude Vision
+export const maxDuration = 60; // Vercel Hobby plan max
 
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
