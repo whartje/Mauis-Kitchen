@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, Unlock, X, Plus, ChevronLeft, ChevronRight, Clock } from "lucide-react";
+import Link from "next/link";
+import { Lock, Unlock, X, Plus, ChevronLeft, ChevronRight, Clock, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { computeIngredientOverlap, type OverlapLevel } from "@/lib/overlap";
 import { RecipePickerDrawer, type RecipeForPicker } from "./recipe-picker-drawer";
@@ -341,7 +342,7 @@ function RecipeSlotCard({
   return (
     <div
       className={cn(
-        "relative h-full min-h-[90px] rounded-lg p-2.5 flex flex-col gap-1.5",
+        "relative h-full min-h-[90px] rounded-lg p-2.5 flex flex-col gap-1.5 group/card",
         item.isLocked
           ? "bg-brand-orange/10 border border-brand-orange/30"
           : "bg-secondary border border-border"
@@ -377,10 +378,15 @@ function RecipeSlotCard({
         )}
       </div>
 
-      {/* Title */}
-      <p className="text-xs font-medium text-foreground leading-tight line-clamp-2 pr-10">
-        {item.recipe.title}
-      </p>
+      {/* Clickable recipe title */}
+      <Link
+        href={`/recipes/${item.recipe.id}`}
+        className="text-xs font-medium text-foreground leading-tight line-clamp-2 pr-10 hover:text-brand-orange transition-colors group/link flex items-start gap-1"
+        title={`View ${item.recipe.title}`}
+      >
+        <span>{item.recipe.title}</span>
+        <ExternalLink className="w-2.5 h-2.5 shrink-0 mt-0.5 opacity-0 group-hover/link:opacity-60 transition-opacity" />
+      </Link>
 
       {/* Time */}
       {item.recipe.totalTime != null && (
