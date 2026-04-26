@@ -24,5 +24,5 @@ export default async function RecipeDetailPage({ params }: Props) {
 
   if (!recipe) notFound();
 
-  return <RecipeDetailClient recipe={recipe} />;
+  return <RecipeDetailClient recipe={{ ...recipe, notes: recipe.notes ?? null }} />;
 }
