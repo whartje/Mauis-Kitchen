@@ -50,8 +50,8 @@ interface Props {
 const MEAL_TYPES: { value: MealTypeEnum; label: string }[] = [
   { value: "BREAKFAST", label: "Breakfast" },
   { value: "LUNCH", label: "Lunch" },
-  { value: "DINNER", label: "Dinner" },
   { value: "SNACK", label: "Snack" },
+  { value: "DINNER", label: "Dinner" },
 ];
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -266,8 +266,7 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props)
             <div
               key={mealType}
               className={cn(
-                "grid grid-cols-[110px_repeat(7,1fr)]",
-                rowIdx < MEAL_TYPES.length - 1 && "border-b border-border"
+                "grid grid-cols-[110px_repeat(7,1fr)] border-b border-border",
               )}
             >
               {/* Meal type label */}
@@ -306,6 +305,9 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props)
               })}
             </div>
           ))}
+
+          {/* Daily nutrition totals row */}
+          <DailyNutritionRow items={plan.items} />
         </div>
       </div>
 
@@ -347,6 +349,60 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props)
         planItems={plan.items}
         onSelect={addRecipe}
       />
+    </div>
+  );
+}
+
+// ─── Daily nutrition totals row ───────────────────────────────────────────────
+
+function DailyNutritionRow({ items }: { items: PlanItem[] }) {
+  // Compute per-day totals for calories, protein, carbs
+  const dayTotals: Array<{ cal: number | null; protein: number | null; carbs: number | null; hasData: boolean }> =
+    Array.from({ length: 7 }, (_, dayIdx) => {
+      const dayItems = items.filter((it) => it.dayOfWeek === dayIdx && it.recipe.nutrition);
+      if (dayItems.length === 0) return { cal: null, protein: null, carbs: null, hasData: false };
+      let cal = 0, protein = 0, carbs = 0;
+      for (const item of dayItems) {
+        const n = item.recipe.nutrition!;
+        const factor = item.servings ?? 4;
+        if (n.calories != null) cal += n.calories * factor;
+        if (n.protein  != null) protein += n.protein  * factor;
+        if (n.carbs    != null) carbs   += n.carbs    * factor;
+      }
+      return { cal, protein, carbs, hasData: true };
+    });
+
+  const anyData = dayTotals.some((d) => d.hasData);
+  if (!anyData) return null;
+
+  return (
+    <div className="grid grid-cols-[110px_repeat(7,1fr)] bg-secondary/20 border-t border-border">
+      {/* Label cell */}
+      <div className="p-3 flex flex-col justify-center border-r border-border">
+        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Daily</span>
+        <span className="text-[10px] text-muted-foreground mt-0.5">Cal · Pro · Carb</span>
+      </div>
+
+      {/* Day cells */}
+      {dayTotals.map((d, i) => (
+        <div key={i} className="border-l border-border px-2 py-3 flex flex-col items-center justify-center gap-1">
+          {d.hasData ? (
+            <>
+              <span className="text-xs font-semibold text-orange-400 leading-none">
+                {Math.round(d.cal!)}
+              </span>
+              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                <span className="text-blue-400 font-medium">{Math.round(d.protein!)}g</span>
+                <span className="text-muted-foreground/40">·</span>
+                <span className="text-yellow-400 font-medium">{Math.round(d.carbs!)}g</span>
+              </div>
+              <span className="text-[9px] text-muted-foreground/40">kcal</span>
+            </>
+          ) : (
+            <span className="text-[10px] text-muted-foreground/20">—</span>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
