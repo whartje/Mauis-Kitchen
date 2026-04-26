@@ -268,6 +268,24 @@ export default function GroceryListClient({
     }
   }, [list]);
 
+  // ── Update individual item ───────────────────────────────────────────────
+
+  const updateItem = useCallback(
+    async (itemId: string, patch: { name?: string; quantity?: number | null; unit?: string | null }) => {
+      if (!list) return;
+      setList((prev) => {
+        if (!prev) return prev;
+        return { ...prev, items: prev.items.map((it) => it.id === itemId ? { ...it, ...patch } : it) };
+      });
+      await fetch(`/api/grocery-list/${list.id}/items/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+    },
+    [list]
+  );
+
   // ── Delete individual item ───────────────────────────────────────────────
 
   const deleteItem = useCallback(
@@ -664,70 +682,14 @@ export default function GroceryListClient({
                   {/* Items */}
                   <ul className="divide-y divide-border">
                     {items.map((item) => (
-                      <li
+                      <GroceryItemRow
                         key={item.id}
-                        className="group flex items-center gap-3 px-4 py-3"
-                      >
-                        {/* Checkbox */}
-                        <button
-                          onClick={() => toggleItem(item.id, item.isChecked)}
-                          className={[
-                            "flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
-                            item.isChecked
-                              ? "bg-[#E8834A] border-[#E8834A]"
-                              : "border-border hover:border-[#E8834A]",
-                          ].join(" ")}
-                          aria-label={
-                            item.isChecked
-                              ? `Uncheck ${item.name}`
-                              : `Check ${item.name}`
-                          }
-                        >
-                          {item.isChecked && (
-                            <Check className="w-3 h-3 text-white" />
-                          )}
-                        </button>
-
-                        {/* Name */}
-                        <span
-                          className={[
-                            "flex-1 text-sm transition-colors",
-                            item.isChecked
-                              ? "line-through text-muted-foreground"
-                              : "text-foreground",
-                          ].join(" ")}
-                        >
-                          {item.name}
-                        </span>
-
-                        {/* Quantity + unit */}
-                        {(item.quantity !== null || item.unit) && (
-                          <span
-                            className={[
-                              "text-xs flex-shrink-0",
-                              item.isChecked
-                                ? "text-muted-foreground/60"
-                                : "text-muted-foreground",
-                            ].join(" ")}
-                          >
-                            {formatQuantity(item)}
-                          </span>
-                        )}
-
-                        {/* Delete button — visible on hover (always visible on touch) */}
-                        <button
-                          onClick={() => deleteItem(item.id)}
-                          disabled={deletingItemId === item.id}
-                          className="flex-shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground/40 hover:text-red-400 disabled:opacity-30"
-                          aria-label={`Remove ${item.name}`}
-                        >
-                          {deletingItemId === item.id ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <X className="w-3.5 h-3.5" />
-                          )}
-                        </button>
-                      </li>
+                        item={item}
+                        deleting={deletingItemId === item.id}
+                        onToggle={() => toggleItem(item.id, item.isChecked)}
+                        onUpdate={(patch) => updateItem(item.id, patch)}
+                        onDelete={() => deleteItem(item.id)}
+                      />
                     ))}
                   </ul>
                 </div>
@@ -810,5 +772,119 @@ export default function GroceryListClient({
         )}
       </div>
     </div>
+  );
+}
+
+// ─── Editable item row ────────────────────────────────────────────────────────
+
+function GroceryItemRow({
+  item,
+  deleting,
+  onToggle,
+  onUpdate,
+  onDelete,
+}: {
+  item: GroceryListItem;
+  deleting: boolean;
+  onToggle: () => void;
+  onUpdate: (patch: { name?: string; quantity?: number | null; unit?: string | null }) => void;
+  onDelete: () => void;
+}) {
+  const [qty, setQty] = useState(item.quantity != null ? String(item.quantity) : "");
+  const [unit, setUnit] = useState(item.unit ?? "");
+  const [name, setName] = useState(item.name);
+
+  function commitQty() {
+    const parsed = qty.trim() === "" ? null : parseFloat(qty);
+    const value = parsed != null && !isNaN(parsed) ? parsed : null;
+    if (value !== item.quantity) onUpdate({ quantity: value });
+  }
+
+  function commitUnit() {
+    const value = unit.trim() || null;
+    if (value !== item.unit) onUpdate({ unit: value });
+  }
+
+  function commitName() {
+    const value = name.trim();
+    if (!value) { setName(item.name); return; }
+    if (value !== item.name) onUpdate({ name: value });
+  }
+
+  return (
+    <li className="group/row flex items-center gap-2 px-4 py-2.5">
+      {/* Checkbox */}
+      <button
+        onClick={onToggle}
+        className={[
+          "flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
+          item.isChecked
+            ? "bg-[#E8834A] border-[#E8834A]"
+            : "border-border hover:border-[#E8834A]",
+        ].join(" ")}
+        aria-label={item.isChecked ? `Uncheck ${item.name}` : `Check ${item.name}`}
+      >
+        {item.isChecked && <Check className="w-3 h-3 text-white" />}
+      </button>
+
+      {/* Qty */}
+      <input
+        type="text"
+        inputMode="decimal"
+        value={qty}
+        onChange={(e) => setQty(e.target.value)}
+        onBlur={commitQty}
+        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+        placeholder="qty"
+        className={[
+          "w-10 shrink-0 bg-transparent border-b border-transparent hover:border-border focus:border-[#E8834A]",
+          "px-0.5 py-0.5 text-xs text-muted-foreground placeholder:text-muted-foreground/30 focus:outline-none text-center transition-colors",
+          item.isChecked ? "opacity-50" : "",
+        ].join(" ")}
+      />
+
+      {/* Unit */}
+      <input
+        type="text"
+        value={unit}
+        onChange={(e) => setUnit(e.target.value)}
+        onBlur={commitUnit}
+        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+        placeholder="unit"
+        className={[
+          "w-14 shrink-0 bg-transparent border-b border-transparent hover:border-border focus:border-[#E8834A]",
+          "px-0.5 py-0.5 text-xs text-muted-foreground placeholder:text-muted-foreground/30 focus:outline-none transition-colors",
+          item.isChecked ? "opacity-50" : "",
+        ].join(" ")}
+      />
+
+      {/* Name */}
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onBlur={commitName}
+        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+        className={[
+          "flex-1 min-w-0 bg-transparent border-b border-transparent hover:border-border focus:border-[#E8834A]",
+          "px-0.5 py-0.5 text-sm focus:outline-none transition-colors",
+          item.isChecked ? "line-through text-muted-foreground" : "text-foreground",
+        ].join(" ")}
+      />
+
+      {/* Delete */}
+      <button
+        onClick={onDelete}
+        disabled={deleting}
+        className="flex-shrink-0 text-muted-foreground/0 group-hover/row:text-muted-foreground/40 hover:!text-red-400 hover:bg-red-400/10 p-1 rounded transition-colors disabled:opacity-30"
+        aria-label={`Remove ${item.name}`}
+      >
+        {deleting ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        ) : (
+          <X className="w-3.5 h-3.5" />
+        )}
+      </button>
+    </li>
   );
 }
