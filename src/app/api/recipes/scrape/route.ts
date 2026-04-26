@@ -6,7 +6,7 @@ import { scrapeRecipeFromUrl } from "@/lib/scraper";
 
 const ScrapeSchema = z.object({
   url: z.string().url(),
-  collection: z.string().min(1, "Cookbook / collection is required"),
+  collection: z.string().min(1).optional().nullable(),
 });
 
 export async function POST(request: Request) {

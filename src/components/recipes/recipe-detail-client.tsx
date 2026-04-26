@@ -823,18 +823,21 @@ export function RecipeDetailClient({ recipe }: Props) {
       {/* Lightbox */}
       {lightboxOpen && imageUrl && (
         <div
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 cursor-zoom-out"
+          className="fixed inset-0 z-[200] bg-black/92 flex items-center justify-center cursor-zoom-out"
           onClick={closeLightbox}
         >
+          {/* Close button — large tap target, always visible */}
           <button
-            onClick={closeLightbox}
-            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white"
-            aria-label="Close"
+            onClick={(e) => { e.stopPropagation(); closeLightbox(); }}
+            className="absolute top-14 right-4 md:top-5 md:right-5 z-10 flex items-center justify-center w-11 h-11 rounded-full bg-black/70 hover:bg-black/90 border border-white/20 text-white transition-colors shadow-lg"
+            aria-label="Close photo"
           >
-            <X className="w-5 h-5" />
+            <X className="w-6 h-6" />
           </button>
+
+          {/* Image — stop click propagation so tapping the photo doesn't close */}
           <div
-            className="relative max-w-5xl max-h-[90vh] w-full h-full"
+            className="relative w-full h-full p-4 md:p-10"
             onClick={(e) => e.stopPropagation()}
           >
             <Image

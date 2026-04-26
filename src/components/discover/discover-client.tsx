@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   Search, Star, Clock, ThumbsUp, Plus, Check,
-  Loader2, ChevronDown, Globe, Calendar,
+  Loader2, ChevronDown, Globe, Calendar, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SpoonacularRecipe } from "@/app/api/discover/route";
@@ -173,7 +173,8 @@ export function DiscoverClient({ initialResults, initialQuery, initialFilters }:
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [imported, setImported] = useState<Set<string>>(new Set());
+  // key → imported recipe ID (for navigation after import)
+  const [imported, setImported] = useState<Map<string, string>>(new Map());
   const [importing, setImporting] = useState<Set<string>>(new Set());
   const [offset, setOffset] = useState(initialResults.length);
   const [totalResults, setTotalResults] = useState<number | null>(null);
@@ -320,14 +321,20 @@ export function DiscoverClient({ initialResults, initialQuery, initialFilters }:
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ spoonacularId: result.data.id }),
         });
-        if (res.ok) setImported((s) => new Set([...s, key]));
+        if (res.ok) {
+          const data = await res.json();
+          setImported((s) => new Map([...s, [key, data.recipeId]]));
+        }
       } else {
         const res = await fetch("/api/recipes/scrape", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ url: (result.data as CuratedRecipe).link }),
         });
-        if (res.ok) setImported((s) => new Set([...s, key]));
+        if (res.ok) {
+          const data = await res.json();
+          setImported((s) => new Map([...s, [key, data.id]]));
+        }
       }
     } finally {
       setImporting((s) => { const ns = new Set(s); ns.delete(key); return ns; });
@@ -587,6 +594,7 @@ export function DiscoverClient({ initialResults, initialQuery, initialFilters }:
               const key = result.source === "spoonacular"
                 ? `sp-${result.data.id}`
                 : `cu-${(result.data as CuratedRecipe).link}`;
+              const importedRecipeId = imported.get(key);
               return (
                 <ResultCard
                   key={key ?? i}
@@ -594,7 +602,7 @@ export function DiscoverClient({ initialResults, initialQuery, initialFilters }:
                   isImported={imported.has(key)}
                   isImporting={importing.has(key)}
                   onImport={() => handleImport(result)}
-                  onView={() => router.push("/recipes")}
+                  onView={() => router.push(importedRecipeId ? `/recipes/${importedRecipeId}` : "/recipes")}
                 />
               );
             })}
@@ -661,15 +669,22 @@ function ResultCard({
 }) {
   if (result.source === "spoonacular") {
     const r = result.data;
+    const sourceUrl = r.sourceUrl ?? null;
     return (
       <div className="bg-card border border-border rounded-xl overflow-hidden flex flex-col hover:border-brand-orange/30 transition-colors">
-        <div className="relative h-44 bg-secondary shrink-0">
+        {/* Clickable image → opens original recipe */}
+        <a href={sourceUrl ?? undefined} target="_blank" rel="noopener noreferrer"
+          className="relative h-44 bg-secondary shrink-0 block group">
           {r.image ? (
             <Image src={r.image} alt={r.title} fill className="object-cover"
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
           ) : (
             <div className="flex items-center justify-center h-full text-4xl">🍽️</div>
           )}
+          {/* Hover overlay */}
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+            <ExternalLink className="w-6 h-6 text-white opacity-0 group-hover:opacity-80 transition-opacity drop-shadow" />
+          </div>
           {r.diets.length > 0 && (
             <div className="absolute bottom-2 left-2 flex gap-1 flex-wrap">
               {r.diets.slice(0, 2).map((d) => (
@@ -677,9 +692,13 @@ function ResultCard({
               ))}
             </div>
           )}
-        </div>
+        </a>
         <div className="p-4 flex flex-col gap-2 flex-1">
-          <h3 className="font-semibold text-foreground text-sm leading-snug line-clamp-2">{r.title}</h3>
+          {/* Clickable title */}
+          <a href={sourceUrl ?? undefined} target="_blank" rel="noopener noreferrer"
+            className="font-semibold text-foreground text-sm leading-snug line-clamp-2 hover:text-brand-orange transition-colors">
+            {r.title}
+          </a>
           <div className="flex items-center justify-between">
             <StarRating score={r.spoonacularScore} />
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -711,19 +730,29 @@ function ResultCard({
 
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden flex flex-col hover:border-brand-orange/30 transition-colors">
-      <div className="relative h-44 bg-secondary shrink-0">
+      {/* Clickable image → opens original recipe */}
+      <a href={r.link} target="_blank" rel="noopener noreferrer"
+        className="relative h-44 bg-secondary shrink-0 block group">
         {r.image ? (
           <Image src={r.image} alt={r.title} fill className="object-cover"
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
         ) : (
           <div className="flex items-center justify-center h-full text-4xl">🍽️</div>
         )}
+        {/* Hover overlay */}
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+          <ExternalLink className="w-6 h-6 text-white opacity-0 group-hover:opacity-80 transition-opacity drop-shadow" />
+        </div>
         <div className="absolute top-2 left-2">
           <span className="px-2 py-0.5 bg-black/60 text-white text-xs rounded-full backdrop-blur-sm">{r.siteName}</span>
         </div>
-      </div>
+      </a>
       <div className="p-4 flex flex-col gap-2 flex-1">
-        <h3 className="font-semibold text-foreground text-sm leading-snug line-clamp-2">{r.title}</h3>
+        {/* Clickable title */}
+        <a href={r.link} target="_blank" rel="noopener noreferrer"
+          className="font-semibold text-foreground text-sm leading-snug line-clamp-2 hover:text-brand-orange transition-colors">
+          {r.title}
+        </a>
         {r.description && <p className="text-xs text-muted-foreground line-clamp-2">{r.description}</p>}
         {dateStr && (
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -756,7 +785,7 @@ function ImportButton({ isImported, isImporting, onImport, onView }: {
       {isImporting ? (
         <><Loader2 className="w-3.5 h-3.5 animate-spin" />Importing…</>
       ) : isImported ? (
-        <><Check className="w-3.5 h-3.5" />Added to Library</>
+        <><Check className="w-3.5 h-3.5" />View in Library</>
       ) : (
         <><Plus className="w-3.5 h-3.5" />Import to Library</>
       )}
