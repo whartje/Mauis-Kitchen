@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Link as LinkIcon, Camera, ArrowRight, CalendarDays, Clock, ExternalLink } from "lucide-react";
+import { Link as LinkIcon, Camera, ArrowRight, CalendarDays, Clock, ExternalLink, Minus, Plus as PlusIcon, Users } from "lucide-react";
 import { RecipeCard } from "@/components/recipes/recipe-card";
 import { ImportRecipeModal } from "@/components/recipes/import-recipe-modal";
 
@@ -19,11 +19,24 @@ interface RecipeSummary {
   servings: number;
 }
 
+interface NutritionFact {
+  calories: number | null;
+  protein: number | null;
+  carbs: number | null;
+  fat: number | null;
+  fiber: number | null;
+  sugar: number | null;
+  sodium: number | null;
+  iron: number | null;
+  isEstimated: boolean;
+}
+
 interface MealPlanItem {
   id: string;
   dayOfWeek: number | null;
   mealType: "BREAKFAST" | "LUNCH" | "DINNER" | "SNACK";
-  recipe: { id: string; title: string; totalTime: number | null };
+  servings: number;
+  recipe: { id: string; title: string; totalTime: number | null; servings: number; nutrition: NutritionFact | null };
 }
 
 interface Props {
@@ -58,6 +71,7 @@ function fmtDate(date: Date): string {
 export function DashboardClient({ recentRecipes, recipeCount, weekStart, mealPlanItems }: Props) {
   const [importOpen, setImportOpen] = useState(false);
   const [importTab, setImportTab] = useState<"url" | "photo">("url");
+  const [people, setPeople] = useState(2);
 
   return (
     <div className="space-y-8">
@@ -193,6 +207,9 @@ export function DashboardClient({ recentRecipes, recipeCount, weekStart, mealPla
                 );
               })}
           </div>
+
+          {/* Weekly nutrition */}
+          <DashboardNutritionPanel items={mealPlanItems} people={people} setPeople={setPeople} />
         </div>
       )}
 
@@ -262,6 +279,134 @@ export function DashboardClient({ recentRecipes, recipeCount, weekStart, mealPla
       )}
 
       <ImportRecipeModal open={importOpen} onClose={() => setImportOpen(false)} initialTab={importTab} />
+    </div>
+  );
+}
+
+// ─── Dashboard weekly nutrition panel ─────────────────────────────────────────
+
+const NUTRITION_FIELDS: Array<{
+  key: keyof NutritionFact;
+  label: string;
+  unit: string;
+  color: string;
+  decimals: number;
+}> = [
+  { key: "calories", label: "Calories", unit: "kcal", color: "text-orange-400", decimals: 0 },
+  { key: "protein",  label: "Protein",  unit: "g",    color: "text-blue-400",   decimals: 1 },
+  { key: "carbs",    label: "Carbs",    unit: "g",    color: "text-yellow-400", decimals: 1 },
+  { key: "fat",      label: "Fat",      unit: "g",    color: "text-purple-400", decimals: 1 },
+  { key: "fiber",    label: "Fiber",    unit: "g",    color: "text-green-400",  decimals: 1 },
+  { key: "sugar",    label: "Sugar",    unit: "g",    color: "text-pink-400",   decimals: 1 },
+  { key: "iron",     label: "Iron",     unit: "mg",   color: "text-red-400",    decimals: 1 },
+];
+
+function fmt(val: number, decimals: number): string {
+  return decimals === 0 ? String(Math.round(val)) : val.toFixed(decimals).replace(/\.0$/, "");
+}
+
+function NutritionTile({ label, value, unit, color, decimals, dim }: {
+  label: string; value: number; unit: string; color: string; decimals: number; dim?: boolean;
+}) {
+  return (
+    <div className={`flex flex-col items-center text-center rounded-lg px-2 py-3 gap-1 ${dim ? "bg-secondary/30" : "bg-secondary/50"}`}>
+      <span className={`text-base font-bold leading-none ${color}`}>
+        {fmt(value, decimals)}
+      </span>
+      <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">{unit}</span>
+      <span className="text-[10px] text-muted-foreground">{label}</span>
+    </div>
+  );
+}
+
+function DashboardNutritionPanel({
+  items,
+  people,
+  setPeople,
+}: {
+  items: MealPlanItem[];
+  people: number;
+  setPeople: (n: number) => void;
+}) {
+  const withNutrition = items.filter((it) => it.recipe.nutrition);
+  if (withNutrition.length === 0) return null;
+
+  // Sum totals — each plan item's nutrition is per recipe serving; multiply by item.servings
+  const totals: Partial<Record<keyof NutritionFact, number>> = {};
+  let hasEstimated = false;
+  for (const item of withNutrition) {
+    const n = item.recipe.nutrition!;
+    if (n.isEstimated) hasEstimated = true;
+    const factor = item.servings ?? item.recipe.servings ?? 4;
+    for (const { key } of NUTRITION_FIELDS) {
+      const val = n[key];
+      if (typeof val === "number") {
+        totals[key] = (totals[key] ?? 0) + val * factor;
+      }
+    }
+  }
+
+  const hasAny = NUTRITION_FIELDS.some(({ key }) => totals[key] != null);
+  if (!hasAny) return null;
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-5 space-y-4 mt-3">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h3 className="font-semibold text-foreground text-sm">Weekly Nutrition</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {withNutrition.length < items.length
+              ? `${withNutrition.length} of ${items.length} recipes have data`
+              : `${items.length} recipes`}
+            {hasEstimated && " · AI estimates"}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Users className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">People:</span>
+          <button
+            onClick={() => setPeople(Math.max(1, people - 1))}
+            className="w-6 h-6 rounded-full bg-secondary hover:bg-brand-orange/20 flex items-center justify-center transition-colors"
+          >
+            <Minus className="w-3 h-3" />
+          </button>
+          <span className="text-sm font-semibold w-4 text-center">{people}</span>
+          <button
+            onClick={() => setPeople(people + 1)}
+            className="w-6 h-6 rounded-full bg-secondary hover:bg-brand-orange/20 flex items-center justify-center transition-colors"
+          >
+            <PlusIcon className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+
+      {/* Week total */}
+      <div>
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Week Total</p>
+        <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+          {NUTRITION_FIELDS.map(({ key, label, unit, color, decimals }) => {
+            const val = totals[key];
+            if (val == null) return null;
+            return <NutritionTile key={key} label={label} value={val} unit={unit} color={color} decimals={decimals} />;
+          })}
+        </div>
+      </div>
+
+      <div className="border-t border-border" />
+
+      {/* Per person */}
+      <div>
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+          Per Person · {people} {people === 1 ? "person" : "people"}
+        </p>
+        <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+          {NUTRITION_FIELDS.map(({ key, label, unit, color, decimals }) => {
+            const val = totals[key];
+            if (val == null) return null;
+            return <NutritionTile key={key} label={label} value={val / people} unit={unit} color={color} decimals={decimals} dim />;
+          })}
+        </div>
+      </div>
     </div>
   );
 }

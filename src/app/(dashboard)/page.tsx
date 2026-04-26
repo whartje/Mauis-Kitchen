@@ -44,7 +44,15 @@ export default async function DashboardPage() {
         items: {
           orderBy: [{ dayOfWeek: "asc" }, { mealType: "asc" }],
           include: {
-            recipe: { select: { id: true, title: true, totalTime: true } },
+            recipe: {
+              select: {
+                id: true,
+                title: true,
+                totalTime: true,
+                servings: true,
+                nutrition: true,
+              },
+            },
           },
         },
       },
