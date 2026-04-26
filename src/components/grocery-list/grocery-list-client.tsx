@@ -20,6 +20,7 @@ import Link from "next/link";
 
 type IngredientCategory =
   | "PRODUCE"
+  | "FRUIT"
   | "PROTEIN"
   | "DAIRY"
   | "GRAINS"
@@ -66,6 +67,7 @@ interface Props {
 
 const CATEGORY_ORDER: IngredientCategory[] = [
   "PRODUCE",
+  "FRUIT",
   "PROTEIN",
   "DAIRY",
   "GRAINS",
@@ -78,6 +80,7 @@ const CATEGORY_ORDER: IngredientCategory[] = [
 
 const CATEGORY_META: Record<IngredientCategory, { emoji: string; label: string }> = {
   PRODUCE: { emoji: "🥦", label: "Produce" },
+  FRUIT: { emoji: "🍎", label: "Fruit" },
   PROTEIN: { emoji: "🥩", label: "Protein" },
   DAIRY: { emoji: "🥛", label: "Dairy" },
   GRAINS: { emoji: "🌾", label: "Grains & Bread" },
@@ -90,6 +93,7 @@ const CATEGORY_META: Record<IngredientCategory, { emoji: string; label: string }
 
 const CATEGORY_OPTIONS: IngredientCategory[] = [
   "PRODUCE",
+  "FRUIT",
   "PROTEIN",
   "DAIRY",
   "GRAINS",

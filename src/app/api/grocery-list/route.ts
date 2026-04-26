@@ -5,6 +5,7 @@ import { IngredientCategory } from "@prisma/client";
 
 const CATEGORY_ORDER: IngredientCategory[] = [
   "PRODUCE",
+  "FRUIT",
   "PROTEIN",
   "DAIRY",
   "GRAINS",

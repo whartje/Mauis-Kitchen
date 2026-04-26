@@ -424,12 +424,6 @@ function DailyNutritionRow({ items, people }: { items: PlanItem[]; people: numbe
         <div key={i} className="border-l border-border px-1 py-3 flex flex-col justify-center gap-1">
           {d.hasData ? (
             <>
-              {/* Header labels */}
-              <div className="flex gap-1 text-[9px] font-semibold text-muted-foreground/40 uppercase tracking-wide mb-0.5">
-                <span className="flex-1 text-center">Total</span>
-                <span className="text-muted-foreground/20">|</span>
-                <span className="flex-1 text-center">/Person</span>
-              </div>
               {/* Calories */}
               <div className="flex items-center gap-1">
                 <span className="flex-1 text-center text-[11px] font-semibold text-orange-400 leading-none">

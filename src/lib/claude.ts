@@ -118,7 +118,7 @@ const IngredientSchema = z.object({
   raw: z.string(),
   notes: z.string().nullable().optional().default(null),
   category: z
-    .enum(["PRODUCE", "PROTEIN", "DAIRY", "GRAINS", "PANTRY", "SPICES", "FROZEN", "BEVERAGES", "OTHER"])
+    .enum(["PRODUCE", "FRUIT", "PROTEIN", "DAIRY", "GRAINS", "PANTRY", "SPICES", "FROZEN", "BEVERAGES", "OTHER"])
     .default("OTHER"),
   sortOrder: z.number().int().default(0),
 });
@@ -218,7 +218,8 @@ INGREDIENT NAME RULES (critical):
 - The "raw" field should contain the full original text as written in the recipe
 
 CATEGORY RULES — assign each ingredient to exactly one:
-- PRODUCE: fresh fruits, fresh vegetables, fresh herbs (basil, parsley, cilantro, mint, etc.), garlic, onion, ginger, lemons, limes
+- PRODUCE: fresh vegetables, fresh herbs (basil, parsley, cilantro, mint, etc.), garlic, onion, ginger
+- FRUIT: fresh fruits (apples, bananas, berries, lemons, limes, oranges, mango, avocado, tomatoes, etc.)
 - PROTEIN: meat, poultry, fish, seafood, eggs, tofu, tempeh, legumes (beans, lentils, chickpeas)
 - DAIRY: milk, cream, butter, cheese, yogurt, sour cream (including plant-based/vegan alternatives)
 - GRAINS: flour, bread, pasta, rice, oats, cereals, crackers, breadcrumbs, cornmeal, chickpea flour, nutritional yeast

@@ -67,6 +67,7 @@ model Ingredient {
 
 enum IngredientCategory {
   PRODUCE
+  FRUIT
   PROTEIN
   DAIRY
   GRAINS
