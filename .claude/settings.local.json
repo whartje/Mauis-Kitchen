@@ -19,7 +19,9 @@
       "Bash(ls \"C:/Users/willi/Maui''s Kitchen/src/app/\\(dashboard\\)/grocery-list/\")",
       "Bash(npm pkg:*)",
       "Bash(findstr supabase:*)",
-      "Bash(npx prisma:*)"
+      "Bash(npx prisma:*)",
+      "Bash(mkdir -p \"C:\\\\Users\\\\willi\\\\Maui's Kitchen\\\\src\\\\app\\\\api\\\\recipes\\\\[id]\\\\ingredients\\\\[ingredientId]\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\willi\\\\Maui's Kitchen\\\\src\\\\app\\\\api\\\\recipes\\\\[id]\\\\ingredients\")"
     ]
   }
 }

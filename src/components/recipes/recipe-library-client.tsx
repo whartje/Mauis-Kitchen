@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, ChevronDown, ChevronUp } from "lucide-react";
+import { Link as LinkIcon, Camera, Search, ChevronDown, ChevronUp } from "lucide-react";
 import { RecipeCard } from "./recipe-card";
 import { ImportRecipeModal } from "./import-recipe-modal";
 import { CatIcon } from "@/components/ui/cat-icon";
@@ -104,6 +104,7 @@ function FilterChip({
 export function RecipeLibraryClient({ recipes, currentFilters }: Props) {
   const router = useRouter();
   const [importOpen, setImportOpen] = useState(false);
+  const [importTab, setImportTab] = useState<"url" | "photo">("url");
   const [search, setSearch] = useState(currentFilters.q ?? "");
   const [filtersOpen, setFiltersOpen] = useState(
     !!(currentFilters.mealType || currentFilters.timeRange || currentFilters.foodGroup || currentFilters.difficulty)
@@ -143,15 +144,28 @@ export function RecipeLibraryClient({ recipes, currentFilters }: Props) {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold text-foreground">My Recipes</h1>
-        <button
-          onClick={() => setImportOpen(true)}
-          className="flex items-center gap-2 bg-brand-orange hover:bg-brand-orange-dark text-black font-semibold px-4 py-2.5 rounded-lg transition-colors text-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Import Recipe
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Scan photo */}
+          <button
+            onClick={() => { setImportTab("photo"); setImportOpen(true); }}
+            title="Scan a recipe photo"
+            className="flex items-center gap-2 bg-secondary hover:bg-brand-orange/10 border border-border hover:border-brand-orange/40 text-foreground hover:text-brand-orange px-3 py-2.5 rounded-lg transition-colors text-sm font-medium"
+          >
+            <Camera className="w-4 h-4" />
+            <span className="hidden sm:inline">Scan Photo</span>
+          </button>
+          {/* Import from URL */}
+          <button
+            onClick={() => { setImportTab("url"); setImportOpen(true); }}
+            title="Import from a recipe URL"
+            className="flex items-center gap-2 bg-brand-orange hover:bg-brand-orange-dark text-black font-semibold px-3 py-2.5 rounded-lg transition-colors text-sm"
+          >
+            <LinkIcon className="w-4 h-4" />
+            <span className="hidden sm:inline">From URL</span>
+          </button>
+        </div>
       </div>
 
       {/* Search + sort row */}
@@ -327,7 +341,7 @@ export function RecipeLibraryClient({ recipes, currentFilters }: Props) {
         </div>
       )}
 
-      <ImportRecipeModal open={importOpen} onClose={() => setImportOpen(false)} />
+      <ImportRecipeModal open={importOpen} onClose={() => setImportOpen(false)} initialTab={importTab} />
     </div>
   );
 }

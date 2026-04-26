@@ -36,6 +36,9 @@ interface Props {
 }
 
 export function RecipeDetailClient({ recipe }: Props) {
+  const [ingredients, setIngredients] = useState<Ingredient[]>(recipe.ingredients);
+  const [editingIngredients, setEditingIngredients] = useState(false);
+  const [newIngredientId, setNewIngredientId] = useState<string | null>(null);
   const [servings, setServings] = useState(recipe.servings);
   const [isFavorite, setIsFavorite] = useState(recipe.isFavorite);
   const [rating, setRating] = useState(recipe.rating ?? 0);
@@ -247,6 +250,34 @@ export function RecipeDetailClient({ recipe }: Props) {
   function removeTag(tag: string) {
     const next = tags.filter((t) => t !== tag);
     saveTags(next);
+  }
+
+  // ── Ingredient editing ─────────────────────────────────────────────────────
+  async function saveIngredient(id: string, patch: { name?: string; quantity?: number | null; unit?: string | null }) {
+    setIngredients((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
+    await fetch(`/api/recipes/${recipe.id}/ingredients/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+  }
+
+  async function deleteIngredient(id: string) {
+    setIngredients((prev) => prev.filter((i) => i.id !== id));
+    await fetch(`/api/recipes/${recipe.id}/ingredients/${id}`, { method: "DELETE" });
+  }
+
+  async function addIngredient() {
+    const res = await fetch(`/api/recipes/${recipe.id}/ingredients`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "", quantity: null, unit: null }),
+    });
+    if (res.ok) {
+      const ing: Ingredient = await res.json();
+      setIngredients((prev) => [...prev, ing]);
+      setNewIngredientId(ing.id);
+    }
   }
 
   function renderIngredientQuantity(ing: Ingredient): string {
@@ -677,42 +708,80 @@ export function RecipeDetailClient({ recipe }: Props) {
           <div className="bg-card border border-border rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-foreground">Ingredients</h2>
-              {/* Servings scaler */}
               <div className="flex items-center gap-2">
+                {/* Edit toggle */}
                 <button
-                  onClick={() => setServings(Math.max(1, servings - 1))}
-                  className="w-7 h-7 rounded-full bg-secondary hover:bg-brand-orange/20 flex items-center justify-center transition-colors"
+                  onClick={() => setEditingIngredients((v) => !v)}
+                  className={cn(
+                    "flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-colors",
+                    editingIngredients
+                      ? "bg-brand-orange/15 border-brand-orange/40 text-brand-orange"
+                      : "border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
+                  )}
                 >
-                  <Minus className="w-3 h-3" />
+                  <Pencil className="w-3 h-3" />
+                  {editingIngredients ? "Done" : "Edit"}
                 </button>
-                <span className="text-sm font-medium w-16 text-center">
-                  {servings} {servings === 1 ? "serving" : "servings"}
-                </span>
-                <button
-                  onClick={() => setServings(servings + 1)}
-                  className="w-7 h-7 rounded-full bg-secondary hover:bg-brand-orange/20 flex items-center justify-center transition-colors"
-                >
-                  <Plus className="w-3 h-3" />
-                </button>
+                {/* Servings scaler — hidden while editing to avoid confusion */}
+                {!editingIngredients && (
+                  <>
+                    <button
+                      onClick={() => setServings(Math.max(1, servings - 1))}
+                      className="w-7 h-7 rounded-full bg-secondary hover:bg-brand-orange/20 flex items-center justify-center transition-colors"
+                    >
+                      <Minus className="w-3 h-3" />
+                    </button>
+                    <span className="text-sm font-medium w-16 text-center">
+                      {servings} {servings === 1 ? "serving" : "servings"}
+                    </span>
+                    <button
+                      onClick={() => setServings(servings + 1)}
+                      className="w-7 h-7 rounded-full bg-secondary hover:bg-brand-orange/20 flex items-center justify-center transition-colors"
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
-            {scaleFactor !== 1 && (
+            {!editingIngredients && scaleFactor !== 1 && (
               <p className="text-xs text-brand-orange mb-3">
                 Scaled from {recipe.servings} servings
               </p>
             )}
 
-            <ul className="space-y-2">
-              {recipe.ingredients.map((ing) => (
-                <li key={ing.id} className="flex items-start gap-2 text-sm">
-                  <span className="w-1.5 h-1.5 rounded-full bg-brand-orange mt-2 shrink-0" />
-                  <span className={cn(ing.quantity == null ? "text-muted-foreground italic" : "text-foreground")}>
-                    {renderIngredientQuantity(ing)}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            {editingIngredients ? (
+              <div className="space-y-1.5">
+                {ingredients.map((ing) => (
+                  <IngredientEditRow
+                    key={ing.id}
+                    ingredient={ing}
+                    autoFocus={ing.id === newIngredientId}
+                    onSave={(patch) => saveIngredient(ing.id, patch)}
+                    onDelete={() => deleteIngredient(ing.id)}
+                  />
+                ))}
+                <button
+                  onClick={addIngredient}
+                  className="mt-2 w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-dashed border-border hover:border-brand-orange/50 hover:bg-brand-orange/5 text-xs text-muted-foreground hover:text-brand-orange transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add ingredient
+                </button>
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {ingredients.map((ing) => (
+                  <li key={ing.id} className="flex items-start gap-2 text-sm">
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-orange mt-2 shrink-0" />
+                    <span className={cn(ing.quantity == null ? "text-muted-foreground italic" : "text-foreground")}>
+                      {renderIngredientQuantity(ing)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {/* Nutrition */}
@@ -851,6 +920,88 @@ export function RecipeDetailClient({ recipe }: Props) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Ingredient edit row ──────────────────────────────────────────────────────
+
+function IngredientEditRow({
+  ingredient,
+  onSave,
+  onDelete,
+  autoFocus = false,
+}: {
+  ingredient: Ingredient;
+  onSave: (patch: { name?: string; quantity?: number | null; unit?: string | null }) => void;
+  onDelete: () => void;
+  autoFocus?: boolean;
+}) {
+  const [qty, setQty] = useState(ingredient.quantity != null ? String(ingredient.quantity) : "");
+  const [unit, setUnit] = useState(ingredient.unit ?? "");
+  const [name, setName] = useState(ingredient.name);
+
+  function commitQty() {
+    const parsed = qty.trim() === "" ? null : parseFloat(qty);
+    const value = parsed != null && !isNaN(parsed) ? parsed : null;
+    if (value !== ingredient.quantity) onSave({ quantity: value });
+  }
+
+  function commitUnit() {
+    const value = unit.trim() || null;
+    if (value !== ingredient.unit) onSave({ unit: value });
+  }
+
+  function commitName() {
+    const value = name.trim();
+    // If new blank ingredient left empty, delete it
+    if (!value && !ingredient.name) { onDelete(); return; }
+    if (!value) { setName(ingredient.name); return; }
+    if (value !== ingredient.name) onSave({ name: value });
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 group/row">
+      {/* Quantity */}
+      <input
+        type="text"
+        inputMode="decimal"
+        value={qty}
+        onChange={(e) => setQty(e.target.value)}
+        onBlur={commitQty}
+        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+        placeholder="qty"
+        className="w-12 shrink-0 bg-secondary border border-border rounded px-1.5 py-1 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-brand-orange text-center"
+      />
+      {/* Unit */}
+      <input
+        type="text"
+        value={unit}
+        onChange={(e) => setUnit(e.target.value)}
+        onBlur={commitUnit}
+        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+        placeholder="unit"
+        className="w-16 shrink-0 bg-secondary border border-border rounded px-1.5 py-1 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-brand-orange"
+      />
+      {/* Name */}
+      <input
+        type="text"
+        value={name}
+        autoFocus={autoFocus}
+        onChange={(e) => setName(e.target.value)}
+        onBlur={commitName}
+        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+        placeholder="ingredient name"
+        className="flex-1 min-w-0 bg-secondary border border-border rounded px-1.5 py-1 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-brand-orange"
+      />
+      {/* Delete */}
+      <button
+        onClick={onDelete}
+        className="p-1 rounded text-muted-foreground/40 hover:text-red-400 hover:bg-red-400/10 transition-colors shrink-0"
+        aria-label="Remove ingredient"
+      >
+        <X className="w-3.5 h-3.5" />
+      </button>
     </div>
   );
 }

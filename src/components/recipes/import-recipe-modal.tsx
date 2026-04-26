@@ -12,6 +12,7 @@ import Image from "next/image";
 interface Props {
   open: boolean;
   onClose: () => void;
+  initialTab?: Tab;
 }
 
 type Tab = "url" | "photo";
@@ -92,7 +93,7 @@ async function compressImage(file: File): Promise<File> {
   });
 }
 
-export function ImportRecipeModal({ open, onClose }: Props) {
+export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) {
   const router = useRouter();
 
   // ── URL tab ──────────────────────────────────────────────────────────────
@@ -102,7 +103,7 @@ export function ImportRecipeModal({ open, onClose }: Props) {
   const [urlError, setUrlError] = useState<string | null>(null);
 
   // ── Photo tab ────────────────────────────────────────────────────────────
-  const [tab, setTab] = useState<Tab>("url");
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [photoStep, setPhotoStep] = useState<PhotoStep>({ kind: "idle" });
   const [photoError, setPhotoError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -110,6 +111,12 @@ export function ImportRecipeModal({ open, onClose }: Props) {
   // ── Cookbook / collection ─────────────────────────────────────────────────
   const [collection, setCollection] = useState("");
   const [cookbooks, setCookbooks] = useState<string[]>([]);
+
+  // Sync tab when opened with a specific initialTab
+  useEffect(() => {
+    if (open) setTab(initialTab);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // Fetch existing cookbooks when modal opens
   useEffect(() => {
