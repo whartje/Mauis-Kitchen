@@ -26,6 +26,7 @@ model Recipe {
   sourceUrl   String?
   sourceName  String?
   collection  String?    // Cookbook or user-defined collection name
+  notes       String?    // Personal notes about the recipe
   isFavorite  Boolean    @default(false)
   madeCount   Int        @default(0)
   lastMadeAt  DateTime?

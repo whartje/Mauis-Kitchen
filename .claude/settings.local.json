@@ -18,7 +18,8 @@
       "Bash(ls \"C:/Users/willi/Maui''s Kitchen/src/app/\\(dashboard\\)/\")",
       "Bash(ls \"C:/Users/willi/Maui''s Kitchen/src/app/\\(dashboard\\)/grocery-list/\")",
       "Bash(npm pkg:*)",
-      "Bash(findstr supabase:*)"
+      "Bash(findstr supabase:*)",
+      "Bash(npx prisma:*)"
     ]
   }
 }

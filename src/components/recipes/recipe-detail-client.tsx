@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
-import { ArrowLeft, Clock, ChefHat, Star, Heart, ExternalLink, Minus, Plus, Camera, Loader2, Pencil, BookOpen, Trash2, Tag, X } from "lucide-react";
+import { ArrowLeft, Clock, ChefHat, Star, Heart, ExternalLink, Minus, Plus, Camera, Loader2, Pencil, BookOpen, Trash2, Tag, X, NotebookPen } from "lucide-react";
 import { scaleQuantity } from "@/lib/units";
 import { cn, formatTime, difficultyLabel, difficultyColor } from "@/lib/utils";
 import type { Ingredient, Instruction, NutritionFact } from "@prisma/client";
@@ -14,6 +14,7 @@ interface Recipe {
   title: string;
   description: string | null;
   collection: string | null;
+  notes: string | null;
   servings: number;
   prepTime: number | null;
   cookTime: number | null;
@@ -52,6 +53,22 @@ export function RecipeDetailClient({ recipe }: Props) {
   const [collectionValue, setCollectionValue] = useState(recipe.collection ?? "");
   const [editingField, setEditingField] = useState<"title" | "description" | "collection" | null>(null);
   const [cookbooks, setCookbooks] = useState<string[]>([]);
+
+  // ── Notes ─────────────────────────────────────────────────────────────────
+  const [notesValue, setNotesValue] = useState(recipe.notes ?? "");
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [savingNotes, setSavingNotes] = useState(false);
+
+  async function saveNotes() {
+    setEditingNotes(false);
+    setSavingNotes(true);
+    await fetch(`/api/recipes/${recipe.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes: notesValue.trim() || null }),
+    });
+    setSavingNotes(false);
+  }
 
   // ── Tags ───────────────────────────────────────────────────────────────────
   const [tags, setTags] = useState<string[]>(recipe.tags);
@@ -591,6 +608,70 @@ export function RecipeDetailClient({ recipe }: Props) {
             ))}
           </ol>
         </div>
+      </div>
+      {/* Notes */}
+      <div className="bg-card border border-border rounded-xl p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold text-foreground flex items-center gap-2">
+            <NotebookPen className="w-4 h-4 text-brand-orange" />
+            My Notes
+          </h2>
+          {!editingNotes && (
+            <button
+              onClick={() => setEditingNotes(true)}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              {notesValue ? "Edit" : "Add note"}
+            </button>
+          )}
+        </div>
+
+        {editingNotes ? (
+          <div className="space-y-2">
+            <textarea
+              autoFocus
+              value={notesValue}
+              onChange={(e) => setNotesValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") saveNotes();
+              }}
+              rows={5}
+              placeholder="Add your personal notes here — substitutions you tried, tips, how the kids liked it…"
+              className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-orange focus:border-brand-orange resize-none"
+            />
+            <div className="flex items-center gap-2 justify-end">
+              <button
+                onClick={() => { setNotesValue(recipe.notes ?? ""); setEditingNotes(false); }}
+                className="px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveNotes}
+                disabled={savingNotes}
+                className="px-3 py-1.5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-white text-xs font-medium transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {savingNotes ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                Save
+              </button>
+            </div>
+          </div>
+        ) : notesValue ? (
+          <button
+            onClick={() => setEditingNotes(true)}
+            className="w-full text-left text-sm text-foreground leading-relaxed whitespace-pre-wrap hover:bg-secondary/50 rounded-lg px-2 py-1.5 -mx-2 transition-colors"
+          >
+            {notesValue}
+          </button>
+        ) : (
+          <button
+            onClick={() => setEditingNotes(true)}
+            className="w-full text-left text-sm text-muted-foreground/40 italic hover:text-muted-foreground transition-colors"
+          >
+            No notes yet — click to add…
+          </button>
+        )}
       </div>
     </div>
   );

@@ -7,6 +7,7 @@ const UpdateSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
   collection: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
   servings: z.number().int().min(1).optional(),
   rating: z.number().min(1).max(5).optional().nullable(),
   isFavorite: z.boolean().optional(),
