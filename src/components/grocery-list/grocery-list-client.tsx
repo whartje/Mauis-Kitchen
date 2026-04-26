@@ -533,24 +533,34 @@ export default function GroceryListClient({
                 </button>
 
                 {/* Alexa web */}
-                <button
-                  onClick={() => {
-                    copyToClipboard();
-                    // Force open in browser tab — never the Alexa app
-                    window.open(
-                      "https://alexa.amazon.com/spa/index.html#lists/shopping",
-                      "_blank",
-                      "noopener,noreferrer"
-                    );
-                  }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-secondary transition-colors text-sm text-left"
-                >
-                  <span className="text-base leading-none flex-shrink-0">🔵</span>
-                  <div>
-                    <p className="text-foreground">Open Alexa Shopping List</p>
-                    <p className="text-xs text-muted-foreground">Copies list + opens alexa.amazon.com in browser — then paste</p>
+                <div className="w-full px-3 py-2.5 rounded-lg bg-secondary/50 space-y-2">
+                  <div className="flex items-center gap-3">
+                    <span className="text-base leading-none flex-shrink-0">🔵</span>
+                    <div>
+                      <p className="text-foreground text-sm font-medium">Add to Alexa Shopping List</p>
+                      <p className="text-xs text-muted-foreground">Copy list, then paste into Alexa web</p>
+                    </div>
+                    <button
+                      onClick={copyToClipboard}
+                      className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-card border border-border text-xs text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+                    >
+                      {copyStatus === "copied" ? (
+                        <><CheckCircle2 className="w-3 h-3 text-green-400" /><span className="text-green-400">Copied!</span></>
+                      ) : (
+                        <><Copy className="w-3 h-3" />Copy list</>
+                      )}
+                    </button>
                   </div>
-                </button>
+                  <div className="flex items-center gap-2 pl-7">
+                    <p className="text-xs text-muted-foreground">Then go to:</p>
+                    <code
+                      className="text-xs text-brand-orange select-all cursor-text bg-background px-2 py-0.5 rounded border border-border"
+                      title="Select all and copy this URL, then paste into your browser"
+                    >
+                      alexa.amazon.com
+                    </code>
+                  </div>
+                </div>
               </div>
             )}
           </div>
