@@ -533,19 +533,24 @@ export default function GroceryListClient({
                 </button>
 
                 {/* Alexa web */}
-                <a
-                  href="https://alexa.amazon.com/spa/index.html#/shopping-list"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={copyToClipboard}
+                <button
+                  onClick={() => {
+                    copyToClipboard();
+                    // Force open in browser tab — never the Alexa app
+                    window.open(
+                      "https://alexa.amazon.com/spa/index.html#lists/shopping",
+                      "_blank",
+                      "noopener,noreferrer"
+                    );
+                  }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-secondary transition-colors text-sm text-left"
                 >
                   <span className="text-base leading-none flex-shrink-0">🔵</span>
                   <div>
                     <p className="text-foreground">Open Alexa Shopping List</p>
-                    <p className="text-xs text-muted-foreground">Copies list + opens alexa.amazon.com — then paste</p>
+                    <p className="text-xs text-muted-foreground">Copies list + opens alexa.amazon.com in browser — then paste</p>
                   </div>
-                </a>
+                </button>
               </div>
             )}
           </div>
