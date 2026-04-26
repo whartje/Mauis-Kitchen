@@ -214,7 +214,7 @@ CATEGORY RULES — assign each ingredient to exactly one:
 - BEVERAGES: water, juice, wine, beer, broth used as a beverage, coffee, tea
 - OTHER: anything that does not clearly fit the above categories
 
-- Convert prep/cook times to minutes (integers)
+- Convert prep/cook times to minutes (integers). If times are not explicitly stated, ALWAYS make a reasonable estimate based on the recipe steps — never leave prepTime, cookTime, or totalTime as null if you can infer them. For example, a simple salad might be prepTime:10, cookTime:0, totalTime:10; a pasta dish might be prepTime:10, cookTime:20, totalTime:30.
 - Estimate difficulty: EASY (< 30 min, simple steps), HARD (> 90 min or complex technique), MEDIUM otherwise
 - Generate 3-6 relevant tags (cuisine type, dietary restrictions, cooking method, etc.)
 - Do NOT rewrite recipe voice or instructions — preserve the original text of instructions

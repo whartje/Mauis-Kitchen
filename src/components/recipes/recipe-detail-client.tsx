@@ -3,8 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useRef, useEffect } from "react";
-import { ArrowLeft, Clock, ChefHat, Star, Heart, ExternalLink, Minus, Plus, Camera, Loader2, Pencil, BookOpen, Trash2, Tag, X, NotebookPen } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { ArrowLeft, Clock, ChefHat, Star, Heart, ExternalLink, Minus, Plus, Camera, Loader2, Pencil, BookOpen, Trash2, Tag, X, NotebookPen, ZoomIn } from "lucide-react";
 import { scaleQuantity } from "@/lib/units";
 import { cn, formatTime, difficultyLabel, difficultyColor } from "@/lib/utils";
 import type { Ingredient, Instruction, NutritionFact } from "@prisma/client";
@@ -41,7 +41,17 @@ export function RecipeDetailClient({ recipe }: Props) {
   const [rating, setRating] = useState(recipe.rating ?? 0);
   const [hoverRating, setHoverRating] = useState(0);
   const [imageUrl, setImageUrl] = useState(recipe.imageUrl);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
+
+  // Close lightbox on Escape
+  const closeLightbox = useCallback(() => setLightboxOpen(false), []);
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") closeLightbox(); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [lightboxOpen, closeLightbox]);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -53,6 +63,48 @@ export function RecipeDetailClient({ recipe }: Props) {
   const [collectionValue, setCollectionValue] = useState(recipe.collection ?? "");
   const [editingField, setEditingField] = useState<"title" | "description" | "collection" | null>(null);
   const [cookbooks, setCookbooks] = useState<string[]>([]);
+
+  // ── Time fields ────────────────────────────────────────────────────────────
+  const [prepTime, setPrepTime] = useState<number | null>(recipe.prepTime ?? null);
+  const [cookTime, setCookTime] = useState<number | null>(recipe.cookTime ?? null);
+  const [totalTime, setTotalTime] = useState<number | null>(recipe.totalTime ?? null);
+  const [editingTime, setEditingTime] = useState<"prepTime" | "cookTime" | "totalTime" | null>(null);
+  const [timeInputValue, setTimeInputValue] = useState("");
+
+  function startEditingTime(field: "prepTime" | "cookTime" | "totalTime") {
+    const current = field === "prepTime" ? prepTime : field === "cookTime" ? cookTime : totalTime;
+    setTimeInputValue(current != null ? String(current) : "");
+    setEditingTime(field);
+  }
+
+  async function saveTime(field: "prepTime" | "cookTime" | "totalTime") {
+    setEditingTime(null);
+    const parsed = timeInputValue.trim() === "" ? null : parseInt(timeInputValue, 10);
+    const value = parsed != null && !isNaN(parsed) ? parsed : null;
+    if (field === "prepTime") setPrepTime(value);
+    else if (field === "cookTime") setCookTime(value);
+    else setTotalTime(value);
+
+    // Auto-update totalTime if both prep and cook are set and totalTime wasn't manually set
+    let newTotal = totalTime;
+    if (field !== "totalTime") {
+      const p = field === "prepTime" ? value : prepTime;
+      const c = field === "cookTime" ? value : cookTime;
+      if (p != null && c != null) {
+        newTotal = p + c;
+        setTotalTime(newTotal);
+      }
+    }
+
+    await fetch(`/api/recipes/${recipe.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        [field]: value,
+        ...(field !== "totalTime" && newTotal !== totalTime ? { totalTime: newTotal } : {}),
+      }),
+    });
+  }
 
   // ── Notes ─────────────────────────────────────────────────────────────────
   const [notesValue, setNotesValue] = useState(recipe.notes ?? "");
@@ -221,6 +273,14 @@ export function RecipeDetailClient({ recipe }: Props) {
       )}>
         {imageUrl ? (
           <>
+            <button
+              onClick={() => setLightboxOpen(true)}
+              className="absolute inset-0 z-10 cursor-zoom-in group/zoom"
+              aria-label="View full image"
+            >
+              <div className="absolute inset-0 bg-black/0 group-hover/zoom:bg-black/10 transition-colors" />
+              <ZoomIn className="absolute top-3 left-3 w-5 h-5 text-white/0 group-hover/zoom:text-white/80 transition-colors drop-shadow" />
+            </button>
             <Image src={imageUrl} alt={titleValue} fill className="object-cover" priority />
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
             {tags.length > 0 && (
@@ -366,20 +426,107 @@ export function RecipeDetailClient({ recipe }: Props) {
           </button>
         )}
 
-        {/* Stats row */}
+        {/* Stats row — editable time fields */}
         <div className="flex flex-wrap items-center gap-4 text-sm">
-          {recipe.prepTime && (
-            <div className="flex items-center gap-1.5 text-muted-foreground">
+          {/* Prep time */}
+          {editingTime === "prepTime" ? (
+            <div className="flex items-center gap-1.5">
+              <Clock className="w-4 h-4 text-muted-foreground" />
+              <span className="text-muted-foreground text-xs">Prep</span>
+              <input
+                autoFocus
+                type="number"
+                min="0"
+                value={timeInputValue}
+                onChange={(e) => setTimeInputValue(e.target.value)}
+                onBlur={() => saveTime("prepTime")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); saveTime("prepTime"); }
+                  if (e.key === "Escape") setEditingTime(null);
+                }}
+                placeholder="mins"
+                className="w-16 bg-transparent border-b border-brand-orange focus:outline-none text-foreground text-sm text-center"
+              />
+              <span className="text-muted-foreground text-xs">min</span>
+            </div>
+          ) : (
+            <button
+              onClick={() => startEditingTime("prepTime")}
+              className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors group/prep"
+              title="Click to edit prep time"
+            >
               <Clock className="w-4 h-4" />
-              <span>Prep {formatTime(recipe.prepTime)}</span>
-            </div>
+              <span>{prepTime != null ? `Prep ${formatTime(prepTime)}` : "Add prep time"}</span>
+              <Pencil className="w-3 h-3 opacity-0 group-hover/prep:opacity-60 transition-opacity" />
+            </button>
           )}
-          {recipe.cookTime && (
-            <div className="flex items-center gap-1.5 text-muted-foreground">
+
+          {/* Cook time */}
+          {editingTime === "cookTime" ? (
+            <div className="flex items-center gap-1.5">
+              <ChefHat className="w-4 h-4 text-muted-foreground" />
+              <span className="text-muted-foreground text-xs">Cook</span>
+              <input
+                autoFocus
+                type="number"
+                min="0"
+                value={timeInputValue}
+                onChange={(e) => setTimeInputValue(e.target.value)}
+                onBlur={() => saveTime("cookTime")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); saveTime("cookTime"); }
+                  if (e.key === "Escape") setEditingTime(null);
+                }}
+                placeholder="mins"
+                className="w-16 bg-transparent border-b border-brand-orange focus:outline-none text-foreground text-sm text-center"
+              />
+              <span className="text-muted-foreground text-xs">min</span>
+            </div>
+          ) : (
+            <button
+              onClick={() => startEditingTime("cookTime")}
+              className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors group/cook"
+              title="Click to edit cook time"
+            >
               <ChefHat className="w-4 h-4" />
-              <span>Cook {formatTime(recipe.cookTime)}</span>
-            </div>
+              <span>{cookTime != null ? `Cook ${formatTime(cookTime)}` : "Add cook time"}</span>
+              <Pencil className="w-3 h-3 opacity-0 group-hover/cook:opacity-60 transition-opacity" />
+            </button>
           )}
+
+          {/* Total time — shown only if different from prep+cook */}
+          {totalTime != null && (prepTime == null || cookTime == null || totalTime !== prepTime + cookTime) && (
+            editingTime === "totalTime" ? (
+              <div className="flex items-center gap-1.5">
+                <span className="text-muted-foreground text-xs">Total</span>
+                <input
+                  autoFocus
+                  type="number"
+                  min="0"
+                  value={timeInputValue}
+                  onChange={(e) => setTimeInputValue(e.target.value)}
+                  onBlur={() => saveTime("totalTime")}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); saveTime("totalTime"); }
+                    if (e.key === "Escape") setEditingTime(null);
+                  }}
+                  placeholder="mins"
+                  className="w-16 bg-transparent border-b border-brand-orange focus:outline-none text-foreground text-sm text-center"
+                />
+                <span className="text-muted-foreground text-xs">min</span>
+              </div>
+            ) : (
+              <button
+                onClick={() => startEditingTime("totalTime")}
+                className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors group/total"
+                title="Click to edit total time"
+              >
+                <span>Total {formatTime(totalTime)}</span>
+                <Pencil className="w-3 h-3 opacity-0 group-hover/total:opacity-60 transition-opacity" />
+              </button>
+            )
+          )}
+
           <span className={cn("font-medium", difficultyColor(recipe.difficulty))}>
             {difficultyLabel(recipe.difficulty)}
           </span>
@@ -673,6 +820,34 @@ export function RecipeDetailClient({ recipe }: Props) {
           </button>
         )}
       </div>
+      {/* Lightbox */}
+      {lightboxOpen && imageUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 cursor-zoom-out"
+          onClick={closeLightbox}
+        >
+          <button
+            onClick={closeLightbox}
+            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white"
+            aria-label="Close"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <div
+            className="relative max-w-5xl max-h-[90vh] w-full h-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Image
+              src={imageUrl}
+              alt={titleValue}
+              fill
+              className="object-contain"
+              sizes="100vw"
+              priority
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
