@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { ArrowLeft, Clock, ChefHat, Star, Heart, ExternalLink, Minus, Plus, Camera, Loader2, Pencil, BookOpen, Trash2, Tag, X, NotebookPen, ZoomIn, Sparkles } from "lucide-react";
+import { AddToMealPlanButton } from "./add-to-meal-plan-button";
 import { scaleQuantity } from "@/lib/units";
 import { cn, formatTime, difficultyLabel, difficultyColor } from "@/lib/utils";
 import type { Ingredient, Instruction, NutritionFact } from "@prisma/client";
@@ -408,6 +409,7 @@ export function RecipeDetailClient({ recipe }: Props) {
           )}
 
           <div className="flex items-center gap-1 shrink-0">
+            <AddToMealPlanButton recipeId={recipe.id} />
             <button
               onClick={toggleFavorite}
               className="p-2 rounded-full hover:bg-secondary transition-colors"

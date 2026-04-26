@@ -380,7 +380,9 @@ function DailyNutritionRow({ items }: { items: PlanItem[] }) {
       {/* Label cell */}
       <div className="p-3 flex flex-col justify-center border-r border-border">
         <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Daily</span>
-        <span className="text-[10px] text-muted-foreground mt-0.5">Cal · Pro · Carb</span>
+        <span className="text-[10px] text-muted-foreground mt-0.5">Calories</span>
+        <span className="text-[10px] text-muted-foreground">Protein</span>
+        <span className="text-[10px] text-muted-foreground">Carbs</span>
       </div>
 
       {/* Day cells */}
@@ -391,12 +393,12 @@ function DailyNutritionRow({ items }: { items: PlanItem[] }) {
               <span className="text-xs font-semibold text-orange-400 leading-none">
                 {Math.round(d.cal!)}
               </span>
-              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                <span className="text-blue-400 font-medium">{Math.round(d.protein!)}g</span>
-                <span className="text-muted-foreground/40">·</span>
-                <span className="text-yellow-400 font-medium">{Math.round(d.carbs!)}g</span>
-              </div>
-              <span className="text-[9px] text-muted-foreground/40">kcal</span>
+              <span className="text-xs font-medium text-blue-400 leading-none">
+                {Math.round(d.protein!)}g
+              </span>
+              <span className="text-xs font-medium text-yellow-400 leading-none">
+                {Math.round(d.carbs!)}g
+              </span>
             </>
           ) : (
             <span className="text-[10px] text-muted-foreground/20">—</span>

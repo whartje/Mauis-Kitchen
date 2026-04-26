@@ -34,6 +34,7 @@ interface Filters {
   timeRange?: string;
   foodGroup?: string;
   collection?: string;
+  protein?: string;
 }
 
 interface Props {
@@ -143,6 +144,7 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks }: Prop
     currentFilters.difficulty,
     currentFilters.favorite,
     currentFilters.collection,
+    currentFilters.protein,
   ].filter(Boolean).length;
 
   return (
@@ -283,6 +285,25 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks }: Prop
             </div>
           </div>
 
+          {/* Protein */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Protein (per serving)</p>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { value: "high",   label: ">10g" },
+                { value: "medium", label: "5–10g" },
+                { value: "low",    label: "<5g" },
+              ].map((p) => (
+                <FilterChip
+                  key={p.value}
+                  label={p.label}
+                  active={currentFilters.protein === p.value}
+                  onClick={() => toggle("protein", p.value)}
+                />
+              ))}
+            </div>
+          </div>
+
           {/* Difficulty + Favorites */}
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3 pt-1 border-t border-border">
             <div>
@@ -330,6 +351,16 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks }: Prop
                 onClick={() => applyFilter("collection", null)}
                 className="ml-0.5 hover:opacity-70 p-0.5"
                 aria-label="Remove cookbook filter"
+              >×</button>
+            </span>
+          )}
+          {currentFilters.protein && (
+            <span className="flex items-center gap-1 pl-2 pr-1 py-1 bg-brand-orange/15 border border-brand-orange/40 text-brand-orange text-xs font-medium rounded-full">
+              Protein {{ high: ">10g", medium: "5–10g", low: "<5g" }[currentFilters.protein]}
+              <button
+                onClick={() => applyFilter("protein", null)}
+                className="ml-0.5 hover:opacity-70 p-0.5"
+                aria-label="Remove protein filter"
               >×</button>
             </span>
           )}

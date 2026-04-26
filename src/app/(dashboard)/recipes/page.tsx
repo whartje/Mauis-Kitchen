@@ -12,6 +12,7 @@ interface Props {
     timeRange?: string;
     foodGroup?: string;
     collection?: string;
+    protein?: string;
   }>;
 }
 
@@ -37,7 +38,7 @@ export default async function RecipesPage({ searchParams }: Props) {
   if (!userId) return null;
 
   const params = await searchParams;
-  const { q, difficulty, favorite, sort = "newest", mealType, timeRange, foodGroup, collection } = params;
+  const { q, difficulty, favorite, sort = "newest", mealType, timeRange, foodGroup, collection, protein } = params;
 
   // Build time filter
   let timeFilter = {};
@@ -64,6 +65,9 @@ export default async function RecipesPage({ searchParams }: Props) {
       tags: { hasSome: FOOD_GROUP_TAGS[foodGroup] },
     }),
     ...(collection && { collection }),
+    ...(protein === "high"   && { nutrition: { protein: { gt: 10 } } }),
+    ...(protein === "medium" && { nutrition: { protein: { gte: 5, lte: 10 } } }),
+    ...(protein === "low"    && { nutrition: { protein: { lt: 5 } } }),
   };
 
   const orderBy =
