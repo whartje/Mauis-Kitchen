@@ -39,6 +39,8 @@ interface GroceryListItem {
   category: IngredientCategory;
   isChecked: boolean;
   sortOrder: number;
+  recipeIds: string[];
+  recipeTitles: string[];
 }
 
 interface GroceryListWithItems {
@@ -811,6 +813,8 @@ function GroceryItemRow({
     if (value !== item.name) onUpdate({ name: value });
   }
 
+  const sources = item.recipeIds ?? [];
+
   return (
     <li className="group/row flex items-center gap-2 px-4 py-2.5">
       {/* Checkbox */}
@@ -871,6 +875,22 @@ function GroceryItemRow({
           item.isChecked ? "line-through text-muted-foreground" : "text-foreground",
         ].join(" ")}
       />
+
+      {/* Recipe sources */}
+      {sources.length > 0 && (
+        <div className="flex flex-col items-end gap-0.5 shrink-0 max-w-[130px]">
+          {sources.map((id, i) => (
+            <Link
+              key={id}
+              href={`/recipes/${id}`}
+              className="text-[10px] leading-tight text-muted-foreground/50 hover:text-[#E8834A] transition-colors truncate w-full text-right"
+              title={item.recipeTitles[i]}
+            >
+              {item.recipeTitles[i]}
+            </Link>
+          ))}
+        </div>
+      )}
 
       {/* Delete */}
       <button

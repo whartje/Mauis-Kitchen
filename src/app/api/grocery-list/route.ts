@@ -315,6 +315,8 @@ export async function POST(req: NextRequest) {
     // unit → total quantity (or null when unquantified)
     byUnit: Map<string, number>;
     hasUnquantified: boolean;
+    // recipe attribution: id → title
+    recipes: Map<string, string>;
   };
 
   const byName = new Map<string, RawBucket>();
@@ -325,7 +327,9 @@ export async function POST(req: NextRequest) {
     quantity: number | null,
     unit: string | null,
     raw: string,
-    category: IngredientCategory
+    category: IngredientCategory,
+    recipeId: string,
+    recipeTitle: string
   ) {
     const { name: cleanedName, unit: recoveredUnit } = cleanIngredientName(ingredientName, unit);
     const effectiveName = cleanedName || ingredientName;
@@ -344,9 +348,12 @@ export async function POST(req: NextRequest) {
         raw,
         byUnit: new Map(),
         hasUnquantified: false,
+        recipes: new Map(),
       });
     }
     const bucket = byName.get(keyName)!;
+
+    bucket.recipes.set(recipeId, recipeTitle);
 
     if (!hasQty) {
       bucket.hasUnquantified = true;
@@ -357,6 +364,8 @@ export async function POST(req: NextRequest) {
   }
 
   for (const planItem of mealPlan.items) {
+    const recipeId = planItem.recipe.id;
+    const recipeTitle = planItem.recipe.title;
     for (const ingredient of planItem.recipe.ingredients) {
       // Try to split compound entries like "spices: 1 tsp paprika, 1 tsp cumin"
       const compounds = splitCompoundIngredient(
@@ -366,7 +375,7 @@ export async function POST(req: NextRequest) {
 
       if (compounds) {
         for (const c of compounds) {
-          addToBucket(c.name, c.quantity, c.unit, ingredient.raw, c.category);
+          addToBucket(c.name, c.quantity, c.unit, ingredient.raw, c.category, recipeId, recipeTitle);
         }
       } else {
         addToBucket(
@@ -374,7 +383,9 @@ export async function POST(req: NextRequest) {
           ingredient.quantity ?? null,
           ingredient.unit ?? null,
           ingredient.raw,
-          ingredient.category as IngredientCategory
+          ingredient.category as IngredientCategory,
+          recipeId,
+          recipeTitle
         );
       }
     }
@@ -388,12 +399,16 @@ export async function POST(req: NextRequest) {
     unit: string | null;
     raw: string;
     category: IngredientCategory;
+    recipeIds: string[];
+    recipeTitles: string[];
   };
 
   const consolidatedList: ConsolidatedIngredient[] = [];
 
   for (const [, bucket] of byName) {
     const units = [...bucket.byUnit.keys()];
+    const recipeIds = [...bucket.recipes.keys()];
+    const recipeTitles = [...bucket.recipes.values()];
 
     if (units.length === 0) {
       // Entirely unquantified
@@ -403,6 +418,8 @@ export async function POST(req: NextRequest) {
         unit: null,
         raw: bucket.raw,
         category: bucket.category,
+        recipeIds,
+        recipeTitles,
       });
       continue;
     }
@@ -422,6 +439,8 @@ export async function POST(req: NextRequest) {
         unit,
         raw: bucket.raw + suffix,
         category: bucket.category,
+        recipeIds,
+        recipeTitles,
       });
     } else if (allWeight) {
       const totalG = units.reduce((sum, u) => sum + bucket.byUnit.get(u)! * WEIGHT_G[u], 0);
@@ -433,6 +452,8 @@ export async function POST(req: NextRequest) {
         unit,
         raw: bucket.raw + suffix,
         category: bucket.category,
+        recipeIds,
+        recipeTitles,
       });
     } else if (units.length === 1) {
       // Single non-volume/weight unit (e.g. "cloves", "slices")
@@ -445,6 +466,8 @@ export async function POST(req: NextRequest) {
         unit: u || null,
         raw: bucket.raw + suffix,
         category: bucket.category,
+        recipeIds,
+        recipeTitles,
       });
     } else {
       // Mixed units that can't be converted — emit one row per unit
@@ -456,6 +479,8 @@ export async function POST(req: NextRequest) {
           unit: u || null,
           raw: bucket.raw,
           category: bucket.category,
+          recipeIds,
+          recipeTitles,
         });
       }
       if (bucket.hasUnquantified) {
@@ -465,6 +490,8 @@ export async function POST(req: NextRequest) {
           unit: null,
           raw: bucket.raw,
           category: bucket.category,
+          recipeIds,
+          recipeTitles,
         });
       }
     }
@@ -512,6 +539,8 @@ export async function POST(req: NextRequest) {
           category: ingredient.category,
           isChecked: false,
           sortOrder: index,
+          recipeIds: ingredient.recipeIds,
+          recipeTitles: ingredient.recipeTitles,
         })),
       },
     },

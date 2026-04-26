@@ -189,6 +189,8 @@ model GroceryListItem {
   category      IngredientCategory @default(OTHER)
   isChecked     Boolean            @default(false)
   sortOrder     Int                @default(0)
+  recipeIds     String[]           @default([])
+  recipeTitles  String[]           @default([])
 
   @@index([groceryListId])
 }
