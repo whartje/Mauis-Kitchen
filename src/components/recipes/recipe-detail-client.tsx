@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ArrowLeft, Clock, ChefHat, Star, Heart, ExternalLink, Minus, Plus, Camera, Loader2, Pencil, BookOpen, Trash2, Tag, X, NotebookPen, ZoomIn } from "lucide-react";
+import { ArrowLeft, Clock, ChefHat, Star, Heart, ExternalLink, Minus, Plus, Camera, Loader2, Pencil, BookOpen, Trash2, Tag, X, NotebookPen, ZoomIn, Sparkles } from "lucide-react";
 import { scaleQuantity } from "@/lib/units";
 import { cn, formatTime, difficultyLabel, difficultyColor } from "@/lib/utils";
 import type { Ingredient, Instruction, NutritionFact } from "@prisma/client";
@@ -139,6 +139,23 @@ export function RecipeDetailClient({ recipe }: Props) {
   }, []);
 
   const scaleFactor = servings / recipe.servings;
+
+  // ── Nutrition ──────────────────────────────────────────────────────────────
+  const [nutrition, setNutrition] = useState(recipe.nutrition);
+  const [estimatingNutrition, setEstimatingNutrition] = useState(false);
+
+  async function estimateNutrition() {
+    setEstimatingNutrition(true);
+    try {
+      const res = await fetch(`/api/recipes/${recipe.id}/nutrition`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        setNutrition(data.nutrition);
+      }
+    } finally {
+      setEstimatingNutrition(false);
+    }
+  }
 
   // ── Thumbnail upload ───────────────────────────────────────────────────────
   async function uploadThumbnail(file: File) {
@@ -702,6 +719,66 @@ export function RecipeDetailClient({ recipe }: Props) {
         </div>
       </div>
 
+      {/* ── Nutrition panel ── */}
+      <div className="bg-card border border-border rounded-xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="font-semibold text-foreground">Nutrition</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Per serving{nutrition?.servingSize ? ` (${nutrition.servingSize})` : ""}
+              {scaleFactor !== 1 && (
+                <span className="text-brand-orange ml-1">· scaled to {servings} servings</span>
+              )}
+              {nutrition?.isEstimated && (
+                <span className="ml-1">· AI estimate</span>
+              )}
+            </p>
+          </div>
+          <button
+            onClick={estimateNutrition}
+            disabled={estimatingNutrition}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-brand-orange hover:border-brand-orange/40 hover:bg-brand-orange/5 transition-colors disabled:opacity-50"
+          >
+            {estimatingNutrition ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="w-3.5 h-3.5" />
+            )}
+            {nutrition ? "Re-estimate" : "Estimate with AI"}
+          </button>
+        </div>
+
+        {nutrition ? (
+          <div className="grid grid-cols-4 sm:grid-cols-7 gap-3">
+            {[
+              { label: "Calories", value: nutrition.calories, unit: "kcal", color: "text-orange-400" },
+              { label: "Protein",  value: nutrition.protein,  unit: "g",    color: "text-blue-400" },
+              { label: "Carbs",    value: nutrition.carbs,    unit: "g",    color: "text-yellow-400" },
+              { label: "Fat",      value: nutrition.fat,      unit: "g",    color: "text-purple-400" },
+              { label: "Fiber",    value: nutrition.fiber,    unit: "g",    color: "text-green-400" },
+              { label: "Sugar",    value: nutrition.sugar,    unit: "g",    color: "text-pink-400" },
+              { label: "Iron",     value: nutrition.iron,     unit: "mg",   color: "text-red-400" },
+            ].map(({ label, value, unit, color }) => {
+              if (value == null) return null;
+              const scaled = Math.round(value * scaleFactor * 10) / 10;
+              return (
+                <div key={label} className="flex flex-col items-center text-center bg-secondary/50 rounded-lg px-2 py-3 gap-1">
+                  <span className={`text-lg font-bold leading-none ${color}`}>
+                    {scaled % 1 === 0 ? scaled : scaled.toFixed(1)}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">{unit}</span>
+                  <span className="text-[10px] text-muted-foreground">{label}</span>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="flex items-center justify-center py-6 text-sm text-muted-foreground/50">
+            Click &ldquo;Estimate with AI&rdquo; to calculate nutrition facts from the ingredients
+          </div>
+        )}
+      </div>
+
       {/* Two-column layout */}
       <div className="grid md:grid-cols-5 gap-6">
         {/* Ingredients — left (40%) */}
@@ -785,30 +862,6 @@ export function RecipeDetailClient({ recipe }: Props) {
             )}
           </div>
 
-          {/* Nutrition */}
-          {recipe.nutrition && (
-            <div className="bg-card border border-border rounded-xl p-5">
-              <h2 className="font-semibold text-foreground mb-3">Nutrition</h2>
-              <p className="text-xs text-muted-foreground mb-3">Per serving{recipe.nutrition.servingSize ? ` (${recipe.nutrition.servingSize})` : ""}</p>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                {[
-                  ["Calories", recipe.nutrition.calories, "kcal"],
-                  ["Protein", recipe.nutrition.protein, "g"],
-                  ["Carbs", recipe.nutrition.carbs, "g"],
-                  ["Fat", recipe.nutrition.fat, "g"],
-                  ["Fiber", recipe.nutrition.fiber, "g"],
-                  ["Sugar", recipe.nutrition.sugar, "g"],
-                ].map(([label, val, unit]) =>
-                  val != null ? (
-                    <div key={label as string} className="flex justify-between">
-                      <span className="text-muted-foreground">{label}</span>
-                      <span className="font-medium">{val}{unit}</span>
-                    </div>
-                  ) : null
-                )}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Instructions — right (60%) */}

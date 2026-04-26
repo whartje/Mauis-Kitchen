@@ -98,7 +98,9 @@ model NutritionFact {
   fiber       Float?
   sugar       Float?
   sodium      Float?
+  iron        Float?
   servingSize String?
+  isEstimated Boolean @default(false)
 }
 
 // ─────────────────────────────────────────────

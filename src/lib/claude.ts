@@ -174,6 +174,7 @@ const NutritionSchema = z.object({
   fiber: z.number().nullable().optional(),
   sugar: z.number().nullable().optional(),
   sodium: z.number().nullable().optional(),
+  iron: z.number().nullable().optional(),
   servingSize: z.string().nullable().optional(),
 });
 
@@ -414,4 +415,58 @@ Use common ingredient names, lowercase, singular form (e.g. "tomato" not "tomato
 
   const jsonText = content.text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
   return safeParseJson(jsonText);
+}
+
+// ─────────────────────────────────────────────
+// Estimate nutrition from ingredients
+// ─────────────────────────────────────────────
+
+export type EstimatedNutrition = z.infer<typeof NutritionSchema>;
+
+export async function estimateNutrition(
+  ingredients: Array<{ name: string; quantity: number | null; unit: string | null; raw: string }>,
+  servings: number
+): Promise<EstimatedNutrition> {
+  const ingredientList = ingredients
+    .map((ing) => {
+      const qty = ing.quantity != null ? `${ing.quantity}${ing.unit ? " " + ing.unit : ""}` : "";
+      return `- ${qty ? qty + " " : ""}${ing.name || ing.raw}`;
+    })
+    .join("\n");
+
+  const message = await anthropic.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 512,
+    messages: [
+      {
+        role: "user",
+        content: `Estimate the nutritional content for this recipe that makes ${servings} serving${servings !== 1 ? "s" : ""}.
+
+Ingredients:
+${ingredientList}
+
+Return ONLY a JSON object with per-serving estimates (no markdown, no explanation):
+{
+  "calories": <number, kcal>,
+  "protein": <number, grams>,
+  "carbs": <number, grams>,
+  "fat": <number, grams>,
+  "fiber": <number, grams>,
+  "sugar": <number, grams>,
+  "sodium": <number, mg>,
+  "iron": <number, mg>,
+  "servingSize": "<description like '1 bowl' or '1 cup'>"
+}
+
+Use realistic estimates based on standard nutritional databases. All values must be numbers (not null).`,
+      },
+    ],
+  });
+
+  const content = message.content[0];
+  if (content.type !== "text") throw new Error("Unexpected Claude response type");
+
+  const jsonText = content.text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
+  const parsed = safeParseJson(jsonText);
+  return NutritionSchema.parse(parsed);
 }
