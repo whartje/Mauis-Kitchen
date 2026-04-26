@@ -325,10 +325,10 @@ export function RecipeLibraryClient({ recipes, currentFilters }: Props) {
             </button>
           ) : (
             <button
-              onClick={() => setImportOpen(true)}
+              onClick={() => { setImportTab("url"); setImportOpen(true); }}
               className="flex items-center gap-2 bg-brand-orange hover:bg-brand-orange-dark text-black font-semibold px-5 py-2.5 rounded-lg transition-colors text-sm mt-2"
             >
-              <Plus className="w-4 h-4" />
+              <LinkIcon className="w-4 h-4" />
               Import Recipe
             </button>
           )}
