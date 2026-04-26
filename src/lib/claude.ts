@@ -126,7 +126,7 @@ const IngredientSchema = z.object({
 // Claude returns ingredients as strings or objects with varied key names — normalise at array level
 const ingredientsSchema = z.preprocess((val) => {
   if (!Array.isArray(val)) return val;
-  return val.map((item) => {
+  const normalised = val.map((item) => {
     if (typeof item === "string") {
       return { name: item, raw: item, quantity: null, unit: null, notes: null, category: "OTHER", sortOrder: 0 };
     }
@@ -137,6 +137,17 @@ const ingredientsSchema = z.preprocess((val) => {
       return { ...o, name, raw };
     }
     return item;
+  });
+
+  // Deduplicate by normalised name (lowercase, collapse spaces) — keep first occurrence
+  const seen = new Set<string>();
+  return normalised.filter((item) => {
+    if (!item || typeof item !== "object") return true;
+    const o = item as Record<string, unknown>;
+    const key = String(o.name ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
 }, z.array(IngredientSchema));
 
@@ -194,6 +205,8 @@ Rules:
 - If the recipe has multiple ingredient sections (e.g. "For the sauce:", "For the bowls:"), include EVERY ingredient from EVERY section as a flat list in the "ingredients" array. Do not omit any section.
 - If a single line lists multiple ingredients (e.g. "Spices: 1 tsp paprika, 1 tsp cumin, ¼ tsp garlic powder"), ALWAYS split them into separate ingredient objects — one per ingredient. Never keep multiple ingredients merged into a single entry.
 - For ingredient quantities that are vague ("to taste", "a pinch", "1 can"), set quantity and unit to null, and preserve the exact original text in the "raw" field
+- DEDUPLICATION (critical): Each ingredient must appear EXACTLY ONCE in the list. If the same ingredient appears in both the formal ingredient list and in the instructions or notes (e.g. "season with salt and pepper"), include it only once — from the ingredient list. Never repeat an ingredient.
+- SERVING SUGGESTIONS: Do NOT include serving suggestions, plating instructions, or optional accompaniments as ingredients (e.g. "sautéed broccoli, for serving" or "crusty bread, to serve" should be omitted). Only include ingredients that are part of the recipe itself.
 
 INGREDIENT NAME RULES (critical):
 - The "name" field must contain ONLY the ingredient name — never quantities, units, or measurements
