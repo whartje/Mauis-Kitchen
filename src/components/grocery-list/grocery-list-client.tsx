@@ -534,7 +534,7 @@ export default function GroceryListClient({
 
                 {/* Alexa web */}
                 <a
-                  href="https://alexa.amazon.com/spa/index.html#shopping-list"
+                  href="https://alexa.amazon.com/spa/index.html#/shopping-list"
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={copyToClipboard}
@@ -542,8 +542,8 @@ export default function GroceryListClient({
                 >
                   <span className="text-base leading-none flex-shrink-0">🔵</span>
                   <div>
-                    <p className="text-foreground">Open Alexa &amp; paste</p>
-                    <p className="text-xs text-muted-foreground">Copies list, then opens Alexa shopping list</p>
+                    <p className="text-foreground">Open Alexa Shopping List</p>
+                    <p className="text-xs text-muted-foreground">Copies list + opens alexa.amazon.com — then paste</p>
                   </div>
                 </a>
               </div>
