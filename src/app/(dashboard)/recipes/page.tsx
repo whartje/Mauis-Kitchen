@@ -11,6 +11,7 @@ interface Props {
     mealType?: string;
     timeRange?: string;
     foodGroup?: string;
+    collection?: string;
   }>;
 }
 
@@ -36,7 +37,7 @@ export default async function RecipesPage({ searchParams }: Props) {
   if (!userId) return null;
 
   const params = await searchParams;
-  const { q, difficulty, favorite, sort = "newest", mealType, timeRange, foodGroup } = params;
+  const { q, difficulty, favorite, sort = "newest", mealType, timeRange, foodGroup, collection } = params;
 
   // Build time filter
   let timeFilter = {};
@@ -62,6 +63,7 @@ export default async function RecipesPage({ searchParams }: Props) {
     ...(foodGroup && FOOD_GROUP_TAGS[foodGroup] && {
       tags: { hasSome: FOOD_GROUP_TAGS[foodGroup] },
     }),
+    ...(collection && { collection }),
   };
 
   const orderBy =
@@ -71,25 +73,38 @@ export default async function RecipesPage({ searchParams }: Props) {
     : sort === "fastest" ? { totalTime: "asc" as const }
     : { importedAt: "desc" as const };
 
-  const recipes = await prisma.recipe.findMany({
-    where,
-    orderBy,
-    select: {
-      id: true,
-      title: true,
-      imageUrl: true,
-      prepTime: true,
-      cookTime: true,
-      totalTime: true,
-      difficulty: true,
-      rating: true,
-      isFavorite: true,
-      tags: true,
-      servings: true,
-      importedAt: true,
-      sourceName: true,
-    },
-  });
+  const [recipes, collectionsRaw] = await Promise.all([
+    prisma.recipe.findMany({
+      where,
+      orderBy,
+      select: {
+        id: true,
+        title: true,
+        imageUrl: true,
+        prepTime: true,
+        cookTime: true,
+        totalTime: true,
+        difficulty: true,
+        rating: true,
+        isFavorite: true,
+        tags: true,
+        servings: true,
+        importedAt: true,
+        sourceName: true,
+        collection: true,
+      },
+    }),
+    prisma.recipe.findMany({
+      where: { userId, collection: { not: null } },
+      select: { collection: true },
+      distinct: ["collection"],
+      orderBy: { collection: "asc" },
+    }),
+  ]);
 
-  return <RecipeLibraryClient recipes={recipes} currentFilters={params} />;
+  const cookbooks = collectionsRaw
+    .map((r) => r.collection as string)
+    .filter(Boolean);
+
+  return <RecipeLibraryClient recipes={recipes} currentFilters={params} cookbooks={cookbooks} />;
 }

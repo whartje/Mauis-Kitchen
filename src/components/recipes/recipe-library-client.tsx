@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Link as LinkIcon, Camera, Search, ChevronDown, ChevronUp } from "lucide-react";
+import { Link as LinkIcon, Camera, Search, ChevronDown, ChevronUp, BookOpen } from "lucide-react";
 import { RecipeCard } from "./recipe-card";
 import { ImportRecipeModal } from "./import-recipe-modal";
 import { CatIcon } from "@/components/ui/cat-icon";
@@ -22,6 +22,7 @@ interface Recipe {
   servings: number;
   importedAt: Date;
   sourceName: string | null;
+  collection: string | null;
 }
 
 interface Filters {
@@ -32,11 +33,13 @@ interface Filters {
   mealType?: string;
   timeRange?: string;
   foodGroup?: string;
+  collection?: string;
 }
 
 interface Props {
   recipes: Recipe[];
   currentFilters: Filters;
+  cookbooks: string[];
 }
 
 const SORT_OPTIONS = [
@@ -101,7 +104,7 @@ function FilterChip({
   );
 }
 
-export function RecipeLibraryClient({ recipes, currentFilters }: Props) {
+export function RecipeLibraryClient({ recipes, currentFilters, cookbooks }: Props) {
   const router = useRouter();
   const [importOpen, setImportOpen] = useState(false);
   const [importTab, setImportTab] = useState<"url" | "photo">("url");
@@ -139,6 +142,7 @@ export function RecipeLibraryClient({ recipes, currentFilters }: Props) {
     currentFilters.foodGroup,
     currentFilters.difficulty,
     currentFilters.favorite,
+    currentFilters.collection,
   ].filter(Boolean).length;
 
   return (
@@ -213,6 +217,26 @@ export function RecipeLibraryClient({ recipes, currentFilters }: Props) {
       {/* Expandable filter panel */}
       {filtersOpen && (
         <div className="bg-card border border-border rounded-xl p-4 space-y-4">
+
+          {/* Cookbooks */}
+          {cookbooks.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <BookOpen className="w-3.5 h-3.5" />
+                Cookbook
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {cookbooks.map((cb) => (
+                  <FilterChip
+                    key={cb}
+                    label={cb}
+                    active={currentFilters.collection === cb}
+                    onClick={() => toggle("collection", cb)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Meal Type */}
           <div>
@@ -295,11 +319,24 @@ export function RecipeLibraryClient({ recipes, currentFilters }: Props) {
         </div>
       )}
 
-      {/* Results count */}
+      {/* Active filter summary */}
       {activeFilterCount > 0 && (
-        <p className="text-sm text-muted-foreground">
-          {recipes.length} {recipes.length === 1 ? "recipe" : "recipes"} found
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          {currentFilters.collection && (
+            <span className="flex items-center gap-1 pl-2 pr-1 py-1 bg-brand-orange/15 border border-brand-orange/40 text-brand-orange text-xs font-medium rounded-full">
+              <BookOpen className="w-3 h-3" />
+              {currentFilters.collection}
+              <button
+                onClick={() => applyFilter("collection", null)}
+                className="ml-0.5 hover:opacity-70 p-0.5"
+                aria-label="Remove cookbook filter"
+              >×</button>
+            </span>
+          )}
+          <p className="text-sm text-muted-foreground">
+            {recipes.length} {recipes.length === 1 ? "recipe" : "recipes"} found
+          </p>
+        </div>
       )}
 
       {/* Grid */}

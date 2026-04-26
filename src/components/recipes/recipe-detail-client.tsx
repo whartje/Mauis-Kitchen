@@ -281,9 +281,10 @@ export function RecipeDetailClient({ recipe }: Props) {
   }
 
   function renderIngredientQuantity(ing: Ingredient): string {
-    if (ing.quantity == null) return ing.raw;
+    const display = ing.name || ing.raw;
+    if (ing.quantity == null) return ing.notes ? `${display}, ${ing.notes}` : display;
     const scaled = scaleQuantity(ing.quantity, ing.unit, recipe.servings, servings);
-    return `${scaled.display} ${ing.name}${ing.notes ? `, ${ing.notes}` : ""}`;
+    return `${scaled.display} ${display}${ing.notes ? `, ${ing.notes}` : ""}`;
   }
 
   return (

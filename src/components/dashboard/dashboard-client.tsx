@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Plus, ArrowRight } from "lucide-react";
+import { Link as LinkIcon, Camera, ArrowRight } from "lucide-react";
 import { RecipeCard } from "@/components/recipes/recipe-card";
 import { ImportRecipeModal } from "@/components/recipes/import-recipe-modal";
 
@@ -26,6 +26,7 @@ interface Props {
 
 export function DashboardClient({ recentRecipes, recipeCount }: Props) {
   const [importOpen, setImportOpen] = useState(false);
+  const [importTab, setImportTab] = useState<"url" | "photo">("url");
 
   return (
     <div className="space-y-8">
@@ -39,13 +40,24 @@ export function DashboardClient({ recentRecipes, recipeCount }: Props) {
               : "Your kitchen is empty — import a recipe to get started"}
           </p>
         </div>
-        <button
-          onClick={() => setImportOpen(true)}
-          className="flex items-center gap-2 bg-brand-orange hover:bg-brand-orange-dark text-black font-semibold px-4 py-2.5 rounded-lg transition-colors text-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Import Recipe
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setImportTab("photo"); setImportOpen(true); }}
+            title="Scan a recipe photo"
+            className="flex items-center gap-2 bg-secondary hover:bg-brand-orange/10 border border-border hover:border-brand-orange/40 text-foreground hover:text-brand-orange px-3 py-2.5 rounded-lg transition-colors text-sm font-medium"
+          >
+            <Camera className="w-4 h-4" />
+            <span className="hidden sm:inline">Scan Photo</span>
+          </button>
+          <button
+            onClick={() => { setImportTab("url"); setImportOpen(true); }}
+            title="Import from a recipe URL"
+            className="flex items-center gap-2 bg-brand-orange hover:bg-brand-orange-dark text-black font-semibold px-3 py-2.5 rounded-lg transition-colors text-sm"
+          >
+            <LinkIcon className="w-4 h-4" />
+            <span className="hidden sm:inline">From URL</span>
+          </button>
+        </div>
       </div>
 
       {/* Quick import bar */}
@@ -71,10 +83,11 @@ export function DashboardClient({ recentRecipes, recipeCount }: Props) {
             }}
           />
           <button
-            onClick={() => setImportOpen(true)}
-            className="px-4 py-2.5 border border-border rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            onClick={() => { setImportTab("photo"); setImportOpen(true); }}
+            className="flex items-center gap-2 px-4 py-2.5 border border-border rounded-lg text-sm text-muted-foreground hover:text-brand-orange hover:border-brand-orange/40 hover:bg-brand-orange/5 transition-colors"
           >
-            From Photo
+            <Camera className="w-4 h-4" />
+            Scan Photo
           </button>
         </div>
       </div>
@@ -107,12 +120,12 @@ export function DashboardClient({ recentRecipes, recipeCount }: Props) {
             {
               title: "Import from URL",
               desc: "Paste any recipe website URL — we'll extract and normalize it automatically.",
-              action: () => setImportOpen(true),
+              action: () => { setImportTab("url"); setImportOpen(true); },
             },
             {
-              title: "Import from Photo",
+              title: "Scan a Photo",
               desc: "Take a photo of a cookbook page or screenshot a recipe website.",
-              action: () => setImportOpen(true),
+              action: () => { setImportTab("photo"); setImportOpen(true); },
             },
             {
               title: "Build a Meal Plan",
@@ -144,7 +157,7 @@ export function DashboardClient({ recentRecipes, recipeCount }: Props) {
         </div>
       )}
 
-      <ImportRecipeModal open={importOpen} onClose={() => setImportOpen(false)} />
+      <ImportRecipeModal open={importOpen} onClose={() => setImportOpen(false)} initialTab={importTab} />
     </div>
   );
 }
