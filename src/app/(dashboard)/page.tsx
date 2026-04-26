@@ -2,11 +2,24 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { DashboardClient } from "@/components/dashboard/dashboard-client";
 
+// Monday of the current UTC week
+function currentWeekStart(): Date {
+  const now = new Date();
+  const day = now.getUTCDay(); // 0=Sun … 6=Sat
+  const diff = day === 0 ? -6 : 1 - day; // shift to Monday
+  const monday = new Date(now);
+  monday.setUTCDate(now.getUTCDate() + diff);
+  monday.setUTCHours(0, 0, 0, 0);
+  return monday;
+}
+
 export default async function DashboardPage() {
   const { userId } = await auth();
   if (!userId) return null;
 
-  const [recentRecipes, recipeCount] = await Promise.all([
+  const weekStart = currentWeekStart();
+
+  const [recentRecipes, recipeCount, mealPlan] = await Promise.all([
     prisma.recipe.findMany({
       where: { userId },
       orderBy: { importedAt: "desc" },
@@ -25,7 +38,25 @@ export default async function DashboardPage() {
       },
     }),
     prisma.recipe.count({ where: { userId } }),
+    prisma.mealPlan.findFirst({
+      where: { userId, weekStartDate: weekStart },
+      include: {
+        items: {
+          orderBy: [{ dayOfWeek: "asc" }, { mealType: "asc" }],
+          include: {
+            recipe: { select: { id: true, title: true, totalTime: true } },
+          },
+        },
+      },
+    }),
   ]);
 
-  return <DashboardClient recentRecipes={recentRecipes} recipeCount={recipeCount} />;
+  return (
+    <DashboardClient
+      recentRecipes={recentRecipes}
+      recipeCount={recipeCount}
+      weekStart={weekStart.toISOString()}
+      mealPlanItems={mealPlan?.items ?? []}
+    />
+  );
 }

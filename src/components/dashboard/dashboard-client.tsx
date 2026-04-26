@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Link as LinkIcon, Camera, ArrowRight } from "lucide-react";
+import { Link as LinkIcon, Camera, ArrowRight, CalendarDays, Clock, ExternalLink } from "lucide-react";
 import { RecipeCard } from "@/components/recipes/recipe-card";
 import { ImportRecipeModal } from "@/components/recipes/import-recipe-modal";
 
@@ -19,12 +19,43 @@ interface RecipeSummary {
   servings: number;
 }
 
+interface MealPlanItem {
+  id: string;
+  dayOfWeek: number | null;
+  mealType: "BREAKFAST" | "LUNCH" | "DINNER" | "SNACK";
+  recipe: { id: string; title: string; totalTime: number | null };
+}
+
 interface Props {
   recentRecipes: RecipeSummary[];
   recipeCount: number;
+  weekStart: string;
+  mealPlanItems: MealPlanItem[];
 }
 
-export function DashboardClient({ recentRecipes, recipeCount }: Props) {
+const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const MEAL_LABEL: Record<string, string> = {
+  BREAKFAST: "Breakfast",
+  LUNCH: "Lunch",
+  DINNER: "Dinner",
+  SNACK: "Snack",
+};
+const MEAL_ORDER: Record<string, number> = {
+  BREAKFAST: 0, LUNCH: 1, DINNER: 2, SNACK: 3,
+};
+
+function addDays(isoStr: string, days: number): Date {
+  const d = new Date(isoStr);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d;
+}
+
+function fmtDate(date: Date): string {
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${months[date.getUTCMonth()]} ${date.getUTCDate()}`;
+}
+
+export function DashboardClient({ recentRecipes, recipeCount, weekStart, mealPlanItems }: Props) {
   const [importOpen, setImportOpen] = useState(false);
   const [importTab, setImportTab] = useState<"url" | "photo">("url");
 
@@ -91,6 +122,79 @@ export function DashboardClient({ recentRecipes, recipeCount }: Props) {
           </button>
         </div>
       </div>
+
+      {/* This week's meal plan */}
+      {mealPlanItems.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+              <CalendarDays className="w-5 h-5 text-brand-orange" />
+              This Week&apos;s Meals
+            </h2>
+            <Link
+              href="/meal-plan"
+              className="flex items-center gap-1 text-sm text-brand-orange hover:text-brand-orange-light transition-colors"
+            >
+              Edit plan
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+          <div className="bg-card border border-border rounded-xl divide-y divide-border">
+            {mealPlanItems
+              .slice()
+              .sort((a, b) => {
+                const dayA = a.dayOfWeek ?? 0;
+                const dayB = b.dayOfWeek ?? 0;
+                if (dayA !== dayB) return dayA - dayB;
+                return (MEAL_ORDER[a.mealType] ?? 0) - (MEAL_ORDER[b.mealType] ?? 0);
+              })
+              .map((item) => {
+                const date = item.dayOfWeek != null ? addDays(weekStart, item.dayOfWeek) : null;
+                return (
+                  <div key={item.id} className="flex items-center gap-3 px-4 py-3">
+                    {/* Day + date */}
+                    <div className="w-16 shrink-0 text-center">
+                      {date ? (
+                        <>
+                          <p className="text-xs font-semibold text-brand-orange uppercase tracking-wide">
+                            {DAY_NAMES[item.dayOfWeek!]}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{fmtDate(date)}</p>
+                        </>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">—</p>
+                      )}
+                    </div>
+
+                    {/* Meal type badge */}
+                    <span className="shrink-0 text-xs font-medium px-2 py-0.5 rounded-full bg-secondary text-muted-foreground w-20 text-center">
+                      {MEAL_LABEL[item.mealType]}
+                    </span>
+
+                    {/* Recipe link */}
+                    <Link
+                      href={`/recipes/${item.recipe.id}`}
+                      className="flex-1 min-w-0 flex items-center gap-1 group"
+                    >
+                      <span className="text-sm font-medium text-foreground truncate group-hover:text-brand-orange transition-colors">
+                        {item.recipe.title}
+                      </span>
+                      <ExternalLink className="w-3 h-3 text-muted-foreground/40 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </Link>
+
+                    {/* Time */}
+                    {item.recipe.totalTime != null && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+                        <Clock className="w-3 h-3" />
+                        {item.recipe.totalTime}m
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
 
       {/* Recent recipes */}
       {recentRecipes.length > 0 && (
