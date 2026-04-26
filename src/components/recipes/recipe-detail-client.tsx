@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { ArrowLeft, Clock, ChefHat, Star, Heart, ExternalLink, Minus, Plus, Camera, Loader2, Pencil, BookOpen, Trash2, Tag, X, NotebookPen, ZoomIn, Sparkles } from "lucide-react";
 import { AddToMealPlanButton } from "./add-to-meal-plan-button";
+import { overlapColor } from "@/lib/meal-plan-overlap";
 import { scaleQuantity } from "@/lib/units";
 import { cn, formatTime, difficultyLabel, difficultyColor } from "@/lib/utils";
 import type { Ingredient, Instruction, NutritionFact } from "@prisma/client";
@@ -34,9 +35,10 @@ interface Recipe {
 
 interface Props {
   recipe: Recipe;
+  overlapPercent?: number | null;
 }
 
-export function RecipeDetailClient({ recipe }: Props) {
+export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
   const [ingredients, setIngredients] = useState<Ingredient[]>(recipe.ingredients);
   const [editingIngredients, setEditingIngredients] = useState(false);
   const [newIngredientId, setNewIngredientId] = useState<string | null>(null);
@@ -581,6 +583,14 @@ export function RecipeDetailClient({ recipe }: Props) {
           <span className={cn("font-medium", difficultyColor(recipe.difficulty))}>
             {difficultyLabel(recipe.difficulty)}
           </span>
+          {overlapPercent != null && (
+            <span
+              className={cn("font-medium text-sm", overlapColor(overlapPercent))}
+              title={`${overlapPercent}% of ingredients already in this week's meal plan`}
+            >
+              {overlapPercent}% ingredient match
+            </span>
+          )}
           {recipe.sourceUrl && (
             <a
               href={recipe.sourceUrl}

@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Heart, Clock, ChefHat } from "lucide-react";
 import { cn, formatTime, difficultyLabel, difficultyColor } from "@/lib/utils";
+import { overlapColor } from "@/lib/meal-plan-overlap";
 import { useState } from "react";
 
 interface RecipeCardProps {
@@ -20,9 +21,10 @@ interface RecipeCardProps {
     servings: number;
   };
   onFavoriteToggle?: (id: string, isFavorite: boolean) => void;
+  overlapPercent?: number | null;
 }
 
-export function RecipeCard({ recipe, onFavoriteToggle }: RecipeCardProps) {
+export function RecipeCard({ recipe, onFavoriteToggle, overlapPercent }: RecipeCardProps) {
   const [isFavorite, setIsFavorite] = useState(recipe.isFavorite);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
 
@@ -93,6 +95,21 @@ export function RecipeCard({ recipe, onFavoriteToggle }: RecipeCardProps) {
               {difficultyLabel(recipe.difficulty)}
             </span>
           </div>
+
+          {/* Meal plan overlap badge */}
+          {overlapPercent != null && (
+            <div className="absolute bottom-2 right-2">
+              <span
+                className={cn(
+                  "text-xs font-bold px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-sm",
+                  overlapColor(overlapPercent)
+                )}
+                title={`${overlapPercent}% of ingredients already in this week's meal plan`}
+              >
+                {overlapPercent}%
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Content */}

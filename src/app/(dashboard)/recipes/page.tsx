@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { RecipeLibraryClient } from "@/components/recipes/recipe-library-client";
+import { getMealPlanIngredientSet, computeOverlapPercent } from "@/lib/meal-plan-overlap";
 
 interface Props {
   searchParams: Promise<{
@@ -77,7 +78,7 @@ export default async function RecipesPage({ searchParams }: Props) {
     : sort === "fastest" ? { totalTime: "asc" as const }
     : { importedAt: "desc" as const };
 
-  const [recipes, collectionsRaw] = await Promise.all([
+  const [recipes, collectionsRaw, mealPlanSet] = await Promise.all([
     prisma.recipe.findMany({
       where,
       orderBy,
@@ -96,6 +97,7 @@ export default async function RecipesPage({ searchParams }: Props) {
         importedAt: true,
         sourceName: true,
         collection: true,
+        ingredients: { select: { name: true } },
       },
     }),
     prisma.recipe.findMany({
@@ -104,11 +106,25 @@ export default async function RecipesPage({ searchParams }: Props) {
       distinct: ["collection"],
       orderBy: { collection: "asc" },
     }),
+    getMealPlanIngredientSet(userId, prisma),
   ]);
 
   const cookbooks = collectionsRaw
     .map((r) => r.collection as string)
     .filter(Boolean);
 
-  return <RecipeLibraryClient recipes={recipes} currentFilters={params} cookbooks={cookbooks} />;
+  // Compute overlap % per recipe (null if no meal plan or no ingredients)
+  const overlapMap: Record<string, number | null> = {};
+  for (const r of recipes) {
+    overlapMap[r.id] = computeOverlapPercent(r.ingredients, mealPlanSet);
+  }
+
+  return (
+    <RecipeLibraryClient
+      recipes={recipes}
+      currentFilters={params}
+      cookbooks={cookbooks}
+      overlapMap={overlapMap}
+    />
+  );
 }

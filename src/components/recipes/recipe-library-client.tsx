@@ -41,6 +41,7 @@ interface Props {
   recipes: Recipe[];
   currentFilters: Filters;
   cookbooks: string[];
+  overlapMap?: Record<string, number | null>;
 }
 
 const SORT_OPTIONS = [
@@ -105,7 +106,7 @@ function FilterChip({
   );
 }
 
-export function RecipeLibraryClient({ recipes, currentFilters, cookbooks }: Props) {
+export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overlapMap }: Props) {
   const router = useRouter();
   const [importOpen, setImportOpen] = useState(false);
   const [importTab, setImportTab] = useState<"url" | "photo">("url");
@@ -404,7 +405,7 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks }: Prop
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {recipes.map((recipe) => (
-            <RecipeCard key={recipe.id} recipe={recipe} />
+            <RecipeCard key={recipe.id} recipe={recipe} overlapPercent={overlapMap?.[recipe.id] ?? null} />
           ))}
         </div>
       )}

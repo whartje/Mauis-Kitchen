@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { RecipeDetailClient } from "@/components/recipes/recipe-detail-client";
+import { getMealPlanIngredientSet, computeOverlapPercent } from "@/lib/meal-plan-overlap";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -13,16 +14,21 @@ export default async function RecipeDetailPage({ params }: Props) {
 
   const { id } = await params;
 
-  const recipe = await prisma.recipe.findFirst({
-    where: { id, userId },
-    include: {
-      ingredients: { orderBy: { sortOrder: "asc" } },
-      instructions: { orderBy: { stepNumber: "asc" } },
-      nutrition: true,
-    },
-  });
+  const [recipe, mealPlanSet] = await Promise.all([
+    prisma.recipe.findFirst({
+      where: { id, userId },
+      include: {
+        ingredients: { orderBy: { sortOrder: "asc" } },
+        instructions: { orderBy: { stepNumber: "asc" } },
+        nutrition: true,
+      },
+    }),
+    getMealPlanIngredientSet(userId, prisma),
+  ]);
 
   if (!recipe) notFound();
 
-  return <RecipeDetailClient recipe={recipe} />;
+  const overlapPercent = computeOverlapPercent(recipe.ingredients, mealPlanSet);
+
+  return <RecipeDetailClient recipe={recipe} overlapPercent={overlapPercent} />;
 }
