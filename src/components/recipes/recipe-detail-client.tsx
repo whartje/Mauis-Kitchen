@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
-import { ArrowLeft, Clock, ChefHat, Star, Heart, ExternalLink, Minus, Plus, Camera, Loader2, Pencil, BookOpen, Trash2 } from "lucide-react";
+import { ArrowLeft, Clock, ChefHat, Star, Heart, ExternalLink, Minus, Plus, Camera, Loader2, Pencil, BookOpen, Trash2, Tag, X } from "lucide-react";
 import { scaleQuantity } from "@/lib/units";
 import { cn, formatTime, difficultyLabel, difficultyColor } from "@/lib/utils";
 import type { Ingredient, Instruction, NutritionFact } from "@prisma/client";
@@ -52,6 +52,12 @@ export function RecipeDetailClient({ recipe }: Props) {
   const [collectionValue, setCollectionValue] = useState(recipe.collection ?? "");
   const [editingField, setEditingField] = useState<"title" | "description" | "collection" | null>(null);
   const [cookbooks, setCookbooks] = useState<string[]>([]);
+
+  // ── Tags ───────────────────────────────────────────────────────────────────
+  const [tags, setTags] = useState<string[]>(recipe.tags);
+  const [editingTags, setEditingTags] = useState(false);
+  const [tagInput, setTagInput] = useState("");
+  const tagInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch("/api/cookbooks")
@@ -148,6 +154,32 @@ export function RecipeDetailClient({ recipe }: Props) {
     });
   }
 
+  async function saveTags(newTags: string[]) {
+    setTags(newTags);
+    await fetch(`/api/recipes/${recipe.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tags: newTags }),
+    });
+  }
+
+  function commitTagInput() {
+    const raw = tagInput.trim().replace(/,+$/, "").trim();
+    if (!raw) return;
+    const newTag = raw.toLowerCase();
+    if (!tags.includes(newTag)) {
+      const next = [...tags, newTag];
+      setTags(next);
+      saveTags(next);
+    }
+    setTagInput("");
+  }
+
+  function removeTag(tag: string) {
+    const next = tags.filter((t) => t !== tag);
+    saveTags(next);
+  }
+
   function renderIngredientQuantity(ing: Ingredient): string {
     if (ing.quantity == null) return ing.raw;
     const scaled = scaleQuantity(ing.quantity, ing.unit, recipe.servings, servings);
@@ -174,15 +206,17 @@ export function RecipeDetailClient({ recipe }: Props) {
           <>
             <Image src={imageUrl} alt={titleValue} fill className="object-cover" priority />
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-            <div className="absolute bottom-4 left-4 right-4">
-              <div className="flex flex-wrap gap-1.5">
-                {recipe.tags.map((tag) => (
-                  <span key={tag} className="text-xs px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-sm text-white/80">
-                    {tag}
-                  </span>
-                ))}
+            {tags.length > 0 && (
+              <div className="absolute bottom-4 left-4 right-4">
+                <div className="flex flex-wrap gap-1.5">
+                  {tags.map((tag) => (
+                    <span key={tag} className="text-xs px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-sm text-white/80">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </>
         ) : (
           <div className="flex items-center justify-center h-full text-muted-foreground text-sm gap-2">
@@ -379,6 +413,71 @@ export function RecipeDetailClient({ recipe }: Props) {
               <Pencil className="w-3 h-3 text-muted-foreground/30 group-hover/coll:text-muted-foreground transition-colors" />
             </button>
           )}
+        </div>
+
+        {/* Editable tags */}
+        <div className="flex items-start gap-2">
+          <Tag className="w-4 h-4 text-muted-foreground/50 shrink-0 mt-0.5" />
+          <div className="flex flex-wrap items-center gap-1.5 flex-1">
+            {tags.map((tag) => (
+              <span
+                key={tag}
+                className={cn(
+                  "inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full transition-colors",
+                  editingTags
+                    ? "bg-secondary text-foreground pr-1"
+                    : "bg-secondary text-muted-foreground"
+                )}
+              >
+                {tag}
+                {editingTags && (
+                  <button
+                    onClick={() => removeTag(tag)}
+                    className="text-muted-foreground hover:text-red-400 transition-colors rounded-full"
+                    aria-label={`Remove ${tag}`}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </span>
+            ))}
+
+            {editingTags ? (
+              <input
+                ref={tagInputRef}
+                autoFocus
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === ",") {
+                    e.preventDefault();
+                    commitTagInput();
+                  }
+                  if (e.key === "Backspace" && tagInput === "" && tags.length > 0) {
+                    removeTag(tags[tags.length - 1]);
+                  }
+                  if (e.key === "Escape") {
+                    commitTagInput();
+                    setEditingTags(false);
+                  }
+                }}
+                onBlur={() => {
+                  commitTagInput();
+                  setEditingTags(false);
+                }}
+                placeholder="Add tag…"
+                className="text-xs bg-transparent border-b border-brand-orange focus:outline-none text-foreground placeholder:text-muted-foreground/40 w-24"
+              />
+            ) : (
+              <button
+                onClick={() => { setEditingTags(true); setTimeout(() => tagInputRef.current?.focus(), 0); }}
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors italic"
+              >
+                <Pencil className="w-3 h-3" />
+                {tags.length === 0 ? "Add tags…" : "Edit"}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Star rating */}
