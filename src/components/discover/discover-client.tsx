@@ -459,7 +459,7 @@ export function DiscoverClient({ initialResults, initialQuery, initialFilters }:
           </div>
 
           {/* Time / Sort */}
-          <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-border">
             {[
               { label: "Max Time", key: "maxTime" as const, value: maxTime, options: TIME_OPTIONS },
               { label: "Sort By",  key: "sort"    as const, value: sort,    options: SORT_OPTIONS },

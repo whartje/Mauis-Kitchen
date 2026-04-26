@@ -85,6 +85,13 @@ export async function POST(req: NextRequest) {
     l: "l", liter: "l", liters: "l",
     pt: "pt", pint: "pt", pints: "pt",
     qt: "qt", quart: "qt", quarts: "qt",
+    clove: "clove", cloves: "clove",
+    bunch: "bunch", bunches: "bunch",
+    sprig: "sprig", sprigs: "sprig",
+    head: "head", heads: "head",
+    stalk: "stalk", stalks: "stalk",
+    slice: "slice", slices: "slice",
+    piece: "piece", pieces: "piece",
   };
 
   // Volume in ml
@@ -142,32 +149,64 @@ export async function POST(req: NextRequest) {
    *  "/ 10 tbsp soy milk",          unit="ml"  → { name:"soy milk",       unit:"ml" }
    */
   function cleanIngredientName(raw: string, existingUnit: string | null): { name: string; unit: string | null } {
-    const u = "ml|l|g|kg|oz|lb|cup|cups|tbsp|tsp|teaspoon|tablespoon|pint|quart|gallon|fl oz";
+    const u = "ml|l|g|kg|oz|lb|cup|cups|tbsp|tsp|teaspoon|tablespoon|pint|quart|gallon|fl oz|ounce|ounces|mL|liter|liters";
     const re1 = new RegExp(`^([\\d.]+)\\s*(${u})\\s*/\\s*[\\d.]+\\s*(${u})\\s+(.+)$`, "i");
     const re2 = new RegExp(`^(${u})\\s*/\\s*[\\d.]+\\s*(${u})\\s+(.+)$`, "i");
     const re3 = new RegExp(`^/\\s*[\\d.]+\\s*(${u})\\s+(.+)$`, "i");
     const re4 = new RegExp(`^[\\d.]+\\s*(${u})$`, "i");
 
+    // Leading parenthetical measurements: "(13.5-ounce/400 mL) can coconut milk"
+    // "(15 oz)", "(400g)", "(13.5-ounce/400mL)", "(~8g)", "(14-ounce / 400g)"
+    // Matches any parenthetical containing at least one unit word
+    const reParenLead = new RegExp(
+      `^\\([^)]*(?:${u})[^)]*\\)\\s*`,
+      "i"
+    );
+
     let m: RegExpMatchArray | null;
+    let cleaned = raw;
+
+    // Strip leading parenthetical measurement first
+    cleaned = cleaned.replace(reParenLead, "").trim();
+
+    // Strip range/dimension leftovers baked into the name by the parser.
+    // e.g. "-2 serrano" (from "1-2 serrano peppers" where "1" was the quantity)
+    // e.g. "-inch ginger"  (from "2-inch ginger" where "2" was the quantity)
+    cleaned = cleaned.replace(/^-\d+\s+/, "").trim();
+    cleaned = cleaned.replace(/^-(inch|inches|cm|mm|centimeter|centimeters|foot|feet)\s+/i, "").trim();
 
     // "100g / 3.5oz chickpea flour"
-    if ((m = raw.match(re1))) {
+    if ((m = cleaned.match(re1))) {
       return { name: m[4].trim(), unit: existingUnit ?? canonicalUnit(m[2]) };
     }
-    // "g / 1 cup vegan yogurt"  (Claude put unit into name, left unit field null)
-    if ((m = raw.match(re2))) {
+    // "g / 1 cup vegan yogurt"
+    if ((m = cleaned.match(re2))) {
       return { name: m[3].trim(), unit: existingUnit ?? canonicalUnit(m[1]) };
     }
     // "/ 10 tbsp soy milk"
-    if ((m = raw.match(re3))) {
+    if ((m = cleaned.match(re3))) {
       return { name: m[2].trim(), unit: existingUnit };
     }
-    // "500g" alone (whole string is just a measurement — discard)
-    if (raw.match(re4)) {
+    // "500g" alone
+    if (cleaned.match(re4)) {
       return { name: "", unit: existingUnit };
     }
 
-    return { name: raw, unit: existingUnit };
+    return { name: cleaned, unit: existingUnit };
+  }
+
+  // Single-word adjectives/descriptors that are never valid ingredient names on their own
+  const JUNK_NAMES = new Set([
+    "creamy", "fresh", "large", "small", "medium", "big", "ripe", "raw",
+    "whole", "sliced", "diced", "chopped", "minced", "cooked", "frozen",
+    "dried", "canned", "optional", "extra", "additional", "plain",
+    "unsweetened", "sweetened", "organic", "lean", "thick", "thin",
+  ]);
+
+  function isJunkName(name: string): boolean {
+    const lower = name.toLowerCase().trim();
+    // Single word that is a known junk adjective, or an empty/very short string
+    return lower.length <= 2 || JUNK_NAMES.has(lower);
   }
 
   // Strip recipe qualifiers and preparation descriptions for grocery display
@@ -192,11 +231,15 @@ export async function POST(req: NextRequest) {
       .trim();
   }
 
-  // Normalize name for matching: strip adverbs, lowercase, collapse spaces
+  // Normalize name for matching: strip adverbs + preparation adjectives, lowercase, collapse spaces.
+  // This is only used as the grouping key — display names are handled by stripQualifiers.
   function normalizeName(name: string): string {
     return stripQualifiers(name)
       .toLowerCase()
+      // Adverbs used before past-participles ("freshly ground", "finely chopped")
       .replace(/^(freshly|finely|coarsely|roughly|thinly|lightly|heavily|freshly-ground)\s+/i, "")
+      // Leading preparation adjectives that describe state, not the ingredient itself
+      .replace(/^(fresh|dried|chopped|diced|minced|grated|crushed|sliced|peeled|trimmed|shredded|frozen|canned|cooked|raw|whole)\s+/i, "")
       .replace(/\s+/g, " ")
       .trim();
   }
@@ -286,6 +329,10 @@ export async function POST(req: NextRequest) {
   ) {
     const { name: cleanedName, unit: recoveredUnit } = cleanIngredientName(ingredientName, unit);
     const effectiveName = cleanedName || ingredientName;
+
+    // Skip entries that resolved to a single meaningless adjective
+    if (isJunkName(effectiveName)) return;
+
     const keyName = normalizeName(effectiveName);
     const unitCanon = canonicalUnit(recoveredUnit);
     const hasQty = quantity !== null && quantity !== undefined;
