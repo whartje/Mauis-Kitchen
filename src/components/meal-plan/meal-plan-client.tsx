@@ -92,9 +92,37 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props)
   const [pending, setPending] = useState<Set<string>>(new Set());
   const [people, setPeople] = useState(2);
 
+  // Score uses all items (including duplicate recipes) — intentional
   const overlap = computeIngredientOverlap(
     plan.items.map((item) => ({ ingredients: item.recipe.ingredients }))
   );
+
+  // Shared ingredients display: only ingredients shared across *distinct* recipes
+  const normalize = (name: string) => name.toLowerCase().replace(/\s+/g, " ").trim();
+  const distinctRecipeIngredients = (() => {
+    const seen = new Set<string>();
+    return plan.items
+      .filter((item) => {
+        if (seen.has(item.recipe.id)) return false;
+        seen.add(item.recipe.id);
+        return true;
+      })
+      .map((item) => ({ ingredients: item.recipe.ingredients }));
+  })();
+  const sharedAcrossDistinct = (() => {
+    if (distinctRecipeIngredients.length < 2) return [];
+    const counts = new Map<string, number>();
+    for (const recipe of distinctRecipeIngredients) {
+      const recipeIngredients = new Set(recipe.ingredients.map((i) => normalize(i.name)));
+      for (const ing of recipeIngredients) {
+        counts.set(ing, (counts.get(ing) ?? 0) + 1);
+      }
+    }
+    return [...counts.entries()]
+      .filter(([, count]) => count > 1)
+      .map(([name]) => name)
+      .sort();
+  })();
 
   function getSlotItem(dayOfWeek: number, mealType: MealTypeEnum): PlanItem | null {
     return (
@@ -307,12 +335,12 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props)
           ))}
 
           {/* Daily nutrition totals row */}
-          <DailyNutritionRow items={plan.items} />
+          <DailyNutritionRow items={plan.items} people={people} />
         </div>
       </div>
 
       {/* Shared ingredients */}
-      {overlap.sharedIngredients.length > 0 && (
+      {sharedAcrossDistinct.length > 0 && (
         <div className="bg-card border border-border rounded-xl p-4">
           <p className="text-sm font-semibold text-foreground mb-2">
             Shared Ingredients
@@ -321,7 +349,7 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props)
             </span>
           </p>
           <div className="flex flex-wrap gap-2">
-            {overlap.sharedIngredients.slice(0, 24).map((ing) => (
+            {sharedAcrossDistinct.slice(0, 24).map((ing) => (
               <span
                 key={ing}
                 className="px-2.5 py-1 bg-brand-orange/10 text-brand-orange text-xs rounded-full capitalize"
@@ -329,9 +357,9 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props)
                 {ing}
               </span>
             ))}
-            {overlap.sharedIngredients.length > 24 && (
+            {sharedAcrossDistinct.length > 24 && (
               <span className="px-2.5 py-1 bg-secondary text-muted-foreground text-xs rounded-full">
-                +{overlap.sharedIngredients.length - 24} more
+                +{sharedAcrossDistinct.length - 24} more
               </span>
             )}
           </div>
@@ -355,53 +383,86 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props)
 
 // ─── Daily nutrition totals row ───────────────────────────────────────────────
 
-function DailyNutritionRow({ items }: { items: PlanItem[] }) {
-  // Compute per-day totals for calories, protein, carbs
-  const dayTotals: Array<{ cal: number | null; protein: number | null; carbs: number | null; hasData: boolean }> =
-    Array.from({ length: 7 }, (_, dayIdx) => {
-      const dayItems = items.filter((it) => it.dayOfWeek === dayIdx && it.recipe.nutrition);
-      if (dayItems.length === 0) return { cal: null, protein: null, carbs: null, hasData: false };
-      let cal = 0, protein = 0, carbs = 0;
-      for (const item of dayItems) {
-        const n = item.recipe.nutrition!;
-        const factor = item.servings ?? 4;
-        if (n.calories != null) cal += n.calories * factor;
-        if (n.protein  != null) protein += n.protein  * factor;
-        if (n.carbs    != null) carbs   += n.carbs    * factor;
-      }
-      return { cal, protein, carbs, hasData: true };
-    });
+function DailyNutritionRow({ items, people }: { items: PlanItem[]; people: number }) {
+  const dayTotals = Array.from({ length: 7 }, (_, dayIdx) => {
+    const dayItems = items.filter((it) => it.dayOfWeek === dayIdx && it.recipe.nutrition);
+    if (dayItems.length === 0) return { cal: null, protein: null, carbs: null, hasData: false };
+    let cal = 0, protein = 0, carbs = 0;
+    for (const item of dayItems) {
+      const n = item.recipe.nutrition!;
+      const factor = item.servings ?? 4;
+      if (n.calories != null) cal += n.calories * factor;
+      if (n.protein  != null) protein += n.protein  * factor;
+      if (n.carbs    != null) carbs   += n.carbs    * factor;
+    }
+    return { cal, protein, carbs, hasData: true };
+  });
 
-  const anyData = dayTotals.some((d) => d.hasData);
-  if (!anyData) return null;
+  if (!dayTotals.some((d) => d.hasData)) return null;
 
   return (
     <div className="grid grid-cols-[110px_repeat(7,1fr)] bg-secondary/20 border-t border-border">
       {/* Label cell */}
-      <div className="p-3 flex flex-col justify-center border-r border-border">
-        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Daily</span>
-        <span className="text-[10px] text-muted-foreground mt-0.5">Calories</span>
-        <span className="text-[10px] text-muted-foreground">Protein</span>
-        <span className="text-[10px] text-muted-foreground">Carbs</span>
+      <div className="p-3 flex flex-col justify-center border-r border-border gap-2">
+        <div>
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Daily</span>
+        </div>
+        <div className="flex gap-1 text-[9px] font-semibold text-muted-foreground/60 uppercase tracking-wide">
+          <span className="flex-1 text-center">Total</span>
+          <span className="text-muted-foreground/30">|</span>
+          <span className="flex-1 text-center">/Person</span>
+        </div>
+        <div className="space-y-0.5 text-[10px] text-muted-foreground">
+          <p>Calories</p>
+          <p>Protein</p>
+          <p>Carbs</p>
+        </div>
       </div>
 
       {/* Day cells */}
       {dayTotals.map((d, i) => (
-        <div key={i} className="border-l border-border px-2 py-3 flex flex-col items-center justify-center gap-1">
+        <div key={i} className="border-l border-border px-1 py-3 flex flex-col justify-center gap-1">
           {d.hasData ? (
             <>
-              <span className="text-xs font-semibold text-orange-400 leading-none">
-                {Math.round(d.cal!)}
-              </span>
-              <span className="text-xs font-medium text-blue-400 leading-none">
-                {Math.round(d.protein!)}g
-              </span>
-              <span className="text-xs font-medium text-yellow-400 leading-none">
-                {Math.round(d.carbs!)}g
-              </span>
+              {/* Header labels */}
+              <div className="flex gap-1 text-[9px] font-semibold text-muted-foreground/40 uppercase tracking-wide mb-0.5">
+                <span className="flex-1 text-center">Total</span>
+                <span className="text-muted-foreground/20">|</span>
+                <span className="flex-1 text-center">/Person</span>
+              </div>
+              {/* Calories */}
+              <div className="flex items-center gap-1">
+                <span className="flex-1 text-center text-[11px] font-semibold text-orange-400 leading-none">
+                  {Math.round(d.cal!)}
+                </span>
+                <span className="text-muted-foreground/20 text-[9px]">|</span>
+                <span className="flex-1 text-center text-[11px] font-semibold text-orange-400/60 leading-none">
+                  {Math.round(d.cal! / people)}
+                </span>
+              </div>
+              {/* Protein */}
+              <div className="flex items-center gap-1">
+                <span className="flex-1 text-center text-[11px] font-medium text-blue-400 leading-none">
+                  {Math.round(d.protein!)}g
+                </span>
+                <span className="text-muted-foreground/20 text-[9px]">|</span>
+                <span className="flex-1 text-center text-[11px] font-medium text-blue-400/60 leading-none">
+                  {Math.round(d.protein! / people)}g
+                </span>
+              </div>
+              {/* Carbs */}
+              <div className="flex items-center gap-1">
+                <span className="flex-1 text-center text-[11px] font-medium text-yellow-400 leading-none">
+                  {Math.round(d.carbs!)}g
+                </span>
+                <span className="text-muted-foreground/20 text-[9px]">|</span>
+                <span className="flex-1 text-center text-[11px] font-medium text-yellow-400/60 leading-none">
+                  {Math.round(d.carbs! / people)}g
+                </span>
+              </div>
             </>
           ) : (
-            <span className="text-[10px] text-muted-foreground/20">—</span>
+            <span className="text-[10px] text-muted-foreground/20 text-center">—</span>
           )}
         </div>
       ))}
