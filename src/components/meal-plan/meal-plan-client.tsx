@@ -3,12 +3,29 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Lock, Unlock, X, Plus, ChevronLeft, ChevronRight, Clock, ExternalLink } from "lucide-react";
+import { Lock, Unlock, X, Plus, ChevronLeft, ChevronRight, Clock, ExternalLink, Minus, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { computeIngredientOverlap, type OverlapLevel } from "@/lib/overlap";
 import { RecipePickerDrawer, type RecipeForPicker } from "./recipe-picker-drawer";
 
 type MealTypeEnum = "BREAKFAST" | "LUNCH" | "DINNER" | "SNACK";
+
+interface NutritionFact {
+  calories: number | null;
+  protein: number | null;
+  carbs: number | null;
+  fat: number | null;
+  fiber: number | null;
+  sugar: number | null;
+  sodium: number | null;
+  iron: number | null;
+  isEstimated: boolean;
+}
+
+interface RecipeWithNutrition extends RecipeForPicker {
+  nutrition: NutritionFact | null;
+  servings?: number;
+}
 
 interface PlanItem {
   id: string;
@@ -16,7 +33,7 @@ interface PlanItem {
   mealType: MealTypeEnum;
   isLocked: boolean;
   servings: number;
-  recipe: RecipeForPicker;
+  recipe: RecipeWithNutrition;
 }
 
 interface Plan {
@@ -73,6 +90,7 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props)
     mealType: MealTypeEnum;
   } | null>(null);
   const [pending, setPending] = useState<Set<string>>(new Set());
+  const [people, setPeople] = useState(2);
 
   const overlap = computeIngredientOverlap(
     plan.items.map((item) => ({ ingredients: item.recipe.ingredients }))
@@ -100,7 +118,7 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props)
       mealType,
       isLocked: false,
       servings: 4,
-      recipe,
+      recipe: { ...recipe, nutrition: null },
     };
 
     setPlan((p) => ({
@@ -318,6 +336,9 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props)
         </div>
       )}
 
+      {/* Weekly nutrition summary */}
+      <WeeklyNutritionPanel items={plan.items} people={people} setPeople={setPeople} />
+
       <RecipePickerDrawer
         open={pickerSlot !== null}
         onClose={() => setPickerSlot(null)}
@@ -326,6 +347,148 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props)
         planItems={plan.items}
         onSelect={addRecipe}
       />
+    </div>
+  );
+}
+
+// ─── Weekly nutrition panel ───────────────────────────────────────────────────
+
+const NUTRITION_FIELDS: Array<{
+  key: keyof NutritionFact;
+  label: string;
+  unit: string;
+  color: string;
+  decimals: number;
+}> = [
+  { key: "calories", label: "Calories", unit: "kcal", color: "text-orange-400", decimals: 0 },
+  { key: "protein",  label: "Protein",  unit: "g",    color: "text-blue-400",   decimals: 1 },
+  { key: "carbs",    label: "Carbs",    unit: "g",    color: "text-yellow-400", decimals: 1 },
+  { key: "fat",      label: "Fat",      unit: "g",    color: "text-purple-400", decimals: 1 },
+  { key: "fiber",    label: "Fiber",    unit: "g",    color: "text-green-400",  decimals: 1 },
+  { key: "sugar",    label: "Sugar",    unit: "g",    color: "text-pink-400",   decimals: 1 },
+  { key: "iron",     label: "Iron",     unit: "mg",   color: "text-red-400",    decimals: 1 },
+];
+
+function fmt(val: number, decimals: number): string {
+  return decimals === 0 ? String(Math.round(val)) : val.toFixed(decimals).replace(/\.0$/, "");
+}
+
+function WeeklyNutritionPanel({
+  items,
+  people,
+  setPeople,
+}: {
+  items: PlanItem[];
+  people: number;
+  setPeople: (n: number) => void;
+}) {
+  const recipesWithNutrition = items.filter((it) => it.recipe.nutrition);
+  if (recipesWithNutrition.length === 0) return null;
+
+  // Sum across all plan items — each item's nutrition is per-serving of that recipe,
+  // and each plan item represents `item.servings` servings.
+  const weekTotals: Record<string, number> = {};
+  let hasEstimated = false;
+
+  for (const item of recipesWithNutrition) {
+    const n = item.recipe.nutrition!;
+    // item.servings = how many servings the meal plan slot is set to
+    // recipe.servings is the base serving count the nutrition is defined for
+    // The nutrition is already per-serving, so multiply by item.servings
+    const factor = item.servings ?? 4;
+    if (n.isEstimated) hasEstimated = true;
+    for (const { key } of NUTRITION_FIELDS) {
+      const val = n[key];
+      if (typeof val === "number") {
+        weekTotals[key] = (weekTotals[key] ?? 0) + val * factor;
+      }
+    }
+  }
+
+  const recipeCount = recipesWithNutrition.length;
+  const totalRecipes = items.length;
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="font-semibold text-foreground">Weekly Nutrition</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {recipeCount < totalRecipes
+              ? `${recipeCount} of ${totalRecipes} recipes have nutrition data`
+              : `All ${totalRecipes} recipes`}
+            {hasEstimated && " · includes AI estimates"}
+          </p>
+        </div>
+
+        {/* People adjuster */}
+        <div className="flex items-center gap-2">
+          <Users className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">People:</span>
+          <button
+            onClick={() => setPeople(Math.max(1, people - 1))}
+            className="w-7 h-7 rounded-full bg-secondary hover:bg-brand-orange/20 flex items-center justify-center transition-colors"
+          >
+            <Minus className="w-3 h-3" />
+          </button>
+          <span className="text-sm font-semibold w-5 text-center">{people}</span>
+          <button
+            onClick={() => setPeople(people + 1)}
+            className="w-7 h-7 rounded-full bg-secondary hover:bg-brand-orange/20 flex items-center justify-center transition-colors"
+          >
+            <Plus className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+
+      {/* Row 1 — Week total */}
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+          Week Total
+        </p>
+        <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+          {NUTRITION_FIELDS.map(({ key, label, unit, color, decimals }) => {
+            const val = weekTotals[key];
+            if (val == null) return null;
+            return (
+              <div key={key} className="flex flex-col items-center text-center bg-secondary/50 rounded-lg px-2 py-3 gap-1">
+                <span className={`text-base font-bold leading-none ${color}`}>
+                  {fmt(val, decimals)}
+                </span>
+                <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">{unit}</span>
+                <span className="text-[10px] text-muted-foreground">{label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="border-t border-border" />
+
+      {/* Row 2 — Per person */}
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+          Per Person · {people} {people === 1 ? "person" : "people"}
+        </p>
+        <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+          {NUTRITION_FIELDS.map(({ key, label, unit, color, decimals }) => {
+            const val = weekTotals[key];
+            if (val == null) return null;
+            const perPerson = val / people;
+            return (
+              <div key={key} className="flex flex-col items-center text-center bg-secondary/30 rounded-lg px-2 py-3 gap-1">
+                <span className={`text-base font-bold leading-none ${color}`}>
+                  {fmt(perPerson, decimals)}
+                </span>
+                <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">{unit}</span>
+                <span className="text-[10px] text-muted-foreground">{label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

@@ -30,7 +30,10 @@ const itemsInclude = {
   items: {
     include: {
       recipe: {
-        include: { ingredients: { select: { name: true } } },
+        include: {
+          ingredients: { select: { name: true } },
+          nutrition: true,
+        },
       },
     },
   },
