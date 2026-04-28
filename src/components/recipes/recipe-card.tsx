@@ -2,10 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Heart, Clock, ChefHat } from "lucide-react";
+import { Heart, Clock, ChefHat, Camera, Loader2 } from "lucide-react";
 import { cn, formatTime, difficultyLabel, difficultyColor } from "@/lib/utils";
 import { overlapColor } from "@/lib/meal-plan-overlap";
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 interface RecipeCardProps {
   recipe: {
@@ -21,12 +21,16 @@ interface RecipeCardProps {
     servings: number;
   };
   onFavoriteToggle?: (id: string, isFavorite: boolean) => void;
+  onPhotoUpload?: (id: string, imageUrl: string) => void;
   overlapPercent?: number | null;
 }
 
-export function RecipeCard({ recipe, onFavoriteToggle, overlapPercent }: RecipeCardProps) {
+export function RecipeCard({ recipe, onFavoriteToggle, onPhotoUpload, overlapPercent }: RecipeCardProps) {
   const [isFavorite, setIsFavorite] = useState(recipe.isFavorite);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [imageUrl, setImageUrl] = useState(recipe.imageUrl);
+  const [uploading, setUploading] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const totalTime = (recipe.prepTime ?? 0) + (recipe.cookTime ?? 0);
 
@@ -50,24 +54,67 @@ export function RecipeCard({ recipe, onFavoriteToggle, overlapPercent }: RecipeC
     }
   }
 
+  async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(`/api/recipes/${recipe.id}/thumbnail`, {
+        method: "POST",
+        body: form,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setImageUrl(data.imageUrl);
+        onPhotoUpload?.(recipe.id, data.imageUrl);
+      }
+    } finally {
+      setUploading(false);
+    }
+  }
+
   return (
     <Link href={`/recipes/${recipe.id}`} className="group block">
       <div className="bg-card border border-border rounded-xl overflow-hidden hover:border-brand-orange/40 transition-all duration-200 hover:shadow-lg hover:shadow-black/20">
         {/* Image */}
         <div className="relative aspect-video bg-secondary overflow-hidden">
-          {recipe.imageUrl ? (
+          {imageUrl ? (
             <Image
-              src={recipe.imageUrl}
+              src={imageUrl}
               alt={recipe.title}
               fill
               className="object-cover group-hover:scale-105 transition-transform duration-300"
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             />
           ) : (
-            <div className="absolute inset-0 flex items-center justify-center">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
               <ChefHat className="w-12 h-12 text-muted-foreground/30" />
+              {/* Upload button — visible on card hover, stops link navigation */}
+              <button
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); photoInputRef.current?.click(); }}
+                disabled={uploading}
+                className="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground bg-background/80 hover:bg-background border border-border rounded-lg px-2.5 py-1.5 transition-all disabled:opacity-50"
+              >
+                {uploading
+                  ? <Loader2 className="w-3 h-3 animate-spin" />
+                  : <Camera className="w-3 h-3" />
+                }
+                {uploading ? "Uploading…" : "Add photo"}
+              </button>
             </div>
           )}
+
+          {/* Hidden file input */}
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={handlePhotoChange}
+          />
 
           {/* Favorite button */}
           <button
