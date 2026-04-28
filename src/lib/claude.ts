@@ -211,11 +211,15 @@ Rules:
 
 INGREDIENT NAME RULES (critical):
 - The "name" field must contain ONLY the ingredient name — never quantities, units, or measurements
-- Examples: "100g / 3.5 oz chickpea flour" → name: "chickpea flour", quantity: 100, unit: "g"
-- Examples: "150ml / 10 tbsp soy milk" → name: "soy milk", quantity: 150, unit: "ml"
-- Examples: "500g / 17.6 oz firm tofu" → name: "firm tofu", quantity: 500, unit: "g"
-- When a recipe lists dual measurements (metric / imperial), pick ONE (prefer metric) for quantity+unit; put only the ingredient name in "name"
 - The "raw" field should contain the full original text as written in the recipe
+- When a recipe lists a cook-friendly measurement AND a parenthetical weight (e.g. "6 tablespoons (74g)"), ALWAYS use the cook-friendly measurement — NEVER the parenthetical weight:
+  - "6 tablespoons (74g) sun-dried tomatoes" → quantity: 6, unit: "tablespoons", name: "sun-dried tomatoes"
+  - "1½ cups (160g) roasted pepitas" → quantity: 1.5, unit: "cups", name: "roasted pepitas"
+  - "2 medium avocados (400g total)" → quantity: 2, unit: null, name: "avocados"  (whole-item count — no unit)
+  - "3 large eggs (150g)" → quantity: 3, unit: null, name: "eggs"
+- Only use a weight unit (g, oz, lb) when the recipe gives ONLY a weight with no volume or count alternative (e.g. "200g tofu")
+- When a recipe lists metric / imperial pairs like "100g / 3.5 oz", prefer the metric weight since no cook-friendly unit exists: quantity: 100, unit: "g"
+- Volume units (tsp, tbsp, cup, ml) and whole-item counts always take priority over parenthetical gram annotations
 
 CATEGORY RULES — assign each ingredient to exactly one:
 - PRODUCE: fresh vegetables, fresh herbs (basil, parsley, cilantro, mint, etc.), garlic, onion, ginger

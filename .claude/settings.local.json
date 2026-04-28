@@ -21,7 +21,8 @@
       "Bash(findstr supabase:*)",
       "Bash(npx prisma:*)",
       "Bash(mkdir -p \"C:\\\\Users\\\\willi\\\\Maui's Kitchen\\\\src\\\\app\\\\api\\\\recipes\\\\[id]\\\\ingredients\\\\[ingredientId]\")",
-      "Bash(mkdir -p \"C:\\\\Users\\\\willi\\\\Maui's Kitchen\\\\src\\\\app\\\\api\\\\recipes\\\\[id]\\\\ingredients\")"
+      "Bash(mkdir -p \"C:\\\\Users\\\\willi\\\\Maui's Kitchen\\\\src\\\\app\\\\api\\\\recipes\\\\[id]\\\\ingredients\")",
+      "Bash(node -e ' *)"
     ]
   }
 }

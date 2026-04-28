@@ -224,27 +224,54 @@ export function combineIngredients(
         (sum, i) => sum + i.quantity! * VOLUME_TO_ML[i.unit!.toLowerCase()],
         0
       );
-      const converted = convertVolume(totalMl);
-      result.push({
-        name,
-        quantity: converted.quantity,
-        unit: converted.unit,
-        display: `${converted.display} ${name}`,
-        category: group[0].category,
-      });
+      // Prefer the original unit — only convert to a different unit when the
+      // quantity would be very awkward in the original (< 0.1 or > 48).
+      const inOriginal = totalMl / VOLUME_TO_ML[unit];
+      if (inOriginal >= 0.1 && inOriginal <= 48) {
+        const q = roundNicely(inOriginal);
+        result.push({
+          name,
+          quantity: q,
+          unit,
+          display: `${formatQuantity(q)} ${unit} ${name}`,
+          category: group[0].category,
+        });
+      } else {
+        const converted = convertVolume(totalMl);
+        result.push({
+          name,
+          quantity: converted.quantity,
+          unit: converted.unit,
+          display: `${converted.display} ${name}`,
+          category: group[0].category,
+        });
+      }
     } else if (unit && unit in WEIGHT_TO_GRAMS) {
       const totalG = scaledGroup.reduce(
         (sum, i) => sum + i.quantity! * WEIGHT_TO_GRAMS[i.unit!.toLowerCase()],
         0
       );
-      const converted = convertWeight(totalG);
-      result.push({
-        name,
-        quantity: converted.quantity,
-        unit: converted.unit,
-        display: `${converted.display} ${name}`,
-        category: group[0].category,
-      });
+      // Same: stay in original weight unit unless quantity is very awkward.
+      const inOriginal = totalG / WEIGHT_TO_GRAMS[unit];
+      if (inOriginal >= 0.1 && inOriginal <= 128) {
+        const q = roundNicely(inOriginal);
+        result.push({
+          name,
+          quantity: q,
+          unit,
+          display: `${formatQuantity(q)} ${unit} ${name}`,
+          category: group[0].category,
+        });
+      } else {
+        const converted = convertWeight(totalG);
+        result.push({
+          name,
+          quantity: converted.quantity,
+          unit: converted.unit,
+          display: `${converted.display} ${name}`,
+          category: group[0].category,
+        });
+      }
     } else {
       const total = scaledGroup.reduce((sum, i) => sum + i.quantity!, 0);
       const rounded = roundNicely(total);
