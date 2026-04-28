@@ -45,11 +45,13 @@ interface Props {
 }
 
 const SORT_OPTIONS = [
-  { value: "newest",  label: "Newest" },
-  { value: "oldest",  label: "Oldest" },
-  { value: "name",    label: "A–Z" },
-  { value: "rating",  label: "Highest Rated" },
-  { value: "fastest", label: "Fastest" },
+  { value: "newest",    label: "Newest" },
+  { value: "oldest",   label: "Oldest" },
+  { value: "name",     label: "A–Z" },
+  { value: "rating",   label: "Highest Rated" },
+  { value: "fastest",  label: "Fastest" },
+  { value: "last_made",  label: "Recently Made" },
+  { value: "most_made",  label: "Most Made" },
 ];
 
 const MEAL_TYPES = [

@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ArrowLeft, Clock, ChefHat, Star, Heart, ExternalLink, Minus, Plus, Camera, Loader2, Pencil, BookOpen, Trash2, Tag, X, NotebookPen, ZoomIn, Sparkles } from "lucide-react";
+import { ArrowLeft, Clock, ChefHat, Star, Heart, ExternalLink, Minus, Plus, Camera, Loader2, Pencil, BookOpen, Trash2, Tag, X, NotebookPen, ZoomIn, Sparkles, UtensilsCrossed } from "lucide-react";
 import { AddToMealPlanButton } from "./add-to-meal-plan-button";
 import { overlapColor } from "@/lib/meal-plan-overlap";
 import { scaleQuantity } from "@/lib/units";
@@ -27,6 +27,8 @@ interface Recipe {
   sourceUrl: string | null;
   sourceName: string | null;
   isFavorite: boolean;
+  madeCount: number;
+  lastMadeAt: Date | string | null;
   tags: string[];
   ingredients: Ingredient[];
   instructions: Instruction[];
@@ -44,6 +46,10 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
   const [newIngredientId, setNewIngredientId] = useState<string | null>(null);
   const [servings, setServings] = useState(recipe.servings);
   const [isFavorite, setIsFavorite] = useState(recipe.isFavorite);
+  const [madeCount, setMadeCount] = useState(recipe.madeCount);
+  const [lastMadeAt, setLastMadeAt] = useState<Date | string | null>(recipe.lastMadeAt);
+  const [markingMade, setMarkingMade] = useState(false);
+  const [madeFlash, setMadeFlash] = useState(false);
   const [rating, setRating] = useState(recipe.rating ?? 0);
   const [hoverRating, setHoverRating] = useState(0);
   const [imageUrl, setImageUrl] = useState(recipe.imageUrl);
@@ -213,6 +219,22 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isFavorite: next }),
     });
+  }
+
+  async function markAsMade() {
+    setMarkingMade(true);
+    try {
+      const res = await fetch(`/api/recipes/${recipe.id}/made`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        setMadeCount(data.madeCount);
+        setLastMadeAt(data.lastMadeAt);
+        setMadeFlash(true);
+        setTimeout(() => setMadeFlash(false), 2000);
+      }
+    } finally {
+      setMarkingMade(false);
+    }
   }
 
   async function handleRate(stars: number) {
@@ -412,6 +434,28 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
 
           <div className="flex items-center gap-1 shrink-0">
             <AddToMealPlanButton recipeId={recipe.id} servings={servings} />
+            {/* Made it button */}
+            <button
+              onClick={markAsMade}
+              disabled={markingMade}
+              title={madeCount > 0 ? `Made ${madeCount}× — click to log again` : "Mark as made"}
+              className={cn(
+                "p-2 rounded-full transition-colors relative",
+                madeFlash
+                  ? "bg-green-500/15 text-green-400"
+                  : "hover:bg-secondary text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {markingMade
+                ? <Loader2 className="w-6 h-6 animate-spin" />
+                : <UtensilsCrossed className="w-6 h-6" />
+              }
+              {madeCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-green-500 text-white text-[9px] font-bold flex items-center justify-center leading-none">
+                  {madeCount}
+                </span>
+              )}
+            </button>
             <button
               onClick={toggleFavorite}
               className="p-2 rounded-full hover:bg-secondary transition-colors"
@@ -583,6 +627,20 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
           <span className={cn("font-medium", difficultyColor(recipe.difficulty))}>
             {difficultyLabel(recipe.difficulty)}
           </span>
+          {lastMadeAt && (
+            <span className="text-muted-foreground flex items-center gap-1">
+              <UtensilsCrossed className="w-3.5 h-3.5" />
+              Last made{" "}
+              {new Date(lastMadeAt).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: new Date(lastMadeAt).getFullYear() !== new Date().getFullYear()
+                  ? "numeric"
+                  : undefined,
+              })}
+              {madeCount > 1 && <span className="text-muted-foreground/60">({madeCount}×)</span>}
+            </span>
+          )}
           {overlapPercent != null && (
             <span
               className={cn("font-medium text-sm", overlapColor(overlapPercent))}

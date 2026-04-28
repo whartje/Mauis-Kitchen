@@ -53,7 +53,8 @@ export default async function RecipesPage({ searchParams }: Props) {
     ...(q && {
       OR: [
         { title: { contains: q, mode: "insensitive" as const } },
-        { tags: { has: q } },
+        { tags: { has: q.toLowerCase() } },
+        { ingredients: { some: { name: { contains: q, mode: "insensitive" as const } } } },
       ],
     }),
     ...(difficulty && { difficulty: difficulty as "EASY" | "MEDIUM" | "HARD" }),
@@ -72,10 +73,12 @@ export default async function RecipesPage({ searchParams }: Props) {
   };
 
   const orderBy =
-    sort === "name"    ? { title: "asc" as const }
-    : sort === "rating"  ? { rating: "desc" as const }
-    : sort === "oldest"  ? { importedAt: "asc" as const }
-    : sort === "fastest" ? { totalTime: "asc" as const }
+    sort === "name"         ? { title: "asc" as const }
+    : sort === "rating"     ? { rating: "desc" as const }
+    : sort === "oldest"     ? { importedAt: "asc" as const }
+    : sort === "fastest"    ? { totalTime: "asc" as const }
+    : sort === "most_made"  ? { madeCount: "desc" as const }
+    : sort === "last_made"  ? { lastMadeAt: "desc" as const }
     : { importedAt: "desc" as const };
 
   const [recipes, collectionsRaw, mealPlanSet] = await Promise.all([
@@ -97,6 +100,8 @@ export default async function RecipesPage({ searchParams }: Props) {
         importedAt: true,
         sourceName: true,
         collection: true,
+        madeCount: true,
+        lastMadeAt: true,
         ingredients: { select: { name: true } },
       },
     }),
