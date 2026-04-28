@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { pantryMatchesGrocery } from "@/lib/pantry-match";
 import {
   Check,
@@ -134,12 +134,11 @@ export default function GroceryListClient({
   const [clearingChecked, setClearingChecked] = useState(false);
 
   // Add item form state
-  const [addName, setAddName] = useState("");
-  const [addQuantity, setAddQuantity] = useState("");
-  const [addUnit, setAddUnit] = useState("");
+  const [addText, setAddText] = useState("");
   const [addCategory, setAddCategory] = useState<IngredientCategory>("OTHER");
   const [addingItem, setAddingItem] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const addInputRef = useRef<HTMLInputElement>(null);
 
   // Share panel state
   const [showSharePanel, setShowSharePanel] = useState(false);
@@ -334,23 +333,58 @@ export default function GroceryListClient({
 
   // ── Add custom item ──────────────────────────────────────────────────────
 
+  // Parse "2 cups flour" → { quantity, unit, name }
+  // Mirrors the same logic used in the pantry.
+  const UNIT_RE = "ml|l|g|kg|oz|lbs?|pounds?|cups?|tbsp|tablespoons?|tsp|teaspoons?|pints?|quarts?|gallons?|cloves?|bunches?|sprigs?|heads?|stalks?|slices?|pieces?|cans?|jars?|bags?|boxes?|packages?|handfuls?";
+
+  function parseAddText(text: string): { quantity: number | null; unit: string | null; name: string } {
+    const m = text.trim().match(
+      new RegExp(`^([\\d./½¼¾⅓⅔⅛⅜⅝⅞]+(?:\\s+[\\d./½¼¾⅓⅔⅛⅜⅝⅞]+)?)\\s*(${UNIT_RE})?\\s+(.+)$`, "i")
+    );
+    if (m) {
+      // Handle mixed fractions like "1 ½" → 1.5
+      const qtyStr = m[1].trim();
+      const parts = qtyStr.split(/\s+/);
+      let qty = 0;
+      for (const p of parts) {
+        const FRAC: Record<string, number> = { "½":0.5,"¼":0.25,"¾":0.75,"⅓":1/3,"⅔":2/3,"⅛":0.125,"⅜":0.375,"⅝":0.625,"⅞":0.875 };
+        if (FRAC[p]) qty += FRAC[p];
+        else if (p.includes("/")) { const [n,d] = p.split("/"); qty += Number(n)/Number(d); }
+        else qty += parseFloat(p) || 0;
+      }
+      return {
+        quantity: qty || null,
+        unit: m[2] ? m[2].toLowerCase() : null,
+        name: m[3].trim(),
+      };
+    }
+    return { quantity: null, unit: null, name: text.trim() };
+  }
+
+  // Live preview of what will be parsed (shown under the input)
+  const addPreview = useMemo(() => {
+    const t = addText.trim();
+    if (!t) return null;
+    const { quantity, unit, name } = parseAddText(t);
+    if (!name) return null;
+    const parts = [quantity != null ? quantity : null, unit, name].filter(Boolean);
+    return parts.join(" ");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addText]);
+
   const addItem = useCallback(async () => {
-    if (!list || !addName.trim()) return;
+    if (!list || !addText.trim()) return;
     setAddingItem(true);
     setAddError(null);
 
-    const qtyNum = addQuantity.trim() ? parseFloat(addQuantity) : undefined;
+    const { quantity, unit, name } = parseAddText(addText);
+    if (!name) { setAddError("Enter an item name"); setAddingItem(false); return; }
 
     try {
       const res = await fetch(`/api/grocery-list/${list.id}/items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: addName.trim(),
-          quantity: qtyNum,
-          unit: addUnit.trim() || undefined,
-          category: addCategory,
-        }),
+        body: JSON.stringify({ name, quantity: quantity ?? undefined, unit: unit ?? undefined, category: addCategory }),
       });
 
       if (!res.ok) {
@@ -364,23 +398,19 @@ export default function GroceryListClient({
 
       setList((prev) => {
         if (!prev) return prev;
-        return {
-          ...prev,
-          items: [...prev.items, newItem],
-        };
+        return { ...prev, items: [...prev.items, newItem] };
       });
 
-      // Reset form
-      setAddName("");
-      setAddQuantity("");
-      setAddUnit("");
+      setAddText("");
       setAddCategory("OTHER");
+      addInputRef.current?.focus();
     } catch {
       setAddError("Something went wrong. Please try again.");
     } finally {
       setAddingItem(false);
     }
-  }, [list, addName, addQuantity, addUnit, addCategory]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list, addText, addCategory]);
 
   // ── Share / Copy list ────────────────────────────────────────────────────
 
@@ -720,63 +750,45 @@ export default function GroceryListClient({
                 </div>
               )}
 
-              <div className="space-y-2">
-                {/* Name input */}
+              {/* Single-line natural text + category + Add */}
+              <div className="flex gap-2">
                 <input
+                  ref={addInputRef}
                   type="text"
-                  placeholder="Item name"
-                  value={addName}
-                  onChange={(e) => setAddName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && addName.trim()) addItem();
-                  }}
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#E8834A] focus:border-[#E8834A]"
+                  placeholder="e.g. 2 cups flour, 3 avocados, olive oil…"
+                  value={addText}
+                  onChange={(e) => { setAddText(e.target.value); setAddError(null); }}
+                  onKeyDown={(e) => { if (e.key === "Enter" && addText.trim()) addItem(); }}
+                  className="flex-1 min-w-0 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#E8834A] focus:border-[#E8834A]"
                 />
-
-                {/* Quantity + unit + category row */}
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    placeholder="Qty"
-                    value={addQuantity}
-                    onChange={(e) => setAddQuantity(e.target.value)}
-                    className="w-20 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#E8834A] focus:border-[#E8834A]"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Unit"
-                    value={addUnit}
-                    onChange={(e) => setAddUnit(e.target.value)}
-                    className="w-24 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#E8834A] focus:border-[#E8834A]"
-                  />
-                  <select
-                    value={addCategory}
-                    onChange={(e) =>
-                      setAddCategory(e.target.value as IngredientCategory)
-                    }
-                    className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#E8834A] focus:border-[#E8834A]"
-                  >
-                    {CATEGORY_OPTIONS.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {CATEGORY_META[cat].emoji} {CATEGORY_META[cat].label}
-                      </option>
-                    ))}
-                  </select>
-
-                  <button
-                    onClick={addItem}
-                    disabled={addingItem || !addName.trim()}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#E8834A] hover:bg-[#d4733c] text-white text-sm font-medium transition-colors disabled:opacity-50 flex-shrink-0"
-                  >
-                    {addingItem ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Plus className="w-4 h-4" />
-                    )}
-                    Add
-                  </button>
-                </div>
+                <select
+                  value={addCategory}
+                  onChange={(e) => setAddCategory(e.target.value as IngredientCategory)}
+                  className="shrink-0 bg-background border border-border rounded-lg px-2 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#E8834A] focus:border-[#E8834A]"
+                >
+                  {CATEGORY_OPTIONS.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {CATEGORY_META[cat].emoji} {CATEGORY_META[cat].label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={addItem}
+                  disabled={addingItem || !addText.trim()}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#E8834A] hover:bg-[#d4733c] text-white text-sm font-medium transition-colors disabled:opacity-50 shrink-0"
+                >
+                  {addingItem ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  Add
+                </button>
               </div>
+
+              {/* Live parse preview */}
+              <p className="text-xs text-muted-foreground mt-2 min-h-[1.25rem]">
+                {addPreview
+                  ? <><span className="text-[#E8834A]">→</span> {addPreview}</>
+                  : "Include quantity and unit — e.g. “6 tbsp olive oil” or just “garlic”"
+                }
+              </p>
             </div>
           </div>
         )}
