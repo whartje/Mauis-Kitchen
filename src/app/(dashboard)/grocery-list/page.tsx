@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import GroceryListClient from "@/components/grocery-list/grocery-list-client";
+import type { PantryItem } from "@prisma/client";
 
 function getMondayOf(date: Date): Date {
   const d = new Date(date);
@@ -34,7 +35,7 @@ export default async function GroceryListPage() {
 
   const currentWeekLabel = `${formatShortDate(weekStart)} – ${formatShortDate(weekEnd)}`;
 
-  const [groceryList, mealPlan] = await Promise.all([
+  const [groceryList, mealPlan, pantryItems] = await Promise.all([
     prisma.groceryList.findFirst({
       where: { userId },
       orderBy: { createdAt: "desc" },
@@ -50,7 +51,13 @@ export default async function GroceryListPage() {
         weekStartDate: weekStart,
       },
     }),
+    prisma.pantryItem.findMany({
+      where: { userId },
+      select: { name: true },
+    }),
   ]);
+
+  const pantryNames = pantryItems.map((p: Pick<PantryItem, "name">) => p.name);
 
   return (
     <GroceryListClient
@@ -58,6 +65,7 @@ export default async function GroceryListPage() {
       currentWeekStart={weekStart.toISOString()}
       currentWeekLabel={currentWeekLabel}
       hasMealPlan={mealPlan !== null}
+      pantryNames={pantryNames}
     />
   );
 }

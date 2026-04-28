@@ -36,7 +36,7 @@ function toISO(date: Date): string {
   return date.toISOString().split("T")[0];
 }
 
-export function AddToMealPlanButton({ recipeId }: { recipeId: string }) {
+export function AddToMealPlanButton({ recipeId, servings }: { recipeId: string; servings?: number }) {
   const [open, setOpen] = useState(false);
   const [weekStart, setWeekStart] = useState<Date>(currentMonday);
   const [selectedDay, setSelectedDay] = useState<number | null>(null); // 0=Mon…6=Sun
@@ -78,7 +78,7 @@ export function AddToMealPlanButton({ recipeId }: { recipeId: string }) {
       await fetch(`/api/meal-plan/${plan.id}/items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recipeId, dayOfWeek: selectedDay, mealType }),
+        body: JSON.stringify({ recipeId, dayOfWeek: selectedDay, mealType, servings }),
       });
 
       setSaved(mealType);
@@ -153,9 +153,16 @@ export function AddToMealPlanButton({ recipeId }: { recipeId: string }) {
           {/* Meal type buttons — only shown after a day is selected */}
           {selectedDay !== null && (
             <div className="space-y-1.5 pt-1 border-t border-border">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Add to {DAY_NAMES[selectedDay]}&apos;s…
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Add to {DAY_NAMES[selectedDay]}&apos;s…
+                </p>
+                {servings != null && (
+                  <span className="text-[10px] text-muted-foreground">
+                    {servings} {servings === 1 ? "serving" : "servings"}
+                  </span>
+                )}
+              </div>
               {MEAL_TYPES.map(({ value, label }) => {
                 const isSaved = saved === value;
                 return (

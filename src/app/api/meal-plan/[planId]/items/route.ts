@@ -15,7 +15,7 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const { recipeId, dayOfWeek, mealType } = await req.json();
+  const { recipeId, dayOfWeek, mealType, servings } = await req.json();
 
   // One recipe per slot — remove any existing
   await prisma.mealPlanRecipe.deleteMany({
@@ -23,7 +23,13 @@ export async function POST(
   });
 
   const item = await prisma.mealPlanRecipe.create({
-    data: { mealPlanId: planId, recipeId, dayOfWeek, mealType },
+    data: {
+      mealPlanId: planId,
+      recipeId,
+      dayOfWeek,
+      mealType,
+      ...(typeof servings === "number" && servings > 0 ? { servings } : {}),
+    },
     include: {
       recipe: {
         include: { ingredients: { select: { name: true } } },

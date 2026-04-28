@@ -411,7 +411,7 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
           )}
 
           <div className="flex items-center gap-1 shrink-0">
-            <AddToMealPlanButton recipeId={recipe.id} />
+            <AddToMealPlanButton recipeId={recipe.id} servings={servings} />
             <button
               onClick={toggleFavorite}
               className="p-2 rounded-full hover:bg-secondary transition-colors"

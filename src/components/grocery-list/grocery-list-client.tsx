@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import { pantryMatchesGrocery } from "@/lib/pantry-match";
 import {
   Check,
   Plus,
@@ -60,6 +61,7 @@ interface Props {
   currentWeekStart: string;
   currentWeekLabel: string;
   hasMealPlan: boolean;
+  pantryNames?: string[];
   alexaConnected?: boolean; // kept for backwards compat, no longer used
 }
 
@@ -124,6 +126,7 @@ export default function GroceryListClient({
   currentWeekStart,
   currentWeekLabel,
   hasMealPlan,
+  pantryNames = [],
 }: Props) {
   const [list, setList] = useState<GroceryListWithItems | null>(initialList);
   const [generating, setGenerating] = useState(false);
@@ -691,6 +694,7 @@ export default function GroceryListClient({
                       <GroceryItemRow
                         key={item.id}
                         item={item}
+                        pantryNames={pantryNames}
                         deleting={deletingItemId === item.id}
                         onToggle={() => toggleItem(item.id, item.isChecked)}
                         onUpdate={(patch) => updateItem(item.id, patch)}
@@ -785,12 +789,14 @@ export default function GroceryListClient({
 
 function GroceryItemRow({
   item,
+  pantryNames,
   deleting,
   onToggle,
   onUpdate,
   onDelete,
 }: {
   item: GroceryListItem;
+  pantryNames: string[];
   deleting: boolean;
   onToggle: () => void;
   onUpdate: (patch: { name?: string; quantity?: number | null; unit?: string | null }) => void;
@@ -799,6 +805,8 @@ function GroceryItemRow({
   const [qty, setQty] = useState(item.quantity != null ? String(item.quantity) : "");
   const [unit, setUnit] = useState(item.unit ?? "");
   const [name, setName] = useState(item.name);
+
+  const inPantry = pantryNames.length > 0 && pantryMatchesGrocery(item.name, pantryNames);
 
   function commitQty() {
     const parsed = qty.trim() === "" ? null : parseFloat(qty);
@@ -820,7 +828,15 @@ function GroceryItemRow({
   const sources = item.recipeIds ?? [];
 
   return (
-    <li className="group/row flex items-center gap-2 px-4 py-2.5">
+    <li
+      className={[
+        "group/row flex items-center gap-2 px-4 py-2.5 transition-colors",
+        inPantry
+          ? "bg-green-500/10 border-l-2 border-green-500/60"
+          : "border-l-2 border-transparent",
+      ].join(" ")}
+      title={inPantry ? "You already have this in your pantry" : undefined}
+    >
       {/* Checkbox */}
       <button
         onClick={onToggle}
@@ -879,6 +895,16 @@ function GroceryItemRow({
           item.isChecked ? "line-through text-muted-foreground" : "text-foreground",
         ].join(" ")}
       />
+
+      {/* Pantry badge */}
+      {inPantry && (
+        <span
+          className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/30 leading-tight"
+          title="You already have this in your pantry"
+        >
+          in pantry
+        </span>
+      )}
 
       {/* Recipe sources */}
       {sources.length > 0 && (
