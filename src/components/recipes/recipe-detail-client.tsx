@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ArrowLeft, Clock, ChefHat, Star, Heart, ExternalLink, Minus, Plus, Camera, Loader2, Pencil, BookOpen, Trash2, Tag, X, NotebookPen, ZoomIn, Sparkles, UtensilsCrossed } from "lucide-react";
+import { ArrowLeft, Clock, ChefHat, Star, Heart, ExternalLink, Minus, Plus, Camera, Loader2, Pencil, BookOpen, Trash2, Tag, X, NotebookPen, ZoomIn, Sparkles, UtensilsCrossed, FileText } from "lucide-react";
 import { AddToMealPlanButton } from "./add-to-meal-plan-button";
 import { overlapColor } from "@/lib/meal-plan-overlap";
 import { scaleQuantity } from "@/lib/units";
@@ -44,6 +44,7 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
   const [ingredients, setIngredients] = useState<Ingredient[]>(recipe.ingredients);
   const [editingIngredients, setEditingIngredients] = useState(false);
   const [newIngredientId, setNewIngredientId] = useState<string | null>(null);
+  const [showNotes, setShowNotes] = useState(false);
   const [servings, setServings] = useState(recipe.servings);
   const [isFavorite, setIsFavorite] = useState(recipe.isFavorite);
   const [madeCount, setMadeCount] = useState(recipe.madeCount);
@@ -324,9 +325,9 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
 
   function renderIngredientQuantity(ing: Ingredient): string {
     const display = ing.name || ing.raw;
-    if (ing.quantity == null) return ing.notes ? `${display}, ${ing.notes}` : display;
+    if (ing.quantity == null) return display;
     const scaled = scaleQuantity(ing.quantity, ing.unit, recipe.servings, servings);
-    return `${scaled.display} ${display}${ing.notes ? `, ${ing.notes}` : ""}`;
+    return `${scaled.display} ${display}`;
   }
 
   return (
@@ -819,7 +820,7 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
         </div>
 
         {nutrition ? (
-          <div className="grid grid-cols-4 sm:grid-cols-7 gap-3">
+          <div className="grid grid-cols-4 sm:grid-cols-8 gap-3">
             {[
               { label: "Calories", value: nutrition.calories, unit: "kcal", color: "text-orange-400" },
               { label: "Protein",  value: nutrition.protein,  unit: "g",    color: "text-blue-400" },
@@ -827,6 +828,7 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
               { label: "Fat",      value: nutrition.fat,      unit: "g",    color: "text-purple-400" },
               { label: "Fiber",    value: nutrition.fiber,    unit: "g",    color: "text-green-400" },
               { label: "Sugar",    value: nutrition.sugar,    unit: "g",    color: "text-pink-400" },
+              { label: "Sodium",   value: nutrition.sodium,   unit: "mg",   color: "text-cyan-400" },
               { label: "Iron",     value: nutrition.iron,     unit: "mg",   color: "text-red-400" },
             ].map(({ label, value, unit, color }) => {
               if (value == null) return null;
@@ -857,9 +859,25 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-foreground">Ingredients</h2>
               <div className="flex items-center gap-2">
+                {/* Notes toggle — only when not in edit mode */}
+                {!editingIngredients && (
+                  <button
+                    onClick={() => setShowNotes((v) => !v)}
+                    title={showNotes ? "Hide per-ingredient notes" : "Show per-ingredient notes"}
+                    className={cn(
+                      "flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-colors",
+                      showNotes
+                        ? "bg-brand-orange/15 border-brand-orange/40 text-brand-orange"
+                        : "border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
+                    )}
+                  >
+                    <FileText className="w-3 h-3" />
+                    Notes
+                  </button>
+                )}
                 {/* Edit toggle */}
                 <button
-                  onClick={() => setEditingIngredients((v) => !v)}
+                  onClick={() => { setEditingIngredients((v) => !v); setShowNotes(false); }}
                   className={cn(
                     "flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-colors",
                     editingIngredients
@@ -919,13 +937,20 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
                 </button>
               </div>
             ) : (
-              <ul className="space-y-2">
+              <ul className="space-y-2.5">
                 {ingredients.map((ing) => (
                   <li key={ing.id} className="flex items-start gap-2 text-sm">
-                    <span className="w-1.5 h-1.5 rounded-full bg-brand-orange mt-2 shrink-0" />
-                    <span className={cn(ing.quantity == null ? "text-muted-foreground italic" : "text-foreground")}>
-                      {renderIngredientQuantity(ing)}
-                    </span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-orange mt-[7px] shrink-0" />
+                    <div className="min-w-0">
+                      <span className={cn(ing.quantity == null ? "text-muted-foreground italic" : "text-foreground")}>
+                        {renderIngredientQuantity(ing)}
+                      </span>
+                      {showNotes && ing.notes && (
+                        <p className="text-xs text-muted-foreground/80 italic mt-0.5 leading-snug">
+                          {ing.notes}
+                        </p>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>

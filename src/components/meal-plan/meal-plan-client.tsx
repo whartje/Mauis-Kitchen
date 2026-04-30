@@ -182,6 +182,18 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props)
     });
   }
 
+  async function patchServings(itemId: string, servings: number) {
+    setPlan((p) => ({
+      ...p,
+      items: p.items.map((i) => i.id === itemId ? { ...i, servings } : i),
+    }));
+    await fetch(`/api/meal-plan/${plan.id}/items/${itemId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ servings }),
+    });
+  }
+
   async function toggleLock(item: PlanItem) {
     if (pending.has(item.id)) return;
     setPending((s) => new Set([...s, item.id]));
@@ -317,6 +329,7 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props)
                         item={item}
                         onRemove={() => removeItem(item)}
                         onToggleLock={() => toggleLock(item)}
+                        onServingsChange={(s) => patchServings(item.id, s)}
                       />
                     ) : (
                       <button
@@ -479,6 +492,7 @@ const NUTRITION_FIELDS: Array<{
   { key: "fat",      label: "Fat",      unit: "g",    color: "text-purple-400", decimals: 1 },
   { key: "fiber",    label: "Fiber",    unit: "g",    color: "text-green-400",  decimals: 1 },
   { key: "sugar",    label: "Sugar",    unit: "g",    color: "text-pink-400",   decimals: 1 },
+  { key: "sodium",   label: "Sodium",   unit: "mg",   color: "text-cyan-400",   decimals: 0 },
   { key: "iron",     label: "Iron",     unit: "mg",   color: "text-red-400",    decimals: 1 },
 ];
 
@@ -560,7 +574,7 @@ function WeeklyNutritionPanel({
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
           Week Total
         </p>
-        <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
           {NUTRITION_FIELDS.map(({ key, label, unit, color, decimals }) => {
             const val = weekTotals[key];
             if (val == null) return null;
@@ -585,7 +599,7 @@ function WeeklyNutritionPanel({
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
           Per Person · {people} {people === 1 ? "person" : "people"}
         </p>
-        <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
           {NUTRITION_FIELDS.map(({ key, label, unit, color, decimals }) => {
             const val = weekTotals[key];
             if (val == null) return null;
@@ -610,10 +624,12 @@ function RecipeSlotCard({
   item,
   onRemove,
   onToggleLock,
+  onServingsChange,
 }: {
   item: PlanItem;
   onRemove: () => void;
   onToggleLock: () => void;
+  onServingsChange: (servings: number) => void;
 }) {
   return (
     <div
@@ -664,15 +680,36 @@ function RecipeSlotCard({
         <ExternalLink className="w-2.5 h-2.5 shrink-0 mt-0.5 opacity-0 group-hover/link:opacity-60 transition-opacity" />
       </Link>
 
-      {/* Time */}
-      {item.recipe.totalTime != null && (
-        <div className="flex items-center gap-1 mt-auto">
-          <Clock className="w-2.5 h-2.5 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">
-            {item.recipe.totalTime}m
+      {/* Bottom row: time + servings adjuster */}
+      <div className="flex items-center justify-between mt-auto gap-1">
+        {item.recipe.totalTime != null ? (
+          <div className="flex items-center gap-1">
+            <Clock className="w-2.5 h-2.5 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">{item.recipe.totalTime}m</span>
+          </div>
+        ) : <span />}
+
+        {/* Servings stepper */}
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={(e) => { e.stopPropagation(); onServingsChange(Math.max(1, item.servings - 1)); }}
+            className="w-4 h-4 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-black/20 transition-colors"
+            title="Fewer servings"
+          >
+            <Minus className="w-2.5 h-2.5" />
+          </button>
+          <span className="text-[10px] text-muted-foreground w-5 text-center font-medium">
+            {item.servings}×
           </span>
+          <button
+            onClick={(e) => { e.stopPropagation(); onServingsChange(item.servings + 1); }}
+            className="w-4 h-4 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-black/20 transition-colors"
+            title="More servings"
+          >
+            <Plus className="w-2.5 h-2.5" />
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }

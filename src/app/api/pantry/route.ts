@@ -3,10 +3,13 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 
+const CATEGORIES = ["PRODUCE", "FRUIT", "PROTEIN", "DAIRY", "GRAINS", "PANTRY", "SPICES", "FROZEN", "BEVERAGES", "OTHER"] as const;
+
 const CreateSchema = z.object({
   name: z.string().min(1),
   quantity: z.number().nullable().optional(),
   unit: z.string().nullable().optional(),
+  category: z.enum(CATEGORIES).optional(),
 });
 
 export async function GET() {
@@ -29,11 +32,11 @@ export async function POST(request: Request) {
   const parsed = CreateSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "VALIDATION_ERROR" }, { status: 400 });
 
-  const { name, quantity, unit } = parsed.data;
+  const { name, quantity, unit, category } = parsed.data;
   const raw = [quantity, unit, name].filter(Boolean).join(" ");
 
   const item = await prisma.pantryItem.create({
-    data: { userId, name, quantity: quantity ?? null, unit: unit || null, raw },
+    data: { userId, name, quantity: quantity ?? null, unit: unit || null, raw, ...(category ? { category } : {}) },
   });
 
   return NextResponse.json(item, { status: 201 });

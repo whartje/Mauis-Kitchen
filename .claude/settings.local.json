@@ -22,7 +22,9 @@
       "Bash(npx prisma:*)",
       "Bash(mkdir -p \"C:\\\\Users\\\\willi\\\\Maui's Kitchen\\\\src\\\\app\\\\api\\\\recipes\\\\[id]\\\\ingredients\\\\[ingredientId]\")",
       "Bash(mkdir -p \"C:\\\\Users\\\\willi\\\\Maui's Kitchen\\\\src\\\\app\\\\api\\\\recipes\\\\[id]\\\\ingredients\")",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)"
     ]
   }
 }

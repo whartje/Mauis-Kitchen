@@ -3,10 +3,13 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 
+const CATEGORIES = ["PRODUCE", "FRUIT", "PROTEIN", "DAIRY", "GRAINS", "PANTRY", "SPICES", "FROZEN", "BEVERAGES", "OTHER"] as const;
+
 const UpdateSchema = z.object({
   name: z.string().min(1).optional(),
   quantity: z.number().nullable().optional(),
   unit: z.string().nullable().optional(),
+  category: z.enum(CATEGORIES).optional(),
 });
 
 export async function PATCH(

@@ -29,7 +29,16 @@ export default function RootLayout({
 }) {
   return (
     <ClerkProvider>
-      <html lang="en" className="dark">
+      {/* suppressHydrationWarning: the inline script sets the theme class before hydration */}
+      <html lang="en" suppressHydrationWarning>
+        <head>
+          {/* Prevent flash of wrong theme — runs before React hydrates */}
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `(function(){try{var t=localStorage.getItem('mauisKitchen_theme')||'dark';document.documentElement.classList.add(t);}catch(e){document.documentElement.classList.add('dark');}})();`,
+            }}
+          />
+        </head>
         <body className={`${inter.variable} ${playfair.variable} font-sans antialiased`}>
           {children}
           <Toaster />

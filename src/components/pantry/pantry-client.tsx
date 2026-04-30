@@ -4,12 +4,47 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { X, Plus, Package, Camera, Loader2, ScanLine, Check, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+type IngredientCategory = "PRODUCE" | "FRUIT" | "PROTEIN" | "DAIRY" | "GRAINS" | "PANTRY" | "SPICES" | "FROZEN" | "BEVERAGES" | "OTHER";
+
+const CATEGORY_ORDER: IngredientCategory[] = [
+  "PRODUCE", "FRUIT", "PROTEIN", "DAIRY", "GRAINS", "PANTRY", "SPICES", "FROZEN", "BEVERAGES", "OTHER",
+];
+
+const CATEGORY_META: Record<IngredientCategory, { label: string; icon: string }> = {
+  PRODUCE:   { label: "Produce",          icon: "🥬" },
+  FRUIT:     { label: "Fruit",            icon: "🍎" },
+  PROTEIN:   { label: "Protein",          icon: "🥩" },
+  DAIRY:     { label: "Dairy",            icon: "🧀" },
+  GRAINS:    { label: "Grains & Bread",   icon: "🌾" },
+  PANTRY:    { label: "Pantry & Canned",  icon: "🥫" },
+  SPICES:    { label: "Spices & Herbs",   icon: "🌿" },
+  FROZEN:    { label: "Frozen",           icon: "❄️" },
+  BEVERAGES: { label: "Beverages",        icon: "🧃" },
+  OTHER:     { label: "Other",            icon: "📦" },
+};
+
+/** Naive keyword-based category inference for scanned items */
+function inferCategory(name: string): IngredientCategory {
+  const n = name.toLowerCase();
+  if (/\b(apple|banana|orange|lemon|lime|berry|mango|grape|cherry|peach|pear|plum|melon|kiwi|pineapple|strawberr|blueberr|raspberr|avocado|tomato|fig|date|coconut)\b/.test(n)) return "FRUIT";
+  if (/\b(lettuce|spinach|kale|broccoli|carrot|celery|onion|garlic|pepper|cucumber|zucchini|mushroom|potato|sweet potato|corn|cabbage|cauliflower|asparagus|green bean|pea|squash|arugula|beet|leek|scallion|shallot|chard|endive|fennel|radish|turnip|parsnip|artichoke|bok choy)\b/.test(n)) return "PRODUCE";
+  if (/\b(chicken|beef|pork|fish|salmon|tuna|shrimp|prawn|turkey|lamb|bacon|sausage|egg|tofu|tempeh|lentil|chickpea|ham|steak|mince|ground beef|deli|anchov)\b/.test(n)) return "PROTEIN";
+  if (/\b(milk|cheese|butter|cream|yogurt|sour cream|cottage cheese|cream cheese|mozzarella|parmesan|cheddar|brie|gouda|ricotta|whey|kefir|ghee)\b/.test(n)) return "DAIRY";
+  if (/\b(flour|rice|pasta|bread|oat|quinoa|barley|cereal|cracker|tortilla|noodle|couscous|breadcrumb|wheat|rye|semolina|polenta|bulgur|farro|spelt)\b/.test(n)) return "GRAINS";
+  if (/\b(salt|pepper|cumin|paprika|turmeric|oregano|basil|thyme|rosemary|cinnamon|nutmeg|cayenne|chili|ginger|garlic powder|onion powder|bay leaf|herb|spice|seasoning|cardamom|coriander|curry|clove|anise|dill|tarragon|saffron|vanilla|extract)\b/.test(n)) return "SPICES";
+  if (/\b(frozen|ice cream|sorbet|popsicle)\b/.test(n)) return "FROZEN";
+  if (/\b(juice|soda|water|coffee|tea|drink|beverage|wine|beer|spirit|liquor|broth|stock|smoothie|kombucha|energy drink|sparkling)\b/.test(n)) return "BEVERAGES";
+  if (/\b(oil|vinegar|sauce|ketchup|mustard|mayo|mayonnaise|soy|honey|syrup|jam|jelly|peanut butter|almond butter|tahini|tomato paste|can|canned|jar|jarred|pickle|relish|salsa|hummus|spread|dressing|marinade|paste|nut|seed|dried|chocolate|cocoa|sugar|baking|powder|soda|yeast|gelatin)\b/.test(n)) return "PANTRY";
+  return "OTHER";
+}
+
 interface PantryItem {
   id: string;
   name: string;
   quantity: number | null;
   unit: string | null;
   raw: string;
+  category: IngredientCategory;
 }
 
 interface ScannedIngredient {
@@ -25,6 +60,7 @@ interface Props {
 export function PantryClient({ initialItems }: Props) {
   const [items, setItems] = useState<PantryItem[]>(initialItems);
   const [newText, setNewText] = useState("");
+  const [addCategory, setAddCategory] = useState<IngredientCategory>("OTHER");
   const [adding, setAdding] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -71,7 +107,7 @@ export function PantryClient({ initialItems }: Props) {
       const res = await fetch("/api/pantry", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, quantity, unit }),
+        body: JSON.stringify({ name, quantity, unit, category: addCategory }),
       });
       if (res.ok) {
         const item: PantryItem = await res.json();
@@ -143,7 +179,7 @@ export function PantryClient({ initialItems }: Props) {
           fetch("/api/pantry", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: i.name, quantity: null, unit: null }),
+            body: JSON.stringify({ name: i.name, quantity: null, unit: null, category: inferCategory(i.name) }),
           }).then((r) => r.ok ? r.json() as Promise<PantryItem> : null)
         )
       );
@@ -171,7 +207,7 @@ export function PantryClient({ initialItems }: Props) {
     await fetch(`/api/pantry/${id}`, { method: "DELETE" });
   }
 
-  async function updateItem(id: string, patch: { name?: string; quantity?: number | null; unit?: string | null }) {
+  async function updateItem(id: string, patch: { name?: string; quantity?: number | null; unit?: string | null; category?: IngredientCategory }) {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
     await fetch(`/api/pantry/${id}`, {
       method: "PATCH",
@@ -352,19 +388,30 @@ export function PantryClient({ initialItems }: Props) {
           />
         </div>
 
-        <form onSubmit={(e) => { e.preventDefault(); addItem(); }} className="flex gap-2">
+        <form onSubmit={(e) => { e.preventDefault(); addItem(); }} className="flex gap-2 flex-wrap sm:flex-nowrap">
           <input
             ref={inputRef}
             type="text"
             value={newText}
             onChange={(e) => setNewText(e.target.value)}
             placeholder="e.g. 2 cups flour, olive oil, 3 garlic cloves…"
-            className="flex-1 bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange transition"
+            className="flex-1 min-w-0 bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange transition"
           />
+          <select
+            value={addCategory}
+            onChange={(e) => setAddCategory(e.target.value as IngredientCategory)}
+            className="bg-background border border-border rounded-lg px-2 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/50 shrink-0"
+          >
+            {CATEGORY_ORDER.map((cat) => (
+              <option key={cat} value={cat}>
+                {CATEGORY_META[cat].icon} {CATEGORY_META[cat].label}
+              </option>
+            ))}
+          </select>
           <button
             type="submit"
             disabled={!newText.trim() || adding}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-brand-orange hover:bg-brand-orange/90 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-brand-orange hover:bg-brand-orange/90 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 shrink-0"
           >
             <Plus className="w-4 h-4" />
             Add
@@ -375,17 +422,35 @@ export function PantryClient({ initialItems }: Props) {
         </p>
       </div>
 
-      {/* Item list */}
+      {/* Item list — grouped by category */}
       {items.length > 0 ? (
-        <div className="bg-card border border-border rounded-xl divide-y divide-border">
-          {items.map((item) => (
-            <PantryRow
-              key={item.id}
-              item={item}
-              onUpdate={(patch) => updateItem(item.id, patch)}
-              onDelete={() => deleteItem(item.id)}
-            />
-          ))}
+        <div className="space-y-4">
+          {CATEGORY_ORDER.map((cat) => {
+            const group = items.filter((i) => i.category === cat);
+            if (group.length === 0) return null;
+            const meta = CATEGORY_META[cat];
+            return (
+              <div key={cat} className="bg-card border border-border rounded-xl overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-2 bg-secondary/30 border-b border-border">
+                  <span className="text-sm">{meta.icon}</span>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    {meta.label}
+                  </span>
+                  <span className="text-xs text-muted-foreground ml-auto">{group.length}</span>
+                </div>
+                <div className="divide-y divide-border">
+                  {group.map((item) => (
+                    <PantryRow
+                      key={item.id}
+                      item={item}
+                      onUpdate={(patch) => updateItem(item.id, patch)}
+                      onDelete={() => deleteItem(item.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
@@ -410,7 +475,7 @@ function PantryRow({
   onDelete,
 }: {
   item: PantryItem;
-  onUpdate: (patch: { name?: string; quantity?: number | null; unit?: string | null }) => void;
+  onUpdate: (patch: { name?: string; quantity?: number | null; unit?: string | null; category?: IngredientCategory }) => void;
   onDelete: () => void;
 }) {
   const [qty, setQty] = useState(item.quantity != null ? String(item.quantity) : "");
@@ -434,8 +499,29 @@ function PantryRow({
     if (value !== item.name) onUpdate({ name: value });
   }
 
+  function changeCategory(cat: IngredientCategory) {
+    onUpdate({ category: cat });
+  }
+
   return (
     <div className="flex items-center gap-2 px-4 py-2.5 group/row">
+      {/* Category emoji — clickable select */}
+      <div className="shrink-0 relative">
+        <select
+          value={item.category}
+          onChange={(e) => changeCategory(e.target.value as IngredientCategory)}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          aria-label="Category"
+        >
+          {CATEGORY_ORDER.map((cat) => (
+            <option key={cat} value={cat}>{CATEGORY_META[cat].icon} {CATEGORY_META[cat].label}</option>
+          ))}
+        </select>
+        <span className="text-base leading-none select-none" title={CATEGORY_META[item.category].label}>
+          {CATEGORY_META[item.category].icon}
+        </span>
+      </div>
+
       {/* Quantity */}
       <input
         type="text"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Link as LinkIcon, Camera, Search, ChevronDown, ChevronUp, BookOpen } from "lucide-react";
 import { RecipeCard } from "./recipe-card";
@@ -111,6 +111,24 @@ function FilterChip({
 export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overlapMap }: Props) {
   const router = useRouter();
   const [importOpen, setImportOpen] = useState(false);
+
+  // Auto-apply the user's dietary default when no filters are active
+  useEffect(() => {
+    const hasFilters = !!(
+      currentFilters.q || currentFilters.difficulty || currentFilters.favorite ||
+      currentFilters.mealType || currentFilters.timeRange || currentFilters.foodGroup ||
+      currentFilters.collection || currentFilters.protein
+    );
+    if (!hasFilters) {
+      try {
+        const dflt = localStorage.getItem("mauisKitchen_dietaryDefault") ?? "";
+        if (dflt) {
+          router.replace(`/recipes?foodGroup=${encodeURIComponent(dflt)}`);
+        }
+      } catch {}
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentFilters]);
   const [importTab, setImportTab] = useState<"url" | "photo">("url");
   const [search, setSearch] = useState(currentFilters.q ?? "");
   const [filtersOpen, setFiltersOpen] = useState(

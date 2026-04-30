@@ -3,8 +3,9 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    /* Dark mode is the default / only mode */
+  /* ── Dark theme (default) ─────────────────────── */
+  :root,
+  .dark {
     --background: 0 0% 10%;           /* #1A1A1A charcoal */
     --foreground: 39 50% 91%;         /* #F5EDD8 warm cream */
 
@@ -31,6 +32,39 @@
 
     --border: 0 0% 18%;               /* #2E2E2E subtle border */
     --input: 0 0% 18%;
+    --ring: 25 75% 58%;
+
+    --radius: 0.625rem;
+  }
+
+  /* ── Light theme ─────────────────────────────── */
+  .light {
+    --background: 40 20% 98%;         /* #FAFAF8 warm white */
+    --foreground: 0 0% 10%;           /* #1A1A1A charcoal */
+
+    --card: 0 0% 100%;                /* #FFFFFF white */
+    --card-foreground: 0 0% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 10%;
+
+    --primary: 25 75% 58%;            /* brand orange — unchanged */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 40 10% 93%;          /* #EDECE9 warm light gray */
+    --secondary-foreground: 0 0% 10%;
+
+    --muted: 40 10% 93%;
+    --muted-foreground: 0 0% 44%;     /* #707070 */
+
+    --accent: 25 75% 58%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 40 10% 88%;             /* #E2E0DB warm border */
+    --input: 40 10% 88%;
     --ring: 25 75% 58%;
 
     --radius: 0.625rem;

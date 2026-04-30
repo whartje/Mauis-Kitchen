@@ -35,10 +35,20 @@ export async function PATCH(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const { isLocked } = await req.json();
+  const body = await req.json();
+  const { isLocked, servings } = body;
+
+  const data: Record<string, unknown> = {};
+  if (typeof isLocked === "boolean") data.isLocked = isLocked;
+  if (typeof servings === "number" && servings > 0) data.servings = Math.round(servings);
+
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
+  }
+
   const item = await prisma.mealPlanRecipe.update({
     where: { id: itemId },
-    data: { isLocked },
+    data,
   });
 
   return NextResponse.json(item);

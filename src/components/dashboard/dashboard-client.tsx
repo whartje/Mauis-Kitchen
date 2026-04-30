@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Link as LinkIcon, Camera, ArrowRight, CalendarDays, Clock, ExternalLink, Minus, Plus as PlusIcon, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Link as LinkIcon, Camera, ArrowRight, CalendarDays, Clock, ExternalLink, Minus, Plus as PlusIcon, Users, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { RecipeCard } from "@/components/recipes/recipe-card";
 import { ImportRecipeModal } from "@/components/recipes/import-recipe-modal";
 
@@ -69,9 +70,46 @@ function fmtDate(date: Date): string {
 }
 
 export function DashboardClient({ recentRecipes, recipeCount, weekStart, mealPlanItems }: Props) {
+  const router = useRouter();
   const [importOpen, setImportOpen] = useState(false);
   const [importTab, setImportTab] = useState<"url" | "photo">("url");
   const [people, setPeople] = useState(2);
+  const [quickUrl, setQuickUrl] = useState("");
+  const [quickLoading, setQuickLoading] = useState(false);
+  const [quickError, setQuickError] = useState<string | null>(null);
+  const [quickSuccess, setQuickSuccess] = useState<string | null>(null);
+
+  async function handleQuickImport() {
+    const val = quickUrl.trim();
+    if (!val || quickLoading) return;
+    setQuickLoading(true);
+    setQuickError(null);
+    setQuickSuccess(null);
+    try {
+      const res = await fetch("/api/recipes/scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: val }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const msg = data?.error?.message ?? (res.status === 409 ? "You already have this recipe." : "Import failed. Check the URL and try again.");
+        if (res.status === 409 && data?.error?.existingId) {
+          router.push(`/recipes/${data.error.existingId}`);
+        } else {
+          setQuickError(msg);
+        }
+      } else {
+        setQuickUrl("");
+        setQuickSuccess(data.title ?? "Recipe imported!");
+        setTimeout(() => router.push(`/recipes/${data.id}`), 800);
+      }
+    } catch {
+      setQuickError("Something went wrong. Check your connection and try again.");
+    } finally {
+      setQuickLoading(false);
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -109,24 +147,23 @@ export function DashboardClient({ recentRecipes, recipeCount, weekStart, mealPla
       <div className="bg-card border border-border rounded-xl p-5">
         <h2 className="text-sm font-medium text-foreground mb-3">Quick Import</h2>
         <div className="flex gap-3">
-          <input
-            type="url"
-            placeholder="Paste a recipe URL and press Enter..."
-            className="flex-1 bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange transition"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                const val = (e.target as HTMLInputElement).value.trim();
-                if (val) {
-                  // Trigger import
-                  fetch("/api/recipes/scrape", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ url: val }),
-                  }).then(() => window.location.reload());
-                }
-              }
-            }}
-          />
+          <div className="flex-1 relative">
+            <input
+              type="url"
+              value={quickUrl}
+              onChange={(e) => { setQuickUrl(e.target.value); setQuickError(null); setQuickSuccess(null); }}
+              onKeyDown={(e) => { if (e.key === "Enter") handleQuickImport(); }}
+              placeholder="Paste a recipe URL and press Enter..."
+              disabled={quickLoading}
+              className="w-full bg-background border border-border rounded-lg px-4 py-2.5 pr-10 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange transition disabled:opacity-60"
+            />
+            {quickLoading && (
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-orange animate-spin" />
+            )}
+            {quickSuccess && !quickLoading && (
+              <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-400" />
+            )}
+          </div>
           <button
             onClick={() => { setImportTab("photo"); setImportOpen(true); }}
             className="flex items-center gap-2 px-4 py-2.5 border border-border rounded-lg text-sm text-muted-foreground hover:text-brand-orange hover:border-brand-orange/40 hover:bg-brand-orange/5 transition-colors"
@@ -135,6 +172,20 @@ export function DashboardClient({ recentRecipes, recipeCount, weekStart, mealPla
             Scan Photo
           </button>
         </div>
+
+        {/* Feedback */}
+        {quickError && (
+          <div className="mt-2 flex items-start gap-2 text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            {quickError}
+          </div>
+        )}
+        {quickSuccess && (
+          <div className="mt-2 flex items-center gap-2 text-sm text-green-400 bg-green-400/10 border border-green-400/20 rounded-lg px-3 py-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            Imported &ldquo;{quickSuccess}&rdquo; — redirecting…
+          </div>
+        )}
       </div>
 
       {/* This week's meal plan */}
@@ -298,6 +349,7 @@ const NUTRITION_FIELDS: Array<{
   { key: "fat",      label: "Fat",      unit: "g",    color: "text-purple-400", decimals: 1 },
   { key: "fiber",    label: "Fiber",    unit: "g",    color: "text-green-400",  decimals: 1 },
   { key: "sugar",    label: "Sugar",    unit: "g",    color: "text-pink-400",   decimals: 1 },
+  { key: "sodium",   label: "Sodium",   unit: "mg",   color: "text-cyan-400",   decimals: 0 },
   { key: "iron",     label: "Iron",     unit: "mg",   color: "text-red-400",    decimals: 1 },
 ];
 
@@ -383,7 +435,7 @@ function DashboardNutritionPanel({
       {/* Week total */}
       <div>
         <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Week Total</p>
-        <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
           {NUTRITION_FIELDS.map(({ key, label, unit, color, decimals }) => {
             const val = totals[key];
             if (val == null) return null;
@@ -399,7 +451,7 @@ function DashboardNutritionPanel({
         <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
           Per Person · {people} {people === 1 ? "person" : "people"}
         </p>
-        <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
           {NUTRITION_FIELDS.map(({ key, label, unit, color, decimals }) => {
             const val = totals[key];
             if (val == null) return null;
