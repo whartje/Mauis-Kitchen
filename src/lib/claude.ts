@@ -384,32 +384,44 @@ export async function normalizeSpecificRecipeFromImage(
 // Pantry ingredient identification from image
 // ─────────────────────────────────────────────
 
-export async function identifyPantryIngredients(
-  imageUrl: string,
-  mediaType: "image/jpeg" | "image/png" | "image/webp" = "image/jpeg"
+const PANTRY_SCAN_PROMPT = `You are scanning a photo of a refrigerator, pantry shelf, or kitchen counter to identify food items.
+
+Identify EVERY visible food ingredient, condiment, beverage, or pantry item — including:
+- Fresh produce (fruits, vegetables, herbs)
+- Dairy products (milk, cheese, butter, yogurt, eggs)
+- Proteins (meat, fish, tofu, deli items)
+- Condiments and sauces (ketchup, mustard, hot sauce, soy sauce)
+- Canned and jarred goods (tomatoes, beans, broth, pickles)
+- Beverages (juice, water, drinks)
+- Dry goods visible in transparent containers or labeled boxes/bags
+- Leftovers or cooked items are OK to include if identifiable
+
+For each item output:
+- "name": common English name, lowercase, singular (e.g. "egg" not "eggs", "lemon" not "lemons")
+- "confidence": 0.0–1.0 (how certain you are of the identification)
+  - 0.9+: clearly visible label or unambiguous item
+  - 0.7–0.9: visible but partially obscured or generic
+  - 0.5–0.7: inferred from shape/color/context
+  - below 0.5: uncertain — omit these
+
+Output ONLY a valid JSON array, no markdown, no explanation:
+[{"name": "...", "confidence": 0.0}, ...]`;
+
+export async function identifyPantryIngredientsFromBuffer(
+  buffer: Buffer,
+  mediaType: "image/jpeg" | "image/png" | "image/webp"
 ): Promise<Array<{ name: string; confidence: number }>> {
-  const response = await fetch(imageUrl);
-  const arrayBuffer = await response.arrayBuffer();
-  const base64 = Buffer.from(arrayBuffer).toString("base64");
+  const base64 = buffer.toString("base64");
 
   const message = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 1024,
+    max_tokens: 2048,
     messages: [
       {
         role: "user",
         content: [
-          {
-            type: "image",
-            source: { type: "base64", media_type: mediaType, data: base64 },
-          },
-          {
-            type: "text",
-            text: `Identify all visible food ingredients and pantry items in this image.
-For each item, provide a confidence score from 0 to 1.
-Output ONLY a JSON array: [{"name": "chickpeas", "confidence": 0.95}, ...]
-Use common ingredient names, lowercase, singular form (e.g. "tomato" not "tomatoes").`,
-          },
+          { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+          { type: "text", text: PANTRY_SCAN_PROMPT },
         ],
       },
     ],
@@ -417,9 +429,18 @@ Use common ingredient names, lowercase, singular form (e.g. "tomato" not "tomato
 
   const content = message.content[0];
   if (content.type !== "text") throw new Error("Unexpected Claude response type");
-
   const jsonText = content.text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
   return safeParseJson(jsonText);
+}
+
+// Legacy URL-based version kept for backwards compatibility
+export async function identifyPantryIngredients(
+  imageUrl: string,
+  mediaType: "image/jpeg" | "image/png" | "image/webp" = "image/jpeg"
+): Promise<Array<{ name: string; confidence: number }>> {
+  const response = await fetch(imageUrl);
+  const arrayBuffer = await response.arrayBuffer();
+  return identifyPantryIngredientsFromBuffer(Buffer.from(arrayBuffer), mediaType);
 }
 
 // ─────────────────────────────────────────────

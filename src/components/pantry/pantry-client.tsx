@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { X, Plus, Package } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { X, Plus, Package, Camera, Loader2, ScanLine, Check, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PantryItem {
@@ -10,6 +10,12 @@ interface PantryItem {
   quantity: number | null;
   unit: string | null;
   raw: string;
+}
+
+interface ScannedIngredient {
+  name: string;
+  confidence: number;
+  selected: boolean;
 }
 
 interface Props {
@@ -22,12 +28,25 @@ export function PantryClient({ initialItems }: Props) {
   const [adding, setAdding] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // ── Scan state ────────────────────────────────────────────────────────────
+  const [scanPhase, setScanPhase] = useState<"idle" | "scanning" | "review">("idle");
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [scanned, setScanned] = useState<ScannedIngredient[]>([]);
+  const [addingScanned, setAddingScanned] = useState(false);
+  const scanInputRef = useRef<HTMLInputElement>(null);
+
+  // Cleanup preview URL on unmount
+  useEffect(() => {
+    return () => { if (previewUrl) URL.revokeObjectURL(previewUrl); };
+  }, [previewUrl]);
+
   // Focus the add input when the page loads if empty
   useEffect(() => {
     if (items.length === 0) inputRef.current?.focus();
   }, []);
 
-  // Parse "2 cups flour" → { quantity, unit, name }
+  // ── Parse "2 cups flour" → { quantity, unit, name } ──────────────────────
   function parseEntry(text: string): { name: string; quantity: number | null; unit: string | null } {
     const UNITS = "ml|l|g|kg|oz|lb|cups?|tbsp|tablespoons?|tsp|teaspoons?|pints?|quarts?|gallons?|cloves?|bunches?|sprigs?|heads?|stalks?|slices?|pieces?|cans?|jars?|bags?|boxes?|packages?|handfuls?";
     const m = text.trim().match(new RegExp(`^([\\d./½¼¾⅓⅔⅛⅜⅝⅞]+)\\s*(${UNITS})?\\s+(.+)$`, "i"));
@@ -42,6 +61,7 @@ export function PantryClient({ initialItems }: Props) {
     return { quantity: null, unit: null, name: text.trim() };
   }
 
+  // ── Manual add ────────────────────────────────────────────────────────────
   async function addItem() {
     const text = newText.trim();
     if (!text) return;
@@ -64,6 +84,88 @@ export function PantryClient({ initialItems }: Props) {
     }
   }
 
+  // ── Photo scan ────────────────────────────────────────────────────────────
+  async function handleScanFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    setScanError(null);
+    setScanPhase("scanning");
+
+    // Show preview immediately
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(URL.createObjectURL(file));
+
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/pantry/scan", { method: "POST", body: form });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setScanError(data.error ?? "Scan failed. Please try again.");
+        setScanPhase("idle");
+        return;
+      }
+
+      const ingredients: Array<{ name: string; confidence: number }> = data.ingredients ?? [];
+      if (ingredients.length === 0) {
+        setScanError("No food items detected. Try a clearer photo with better lighting.");
+        setScanPhase("idle");
+        return;
+      }
+
+      // Pre-select items with confidence ≥ 0.75
+      setScanned(ingredients.map((i) => ({ ...i, selected: i.confidence >= 0.75 })));
+      setScanPhase("review");
+    } catch {
+      setScanError("Something went wrong. Please try again.");
+      setScanPhase("idle");
+    }
+  }
+
+  function toggleScannedItem(name: string) {
+    setScanned((prev) => prev.map((i) => i.name === name ? { ...i, selected: !i.selected } : i));
+  }
+
+  function toggleAllScanned(select: boolean) {
+    setScanned((prev) => prev.map((i) => ({ ...i, selected: select })));
+  }
+
+  const addSelectedToBackground = useCallback(async () => {
+    const toAdd = scanned.filter((i) => i.selected);
+    if (toAdd.length === 0) return;
+    setAddingScanned(true);
+    try {
+      const results = await Promise.all(
+        toAdd.map((i) =>
+          fetch("/api/pantry", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: i.name, quantity: null, unit: null }),
+          }).then((r) => r.ok ? r.json() as Promise<PantryItem> : null)
+        )
+      );
+      const newItems = results.filter((r): r is PantryItem => r !== null);
+      setItems((prev) => [...prev, ...newItems]);
+      // Reset scan state
+      setScanPhase("idle");
+      setScanned([]);
+      if (previewUrl) { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }
+    } finally {
+      setAddingScanned(false);
+    }
+  }, [scanned, previewUrl]);
+
+  function cancelScan() {
+    setScanPhase("idle");
+    setScanned([]);
+    setScanError(null);
+    if (previewUrl) { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }
+  }
+
+  // ── Delete / update ───────────────────────────────────────────────────────
   async function deleteItem(id: string) {
     setItems((prev) => prev.filter((i) => i.id !== id));
     await fetch(`/api/pantry/${id}`, { method: "DELETE" });
@@ -78,14 +180,17 @@ export function PantryClient({ initialItems }: Props) {
     });
   }
 
+  const selectedCount = scanned.filter((i) => i.selected).length;
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6 pb-20 md:pb-0">
+
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Pantry</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Track what you have on hand
-          </p>
+          <p className="text-sm text-muted-foreground mt-0.5">Track what you have on hand</p>
         </div>
         {items.length > 0 && (
           <span className="text-sm text-muted-foreground">
@@ -94,15 +199,160 @@ export function PantryClient({ initialItems }: Props) {
         )}
       </div>
 
-      {/* Add item input */}
+      {/* ── Scan review panel ── */}
+      {scanPhase === "review" && (
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          {/* Panel header */}
+          <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <ScanLine className="w-4 h-4 text-brand-orange" />
+              <span className="font-semibold text-sm text-foreground">
+                {scanned.length} item{scanned.length !== 1 ? "s" : ""} detected
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => toggleAllScanned(selectedCount < scanned.length)}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {selectedCount === scanned.length ? "Deselect all" : "Select all"}
+              </button>
+              <button onClick={cancelScan} className="p-1 rounded hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col md:flex-row">
+            {/* Photo preview */}
+            {previewUrl && (
+              <div className="md:w-48 shrink-0 border-b md:border-b-0 md:border-r border-border">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={previewUrl}
+                  alt="Scanned photo"
+                  className="w-full h-40 md:h-full object-cover"
+                />
+              </div>
+            )}
+
+            {/* Ingredient checklist */}
+            <div className="flex-1 divide-y divide-border max-h-80 overflow-y-auto">
+              {scanned.map((item) => (
+                <button
+                  key={item.name}
+                  onClick={() => toggleScannedItem(item.name)}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-secondary/50",
+                    item.selected ? "bg-green-500/5" : ""
+                  )}
+                >
+                  {/* Checkbox */}
+                  <span className={cn(
+                    "shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors",
+                    item.selected ? "bg-brand-orange border-brand-orange" : "border-border"
+                  )}>
+                    {item.selected && <Check className="w-2.5 h-2.5 text-white" />}
+                  </span>
+
+                  {/* Name */}
+                  <span className={cn(
+                    "flex-1 text-sm capitalize",
+                    item.selected ? "text-foreground" : "text-muted-foreground"
+                  )}>
+                    {item.name}
+                  </span>
+
+                  {/* Confidence dot */}
+                  <span className={cn(
+                    "shrink-0 w-1.5 h-1.5 rounded-full",
+                    item.confidence >= 0.85 ? "bg-green-400" :
+                    item.confidence >= 0.7  ? "bg-yellow-400" : "bg-orange-400"
+                  )} title={`${Math.round(item.confidence * 100)}% confident`} />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Confidence legend + Add button */}
+          <div className="px-4 py-3 border-t border-border flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" /> High confidence</span>
+              <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-yellow-400 inline-block" /> Medium</span>
+              <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block" /> Lower</span>
+            </div>
+            <button
+              onClick={addSelectedToBackground}
+              disabled={addingScanned || selectedCount === 0}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-white text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              {addingScanned ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              Add {selectedCount > 0 ? `${selectedCount} ` : ""}item{selectedCount !== 1 ? "s" : ""} to pantry
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Scanning spinner overlay */}
+      {scanPhase === "scanning" && (
+        <div className="bg-card border border-border rounded-xl p-6 flex flex-col items-center gap-4">
+          {previewUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={previewUrl} alt="Scanning…" className="w-full max-h-48 object-cover rounded-lg opacity-60" />
+          )}
+          <div className="flex items-center gap-3 text-muted-foreground">
+            <Loader2 className="w-5 h-5 animate-spin text-brand-orange" />
+            <span className="text-sm">Scanning for ingredients…</span>
+          </div>
+        </div>
+      )}
+
+      {/* Scan error */}
+      {scanError && (
+        <div className="flex items-center gap-2 text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">
+          <X className="w-4 h-4 shrink-0" />
+          {scanError}
+          <button onClick={() => setScanError(null)} className="ml-auto text-xs underline hover:no-underline">Dismiss</button>
+        </div>
+      )}
+
+      {/* ── Add item + Scan button ── */}
       <div className="bg-card border border-border rounded-xl p-4">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-          Add Item
-        </p>
-        <form
-          onSubmit={(e) => { e.preventDefault(); addItem(); }}
-          className="flex gap-2"
-        >
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Add Item
+          </p>
+          {/* Scan button */}
+          <button
+            onClick={() => scanInputRef.current?.click()}
+            disabled={scanPhase === "scanning"}
+            className={cn(
+              "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors",
+              scanPhase === "scanning"
+                ? "border-brand-orange/40 text-brand-orange bg-brand-orange/5"
+                : "border-border text-muted-foreground hover:text-foreground hover:border-brand-orange/40 hover:bg-brand-orange/5"
+            )}
+          >
+            {scanPhase === "scanning"
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <Camera className="w-3.5 h-3.5" />
+            }
+            Scan pantry / fridge
+            <ChevronRight className="w-3 h-3 opacity-40" />
+          </button>
+
+          {/* Hidden file input — capture="environment" opens rear camera on mobile */}
+          <input
+            ref={scanInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            capture="environment"
+            className="hidden"
+            onChange={handleScanFile}
+          />
+        </div>
+
+        <form onSubmit={(e) => { e.preventDefault(); addItem(); }} className="flex gap-2">
           <input
             ref={inputRef}
             type="text"
@@ -114,14 +364,14 @@ export function PantryClient({ initialItems }: Props) {
           <button
             type="submit"
             disabled={!newText.trim() || adding}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-brand-orange hover:bg-brand-orange-dark text-black text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-brand-orange hover:bg-brand-orange/90 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
           >
             <Plus className="w-4 h-4" />
             Add
           </button>
         </form>
         <p className="text-xs text-muted-foreground mt-2">
-          You can include quantity and unit — e.g. &ldquo;500g pasta&rdquo; or just &ldquo;olive oil&rdquo;
+          Type naturally — e.g. &ldquo;500g pasta&rdquo; or just &ldquo;olive oil&rdquo;
         </p>
       </div>
 
@@ -138,12 +388,12 @@ export function PantryClient({ initialItems }: Props) {
           ))}
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
+        <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
           <Package className="w-12 h-12 text-muted-foreground/20" />
           <div>
             <p className="font-medium text-foreground">Your pantry is empty</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Add ingredients above to track what you have on hand
+              Add ingredients above, or scan your pantry / fridge with the camera button.
             </p>
           </div>
         </div>
@@ -236,3 +486,4 @@ function PantryRow({
     </div>
   );
 }
+
