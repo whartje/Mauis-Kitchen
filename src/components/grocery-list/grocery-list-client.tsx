@@ -29,6 +29,7 @@ type IngredientCategory =
   | "SPICES"
   | "FROZEN"
   | "BEVERAGES"
+  | "CONDIMENTS"
   | "OTHER";
 
 interface GroceryListItem {
@@ -77,20 +78,22 @@ const CATEGORY_ORDER: IngredientCategory[] = [
   "SPICES",
   "FROZEN",
   "BEVERAGES",
+  "CONDIMENTS",
   "OTHER",
 ];
 
 const CATEGORY_META: Record<IngredientCategory, { emoji: string; label: string }> = {
-  PRODUCE: { emoji: "🥦", label: "Produce" },
-  FRUIT: { emoji: "🍎", label: "Fruit" },
-  PROTEIN: { emoji: "🥩", label: "Protein" },
-  DAIRY: { emoji: "🥛", label: "Dairy" },
-  GRAINS: { emoji: "🌾", label: "Grains & Bread" },
-  PANTRY: { emoji: "🫙", label: "Pantry" },
-  SPICES: { emoji: "🧂", label: "Spices & Seasonings" },
-  FROZEN: { emoji: "❄️", label: "Frozen" },
-  BEVERAGES: { emoji: "🧃", label: "Beverages" },
-  OTHER: { emoji: "📦", label: "Other" },
+  PRODUCE:    { emoji: "🥦",  label: "Produce" },
+  FRUIT:      { emoji: "🍎",  label: "Fruit" },
+  PROTEIN:    { emoji: "🥩",  label: "Protein" },
+  DAIRY:      { emoji: "🥛",  label: "Dairy" },
+  GRAINS:     { emoji: "🌾",  label: "Grains & Bread" },
+  PANTRY:     { emoji: "🥫",  label: "Pantry & Canned" },
+  SPICES:     { emoji: "🧂",  label: "Spices & Seasonings" },
+  FROZEN:     { emoji: "❄️",  label: "Frozen" },
+  BEVERAGES:  { emoji: "🧃",  label: "Beverages" },
+  CONDIMENTS: { emoji: "🫙",  label: "Condiments" },
+  OTHER:      { emoji: "🧩",  label: "Other" },
 };
 
 const CATEGORY_OPTIONS: IngredientCategory[] = [
@@ -103,6 +106,7 @@ const CATEGORY_OPTIONS: IngredientCategory[] = [
   "SPICES",
   "FROZEN",
   "BEVERAGES",
+  "CONDIMENTS",
   "OTHER",
 ];
 

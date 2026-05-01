@@ -75,6 +75,7 @@ enum IngredientCategory {
   SPICES
   FROZEN
   BEVERAGES
+  CONDIMENTS
   OTHER
 }
 

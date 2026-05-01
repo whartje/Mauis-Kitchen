@@ -4,23 +4,24 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { X, Plus, Package, Camera, Loader2, ScanLine, Check, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type IngredientCategory = "PRODUCE" | "FRUIT" | "PROTEIN" | "DAIRY" | "GRAINS" | "PANTRY" | "SPICES" | "FROZEN" | "BEVERAGES" | "OTHER";
+type IngredientCategory = "PRODUCE" | "FRUIT" | "PROTEIN" | "DAIRY" | "GRAINS" | "PANTRY" | "SPICES" | "FROZEN" | "BEVERAGES" | "CONDIMENTS" | "OTHER";
 
 const CATEGORY_ORDER: IngredientCategory[] = [
-  "PRODUCE", "FRUIT", "PROTEIN", "DAIRY", "GRAINS", "PANTRY", "SPICES", "FROZEN", "BEVERAGES", "OTHER",
+  "PRODUCE", "FRUIT", "PROTEIN", "DAIRY", "GRAINS", "PANTRY", "SPICES", "FROZEN", "BEVERAGES", "CONDIMENTS", "OTHER",
 ];
 
 const CATEGORY_META: Record<IngredientCategory, { label: string; icon: string }> = {
-  PRODUCE:   { label: "Produce",          icon: "🥬" },
-  FRUIT:     { label: "Fruit",            icon: "🍎" },
-  PROTEIN:   { label: "Protein",          icon: "🥩" },
-  DAIRY:     { label: "Dairy",            icon: "🧀" },
-  GRAINS:    { label: "Grains & Bread",   icon: "🌾" },
-  PANTRY:    { label: "Pantry & Canned",  icon: "🥫" },
-  SPICES:    { label: "Spices & Herbs",   icon: "🌿" },
-  FROZEN:    { label: "Frozen",           icon: "❄️" },
-  BEVERAGES: { label: "Beverages",        icon: "🧃" },
-  OTHER:     { label: "Other",            icon: "📦" },
+  PRODUCE:    { label: "Produce",          icon: "🥬" },
+  FRUIT:      { label: "Fruit",            icon: "🍎" },
+  PROTEIN:    { label: "Protein",          icon: "🥩" },
+  DAIRY:      { label: "Dairy",            icon: "🧀" },
+  GRAINS:     { label: "Grains & Bread",   icon: "🌾" },
+  PANTRY:     { label: "Pantry & Canned",  icon: "🥫" },
+  SPICES:     { label: "Spices & Herbs",   icon: "🌿" },
+  FROZEN:     { label: "Frozen",           icon: "❄️" },
+  BEVERAGES:  { label: "Beverages",        icon: "🧃" },
+  CONDIMENTS: { label: "Condiments",       icon: "🫙" },
+  OTHER:      { label: "Other",            icon: "🧩" },
 };
 
 /** Naive keyword-based category inference for scanned items */
@@ -34,7 +35,8 @@ function inferCategory(name: string): IngredientCategory {
   if (/\b(salt|pepper|cumin|paprika|turmeric|oregano|basil|thyme|rosemary|cinnamon|nutmeg|cayenne|chili|ginger|garlic powder|onion powder|bay leaf|herb|spice|seasoning|cardamom|coriander|curry|clove|anise|dill|tarragon|saffron|vanilla|extract)\b/.test(n)) return "SPICES";
   if (/\b(frozen|ice cream|sorbet|popsicle)\b/.test(n)) return "FROZEN";
   if (/\b(juice|soda|water|coffee|tea|drink|beverage|wine|beer|spirit|liquor|broth|stock|smoothie|kombucha|energy drink|sparkling)\b/.test(n)) return "BEVERAGES";
-  if (/\b(oil|vinegar|sauce|ketchup|mustard|mayo|mayonnaise|soy|honey|syrup|jam|jelly|peanut butter|almond butter|tahini|tomato paste|can|canned|jar|jarred|pickle|relish|salsa|hummus|spread|dressing|marinade|paste|nut|seed|dried|chocolate|cocoa|sugar|baking|powder|soda|yeast|gelatin)\b/.test(n)) return "PANTRY";
+  if (/\b(ketchup|catsup|mustard|mayo|mayonnaise|hot sauce|barbecue sauce|bbq sauce|salad dressing|ranch|caesar|vinaigrette|worcestershire|sriracha|tabasco|hoisin|teriyaki|fish sauce|oyster sauce|soy sauce|relish|chutney|salsa|guacamole|aioli|pesto|tzatziki|remoulade|chimichurri|miso|sambal|gochujang)\b/.test(n)) return "CONDIMENTS";
+  if (/\b(oil|vinegar|sauce|honey|syrup|jam|jelly|peanut butter|almond butter|tahini|tomato paste|can|canned|jar|jarred|pickle|hummus|spread|dressing|marinade|paste|nut|seed|dried|chocolate|cocoa|sugar|baking|powder|soda|yeast|gelatin)\b/.test(n)) return "PANTRY";
   return "OTHER";
 }
 
@@ -388,19 +390,19 @@ export function PantryClient({ initialItems }: Props) {
           />
         </div>
 
-        <form onSubmit={(e) => { e.preventDefault(); addItem(); }} className="flex gap-2 flex-wrap sm:flex-nowrap">
+        <form onSubmit={(e) => { e.preventDefault(); addItem(); }} className="flex gap-2 flex-wrap">
           <input
             ref={inputRef}
             type="text"
             value={newText}
             onChange={(e) => setNewText(e.target.value)}
             placeholder="e.g. 2 cups flour, olive oil, 3 garlic cloves…"
-            className="flex-1 min-w-0 bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange transition"
+            className="w-full min-w-0 bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange transition"
           />
           <select
             value={addCategory}
             onChange={(e) => setAddCategory(e.target.value as IngredientCategory)}
-            className="bg-background border border-border rounded-lg px-2 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/50 shrink-0"
+            className="flex-1 min-w-0 bg-background border border-border rounded-lg px-2 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/50"
           >
             {CATEGORY_ORDER.map((cat) => (
               <option key={cat} value={cat}>
@@ -545,7 +547,7 @@ function PantryRow({
         onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
         placeholder="unit"
         className={cn(
-          "w-16 shrink-0 bg-transparent border-b border-transparent hover:border-border focus:border-brand-orange",
+          "w-12 sm:w-16 shrink-0 bg-transparent border-b border-transparent hover:border-border focus:border-brand-orange",
           "px-1 py-0.5 text-sm text-muted-foreground placeholder:text-muted-foreground/40 focus:outline-none transition-colors"
         )}
       />

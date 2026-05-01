@@ -525,7 +525,7 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
         )}
 
         {/* Stats row — editable time fields */}
-        <div className="flex flex-wrap items-center gap-4 text-sm">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
           {/* Prep time */}
           {editingTime === "prepTime" ? (
             <div className="flex items-center gap-1.5">
@@ -856,9 +856,10 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
         {/* Ingredients — left (40%) */}
         <div className="md:col-span-2 space-y-4">
           <div className="bg-card border border-border rounded-xl p-5">
-            <div className="flex items-center justify-between mb-4">
+            {/* Row 1: title + notes/edit buttons */}
+            <div className="flex items-center justify-between gap-2 mb-2">
               <h2 className="font-semibold text-foreground">Ingredients</h2>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 shrink-0">
                 {/* Notes toggle — only when not in edit mode */}
                 {!editingIngredients && (
                   <button
@@ -888,34 +889,35 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
                   <Pencil className="w-3 h-3" />
                   {editingIngredients ? "Done" : "Edit"}
                 </button>
-                {/* Servings scaler — hidden while editing to avoid confusion */}
-                {!editingIngredients && (
-                  <>
-                    <button
-                      onClick={() => setServings(Math.max(1, servings - 1))}
-                      className="w-7 h-7 rounded-full bg-secondary hover:bg-brand-orange/20 flex items-center justify-center transition-colors"
-                    >
-                      <Minus className="w-3 h-3" />
-                    </button>
-                    <span className="text-sm font-medium w-16 text-center">
-                      {servings} {servings === 1 ? "serving" : "servings"}
-                    </span>
-                    <button
-                      onClick={() => setServings(servings + 1)}
-                      className="w-7 h-7 rounded-full bg-secondary hover:bg-brand-orange/20 flex items-center justify-center transition-colors"
-                    >
-                      <Plus className="w-3 h-3" />
-                    </button>
-                  </>
-                )}
               </div>
             </div>
 
-            {!editingIngredients && scaleFactor !== 1 && (
-              <p className="text-xs text-brand-orange mb-3">
-                Scaled from {recipe.servings} servings
-              </p>
+            {/* Row 2: servings scaler — own row so it never crowds the title on mobile */}
+            {!editingIngredients && (
+              <div className="flex items-center gap-2 mb-4">
+                <button
+                  onClick={() => setServings(Math.max(1, servings - 1))}
+                  className="w-7 h-7 rounded-full bg-secondary hover:bg-brand-orange/20 flex items-center justify-center transition-colors shrink-0"
+                >
+                  <Minus className="w-3 h-3" />
+                </button>
+                <span className="text-sm font-medium">
+                  {servings} {servings === 1 ? "serving" : "servings"}
+                </span>
+                <button
+                  onClick={() => setServings(servings + 1)}
+                  className="w-7 h-7 rounded-full bg-secondary hover:bg-brand-orange/20 flex items-center justify-center transition-colors shrink-0"
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
+                {scaleFactor !== 1 && (
+                  <span className="text-xs text-brand-orange">
+                    · scaled from {recipe.servings}
+                  </span>
+                )}
+              </div>
             )}
+            {editingIngredients && <div className="mb-4" />}
 
             {editingIngredients ? (
               <div className="space-y-1.5">
@@ -941,7 +943,7 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
                 {ingredients.map((ing) => (
                   <li key={ing.id} className="flex items-start gap-2 text-sm">
                     <span className="w-1.5 h-1.5 rounded-full bg-brand-orange mt-[7px] shrink-0" />
-                    <div className="min-w-0">
+                    <div className="min-w-0 break-words">
                       <span className={cn(ing.quantity == null ? "text-muted-foreground italic" : "text-foreground")}>
                         {renderIngredientQuantity(ing)}
                       </span>
@@ -968,7 +970,7 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
                 <span className="flex-shrink-0 w-8 h-8 rounded-full bg-brand-orange/15 text-brand-orange text-sm font-semibold flex items-center justify-center">
                   {step.stepNumber}
                 </span>
-                <p className="text-foreground leading-relaxed pt-1">{step.text}</p>
+                <p className="text-foreground leading-relaxed pt-1 break-words">{step.text}</p>
               </li>
             ))}
           </ol>
