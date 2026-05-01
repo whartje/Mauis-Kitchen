@@ -21,7 +21,7 @@ const CATEGORY_META: Record<IngredientCategory, { label: string; icon: string }>
   FROZEN:     { label: "Frozen",           icon: "❄️" },
   BEVERAGES:  { label: "Beverages",        icon: "🧃" },
   CONDIMENTS: { label: "Condiments",       icon: "🫙" },
-  OTHER:      { label: "Other",            icon: "🍘" },
+  OTHER:      { label: "Other",            icon: "🥨" },
 };
 
 /** Naive keyword-based category inference for scanned items */

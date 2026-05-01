@@ -93,7 +93,7 @@ const CATEGORY_META: Record<IngredientCategory, { emoji: string; label: string }
   FROZEN:     { emoji: "❄️",  label: "Frozen" },
   BEVERAGES:  { emoji: "🧃",  label: "Beverages" },
   CONDIMENTS: { emoji: "🫙",  label: "Condiments" },
-  OTHER:      { emoji: "🍘",  label: "Other" },
+  OTHER:      { emoji: "🥨",  label: "Other" },
 };
 
 const CATEGORY_OPTIONS: IngredientCategory[] = [
