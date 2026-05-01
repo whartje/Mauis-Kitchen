@@ -93,7 +93,7 @@ const CATEGORY_META: Record<IngredientCategory, { emoji: string; label: string }
   FROZEN:     { emoji: "❄️",  label: "Frozen" },
   BEVERAGES:  { emoji: "🧃",  label: "Beverages" },
   CONDIMENTS: { emoji: "🫙",  label: "Condiments" },
-  OTHER:      { emoji: "🧩",  label: "Other" },
+  OTHER:      { emoji: "🍘",  label: "Other" },
 };
 
 const CATEGORY_OPTIONS: IngredientCategory[] = [
@@ -499,50 +499,34 @@ export default function GroceryListClient({
             <p className="text-sm text-muted-foreground mt-0.5">{currentWeekLabel}</p>
           </div>
 
-          <div className="flex items-center gap-3">
-            {list && (
-              <button
-                onClick={generateList}
-                disabled={generating}
-                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-                title="Regenerate from meal plan"
-              >
-                {generating ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="w-4 h-4" />
-                )}
-                Regenerate
-              </button>
-            )}
-
-            <div className="relative group">
-              <button
-                onClick={!hasMealPlan ? undefined : generateList}
-                disabled={generating || !hasMealPlan}
-                className={[
-                  "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-                  hasMealPlan
-                    ? "bg-[#E8834A] hover:bg-[#d4733c] text-white cursor-pointer disabled:opacity-60"
-                    : "bg-[#E8834A]/40 text-white/60 cursor-not-allowed",
-                ].join(" ")}
-              >
-                {generating ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <ShoppingCart className="w-4 h-4" />
-                )}
-                Generate from Meal Plan
-              </button>
-
-              {!hasMealPlan && (
-                <div className="absolute right-0 top-full mt-1.5 z-10 hidden group-hover:block">
-                  <div className="bg-card border border-border text-muted-foreground text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-lg">
-                    Add recipes to your meal plan first
-                  </div>
-                </div>
+          <div className="relative group">
+            <button
+              onClick={!hasMealPlan ? undefined : generateList}
+              disabled={generating || !hasMealPlan}
+              className={[
+                "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                hasMealPlan
+                  ? "bg-[#E8834A] hover:bg-[#d4733c] text-white cursor-pointer disabled:opacity-60"
+                  : "bg-[#E8834A]/40 text-white/60 cursor-not-allowed",
+              ].join(" ")}
+            >
+              {generating ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : list ? (
+                <RefreshCw className="w-4 h-4" />
+              ) : (
+                <ShoppingCart className="w-4 h-4" />
               )}
-            </div>
+              {list ? "Regenerate" : "Generate from Meal Plan"}
+            </button>
+
+            {!hasMealPlan && (
+              <div className="absolute right-0 top-full mt-1.5 z-10 hidden group-hover:block">
+                <div className="bg-card border border-border text-muted-foreground text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-lg">
+                  Add recipes to your meal plan first
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
