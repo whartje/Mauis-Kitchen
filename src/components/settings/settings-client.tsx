@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { useClerk, useUser } from "@clerk/nextjs";
 import {
-  Sun, Moon, LogOut, Wifi, WifiOff, Settings2, Users,
-  Loader2, Check, ChevronRight, ExternalLink,
+  Sun, Moon, LogOut, Settings2, Users,
+  Check, ChevronRight,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
@@ -25,11 +25,7 @@ const DIETARY_OPTIONS = [
   { value: "keto",         label: "Keto / Low Carb" },
 ];
 
-interface Props {
-  alexaConnected: boolean;
-}
-
-export function SettingsClient({ alexaConnected: initialAlexaConnected }: Props) {
+export function SettingsClient() {
   const { theme, setTheme, mounted } = useTheme();
   const { user } = useUser();
   const { signOut, openUserProfile } = useClerk();
@@ -38,10 +34,6 @@ export function SettingsClient({ alexaConnected: initialAlexaConnected }: Props)
   const [dietaryDefault, setDietaryDefault] = useState("");
   const [defaultServings, setDefaultServings] = useState(2);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
-
-  // Alexa
-  const [alexaConnected, setAlexaConnected] = useState(initialAlexaConnected);
-  const [alexaDisconnecting, setAlexaDisconnecting] = useState(false);
 
   // Load saved preferences from localStorage
   useEffect(() => {
@@ -63,16 +55,6 @@ export function SettingsClient({ alexaConnected: initialAlexaConnected }: Props)
     const clamped = Math.max(1, Math.min(12, value));
     setDefaultServings(clamped);
     try { localStorage.setItem(LS_SERVINGS, String(clamped)); } catch {}
-  }
-
-  async function disconnectAlexa() {
-    setAlexaDisconnecting(true);
-    try {
-      const res = await fetch("/api/alexa/disconnect", { method: "DELETE" });
-      if (res.ok) setAlexaConnected(false);
-    } finally {
-      setAlexaDisconnecting(false);
-    }
   }
 
   return (
@@ -171,72 +153,6 @@ export function SettingsClient({ alexaConnected: initialAlexaConnected }: Props)
                 {[1,2,3].map(i => <div key={i} className="h-8 w-20 bg-secondary rounded-full animate-pulse" />)}
               </div>
             )}
-          </div>
-        </Card>
-      </section>
-
-      {/* ── Alexa Integration ───────────────────────────────────────────────── */}
-      <section className="space-y-2">
-        <SectionLabel icon={<Wifi className="w-3.5 h-3.5" />} title="Alexa Integration" />
-        <Card>
-          <div className="px-5 py-4 space-y-4">
-            {/* Status + connect/disconnect */}
-            <div className="flex items-start justify-between gap-4 flex-wrap">
-              <div className="flex items-start gap-3">
-                <div className={cn(
-                  "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
-                  alexaConnected ? "bg-green-400/15" : "bg-secondary"
-                )}>
-                  {alexaConnected
-                    ? <Wifi className="w-5 h-5 text-green-400" />
-                    : <WifiOff className="w-5 h-5 text-muted-foreground" />
-                  }
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">
-                    {alexaConnected ? "Amazon account connected" : "Not connected"}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5 max-w-xs">
-                    {alexaConnected
-                      ? "Grocery lists can be sent directly to your Alexa Shopping List"
-                      : "Link your Amazon account to add grocery items by voice"
-                    }
-                  </p>
-                </div>
-              </div>
-
-              {alexaConnected ? (
-                <button
-                  onClick={disconnectAlexa}
-                  disabled={alexaDisconnecting}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg border border-red-400/30 text-red-400 hover:bg-red-400/10 text-sm font-medium transition-colors disabled:opacity-50 shrink-0"
-                >
-                  {alexaDisconnecting
-                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    : <WifiOff className="w-3.5 h-3.5" />
-                  }
-                  Disconnect
-                </button>
-              ) : (
-                <a
-                  href="/api/alexa/auth"
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#00CAFF]/10 border border-[#00CAFF]/30 text-[#00CAFF] hover:bg-[#00CAFF]/20 text-sm font-medium transition-colors shrink-0"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  Connect with Amazon
-                </a>
-              )}
-            </div>
-
-            {/* How it works */}
-            <div className="bg-secondary/50 rounded-lg px-4 py-3">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">How it works</p>
-              <ol className="space-y-1 text-xs text-muted-foreground list-decimal list-inside">
-                <li>Connect your Amazon account above</li>
-                <li>Open <strong className="text-foreground">Grocery List</strong> and tap <strong className="text-foreground">Send to Alexa</strong></li>
-                <li>Ask Alexa: &ldquo;What&apos;s on my shopping list?&rdquo;</li>
-              </ol>
-            </div>
           </div>
         </Card>
       </section>

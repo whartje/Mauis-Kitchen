@@ -18,7 +18,7 @@ export default function DashboardError({ error, reset }: Props) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] gap-8 text-center px-4">
       {/* Cat */}
-      <CatAttackIcon className="w-40 h-40 text-foreground dark:text-foreground/15" />
+      <CatAttackIcon className="w-40 h-40 text-foreground dark:opacity-20" />
 
       {/* Copy */}
       <div className="space-y-2 max-w-sm">

@@ -18,7 +18,7 @@ export default function RootError({ error, reset }: Props) {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen gap-8 text-center px-4 bg-background">
       {/* Cat */}
-      <CatAttackIcon className="w-44 h-44 text-foreground dark:text-foreground/15" />
+      <CatAttackIcon className="w-44 h-44 text-foreground dark:opacity-20" />
 
       {/* Copy */}
       <div className="space-y-2 max-w-sm">

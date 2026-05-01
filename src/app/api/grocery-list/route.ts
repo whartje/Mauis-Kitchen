@@ -13,6 +13,7 @@ const CATEGORY_ORDER: IngredientCategory[] = [
   "SPICES",
   "FROZEN",
   "BEVERAGES",
+  "CONDIMENTS",
   "OTHER",
 ];
 
@@ -106,10 +107,11 @@ export async function POST(req: NextRequest) {
     g: 1, kg: 1000, oz: 28.3495, lb: 453.592,
   };
 
-  // Volume thresholds: prefer larger unit when possible
+  // Cooking-friendly volume thresholds — fl oz intentionally omitted (home cooks
+  // measure in tsp / tbsp / cups, not fluid ounces).
   const VOL_THRESHOLDS: [number, string][] = [
     [946, "qt"], [473, "pt"], [236, "cup"],
-    [29.574, "fl oz"], [14.787, "tbsp"], [4.929, "tsp"], [0, "ml"],
+    [14.787, "tbsp"], [4.929, "tsp"], [0, "ml"],
   ];
   const WEIGHT_THRESHOLDS: [number, string][] = [
     [453.592, "lb"], [28.3495, "oz"], [0, "g"],
@@ -120,7 +122,25 @@ export async function POST(req: NextRequest) {
     return UNIT_CANONICAL[unit.toLowerCase().trim()] ?? unit.toLowerCase().trim();
   }
 
-  function bestVolumeUnit(ml: number): { quantity: number; unit: string } {
+  /**
+   * Pick the most user-friendly volume unit.
+   * Tries to stay in one of the `originalUnits` first (largest first),
+   * then falls back to cooking-friendly thresholds (no fl oz).
+   */
+  function bestVolumeUnit(ml: number, originalUnits?: string[]): { quantity: number; unit: string } {
+    // Prefer to stay in an original unit if the quantity is sensible
+    if (originalUnits?.length) {
+      const bySize = [...originalUnits]
+        .filter((u) => u in VOL_ML)
+        .sort((a, b) => VOL_ML[b] - VOL_ML[a]); // largest unit first
+      for (const u of bySize) {
+        const qty = ml / VOL_ML[u];
+        if (qty >= 0.125 && qty <= 16) {
+          return { quantity: Math.round(qty * 8) / 8, unit: u };
+        }
+      }
+    }
+    // Fall back to cooking-friendly thresholds
     for (const [threshold, u] of VOL_THRESHOLDS) {
       if (ml >= threshold * 0.9) {
         return { quantity: Math.round((ml / VOL_ML[u]) * 8) / 8, unit: u };
@@ -129,7 +149,18 @@ export async function POST(req: NextRequest) {
     return { quantity: Math.round(ml * 8) / 8, unit: "ml" };
   }
 
-  function bestWeightUnit(g: number): { quantity: number; unit: string } {
+  function bestWeightUnit(g: number, originalUnits?: string[]): { quantity: number; unit: string } {
+    if (originalUnits?.length) {
+      const bySize = [...originalUnits]
+        .filter((u) => u in WEIGHT_G)
+        .sort((a, b) => WEIGHT_G[b] - WEIGHT_G[a]);
+      for (const u of bySize) {
+        const qty = g / WEIGHT_G[u];
+        if (qty >= 0.125 && qty <= 128) {
+          return { quantity: Math.round(qty * 8) / 8, unit: u };
+        }
+      }
+    }
     for (const [threshold, u] of WEIGHT_THRESHOLDS) {
       if (g >= threshold * 0.9) {
         return { quantity: Math.round((g / WEIGHT_G[u]) * 8) / 8, unit: u };
@@ -367,7 +398,17 @@ export async function POST(req: NextRequest) {
   for (const planItem of mealPlan.items) {
     const recipeId = planItem.recipe.id;
     const recipeTitle = planItem.recipe.title;
+
+    // Scale ingredients to the planned serving count
+    const baseServings = planItem.recipe.servings || 1;
+    const targetServings = planItem.servings || baseServings;
+    const servingScale = targetServings / baseServings;
+
     for (const ingredient of planItem.recipe.ingredients) {
+      // Scale the quantity before adding to the bucket
+      const scaledQty =
+        ingredient.quantity != null ? ingredient.quantity * servingScale : null;
+
       // Try to split compound entries like "spices: 1 tsp paprika, 1 tsp cumin"
       const compounds = splitCompoundIngredient(
         ingredient.name,
@@ -376,12 +417,14 @@ export async function POST(req: NextRequest) {
 
       if (compounds) {
         for (const c of compounds) {
-          addToBucket(c.name, c.quantity, c.unit, ingredient.raw, c.category, recipeId, recipeTitle);
+          const scaledCompoundQty =
+            c.quantity != null ? c.quantity * servingScale : null;
+          addToBucket(c.name, scaledCompoundQty, c.unit, ingredient.raw, c.category, recipeId, recipeTitle);
         }
       } else {
         addToBucket(
           ingredient.name,
-          ingredient.quantity ?? null,
+          scaledQty,
           ingredient.unit ?? null,
           ingredient.raw,
           ingredient.category as IngredientCategory,
@@ -431,31 +474,63 @@ export async function POST(req: NextRequest) {
     const allWeight = units.every((u) => u in WEIGHT_G);
 
     if (allVolume) {
-      const totalMl = units.reduce((sum, u) => sum + bucket.byUnit.get(u)! * VOL_ML[u], 0);
-      const { quantity, unit } = bestVolumeUnit(totalMl);
       const suffix = bucket.hasUnquantified ? " (+ to taste)" : "";
-      consolidatedList.push({
-        name: bucket.displayName,
-        quantity,
-        unit,
-        raw: bucket.raw + suffix,
-        category: bucket.category,
-        recipeIds,
-        recipeTitles,
-      });
+      if (units.length === 1) {
+        // Single volume unit — sum directly, no conversion needed
+        const u = units[0];
+        const total = bucket.byUnit.get(u)!;
+        consolidatedList.push({
+          name: bucket.displayName,
+          quantity: Math.round(total * 8) / 8,
+          unit: u || null,
+          raw: bucket.raw + suffix,
+          category: bucket.category,
+          recipeIds,
+          recipeTitles,
+        });
+      } else {
+        // Multiple different volume units — convert via ml, prefer original units
+        const totalMl = units.reduce((sum, u) => sum + bucket.byUnit.get(u)! * VOL_ML[u], 0);
+        const { quantity, unit } = bestVolumeUnit(totalMl, units);
+        consolidatedList.push({
+          name: bucket.displayName,
+          quantity,
+          unit,
+          raw: bucket.raw + suffix,
+          category: bucket.category,
+          recipeIds,
+          recipeTitles,
+        });
+      }
     } else if (allWeight) {
-      const totalG = units.reduce((sum, u) => sum + bucket.byUnit.get(u)! * WEIGHT_G[u], 0);
-      const { quantity, unit } = bestWeightUnit(totalG);
       const suffix = bucket.hasUnquantified ? " (+ to taste)" : "";
-      consolidatedList.push({
-        name: bucket.displayName,
-        quantity,
-        unit,
-        raw: bucket.raw + suffix,
-        category: bucket.category,
-        recipeIds,
-        recipeTitles,
-      });
+      if (units.length === 1) {
+        // Single weight unit — sum directly
+        const u = units[0];
+        const total = bucket.byUnit.get(u)!;
+        consolidatedList.push({
+          name: bucket.displayName,
+          quantity: Math.round(total * 8) / 8,
+          unit: u || null,
+          raw: bucket.raw + suffix,
+          category: bucket.category,
+          recipeIds,
+          recipeTitles,
+        });
+      } else {
+        // Multiple weight units — convert via grams, prefer original units
+        const totalG = units.reduce((sum, u) => sum + bucket.byUnit.get(u)! * WEIGHT_G[u], 0);
+        const { quantity, unit } = bestWeightUnit(totalG, units);
+        consolidatedList.push({
+          name: bucket.displayName,
+          quantity,
+          unit,
+          raw: bucket.raw + suffix,
+          category: bucket.category,
+          recipeIds,
+          recipeTitles,
+        });
+      }
     } else if (units.length === 1) {
       // Single non-volume/weight unit (e.g. "cloves", "slices")
       const u = units[0];
