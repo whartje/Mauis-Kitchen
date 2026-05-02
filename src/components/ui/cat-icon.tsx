@@ -13,8 +13,7 @@ export function CatIcon({ className }: Props) {
         alt="Maui's Kitchen"
         width={48}
         height={48}
-        className="object-contain w-full h-full"
-        style={{ filter: "brightness(0) invert(1)" }}
+        className="object-contain w-full h-full brightness-0 dark:invert"
         priority
       />
     </span>
