@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Link as LinkIcon, Camera, ArrowRight, CalendarDays, Clock, ExternalLink, Minus, Plus as PlusIcon, Users, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Link as LinkIcon, Camera, ArrowRight, CalendarDays, Clock, ExternalLink, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { RecipeCard } from "@/components/recipes/recipe-card";
 import { ImportRecipeModal } from "@/components/recipes/import-recipe-modal";
 
@@ -37,7 +37,16 @@ interface MealPlanItem {
   dayOfWeek: number | null;
   mealType: "BREAKFAST" | "LUNCH" | "DINNER" | "SNACK";
   servings: number;
-  recipe: { id: string; title: string; totalTime: number | null; servings: number; nutrition: NutritionFact | null };
+  recipe: {
+    id: string;
+    title: string;
+    prepTime: number | null;
+    cookTime: number | null;
+    totalTime: number | null;
+    servings: number;
+    nutrition: NutritionFact | null;
+    ingredients: { name: string }[];
+  };
 }
 
 interface Props {
@@ -73,7 +82,6 @@ export function DashboardClient({ recentRecipes, recipeCount, weekStart, mealPla
   const router = useRouter();
   const [importOpen, setImportOpen] = useState(false);
   const [importTab, setImportTab] = useState<"url" | "photo">("url");
-  const [people, setPeople] = useState(2);
   const [quickUrl, setQuickUrl] = useState("");
   const [quickLoading, setQuickLoading] = useState(false);
   const [quickError, setQuickError] = useState<string | null>(null);
@@ -259,8 +267,11 @@ export function DashboardClient({ recentRecipes, recipeCount, weekStart, mealPla
               })}
           </div>
 
-          {/* Weekly nutrition */}
-          <DashboardNutritionPanel items={mealPlanItems} people={people} setPeople={setPeople} />
+          {/* Week time + overlap stats */}
+          <WeeklyStats items={mealPlanItems} />
+
+          {/* Avg per serving nutrition */}
+          <AvgServingNutrition items={mealPlanItems} />
         </div>
       )}
 
@@ -334,7 +345,117 @@ export function DashboardClient({ recentRecipes, recipeCount, weekStart, mealPla
   );
 }
 
-// ─── Dashboard weekly nutrition panel ─────────────────────────────────────────
+// ─── Weekly time + ingredient overlap stats ───────────────────────────────────
+
+function fmtTime(minutes: number): string {
+  if (minutes === 0) return "0m";
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m}m`;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+function StatTile({ label, value, sub, accent }: {
+  label: string;
+  value: string;
+  sub?: string;
+  accent?: string;
+}) {
+  return (
+    <div className="flex flex-col items-center text-center rounded-lg px-3 py-4 gap-1 bg-secondary/50">
+      <span className={`text-lg font-bold leading-none ${accent ?? "text-foreground"}`}>{value}</span>
+      {sub && <span className="text-[10px] text-muted-foreground">{sub}</span>}
+      <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide mt-0.5">{label}</span>
+    </div>
+  );
+}
+
+function WeeklyStats({ items }: { items: MealPlanItem[] }) {
+  if (items.length === 0) return null;
+
+  // Sum times across all plan items (each item = one cooking occasion)
+  let totalPrep = 0;
+  let totalCook = 0;
+  let totalOverall = 0;
+  let prepCount = 0;
+  let cookCount = 0;
+  let totalCount = 0;
+
+  for (const item of items) {
+    if (item.recipe.prepTime != null) { totalPrep += item.recipe.prepTime; prepCount++; }
+    if (item.recipe.cookTime != null) { totalCook += item.recipe.cookTime; cookCount++; }
+    if (item.recipe.totalTime != null) { totalOverall += item.recipe.totalTime; totalCount++; }
+  }
+
+  // Ingredient overlap — deduplicate by recipe ID first
+  const seenRecipes = new Set<string>();
+  const ingredientRecipeCount = new Map<string, number>(); // normalised name → # of distinct recipes
+
+  for (const item of items) {
+    if (seenRecipes.has(item.recipe.id)) continue;
+    seenRecipes.add(item.recipe.id);
+    for (const ing of item.recipe.ingredients) {
+      const key = ing.name.toLowerCase().trim();
+      ingredientRecipeCount.set(key, (ingredientRecipeCount.get(key) ?? 0) + 1);
+    }
+  }
+
+  const totalUnique = ingredientRecipeCount.size;
+  const sharedCount = [...ingredientRecipeCount.values()].filter((c) => c > 1).length;
+  const overlapPct = totalUnique > 0 ? Math.round((sharedCount / totalUnique) * 100) : null;
+
+  const hasTime = prepCount > 0 || cookCount > 0 || totalCount > 0;
+  if (!hasTime && overlapPct === null) return null;
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-5 space-y-3 mt-3">
+      <h3 className="font-semibold text-foreground text-sm">Week at a Glance</h3>
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        {prepCount > 0 && (
+          <StatTile
+            label="Prep Time"
+            value={fmtTime(totalPrep)}
+            sub={prepCount < items.length ? `${prepCount} of ${items.length} recipes` : undefined}
+            accent="text-blue-400"
+          />
+        )}
+        {cookCount > 0 && (
+          <StatTile
+            label="Cook Time"
+            value={fmtTime(totalCook)}
+            sub={cookCount < items.length ? `${cookCount} of ${items.length} recipes` : undefined}
+            accent="text-orange-400"
+          />
+        )}
+        {totalCount > 0 && (
+          <StatTile
+            label="Total Time"
+            value={fmtTime(totalOverall)}
+            sub={totalCount < items.length ? `${totalCount} of ${items.length} recipes` : undefined}
+            accent="text-green-400"
+          />
+        )}
+        {totalCount > 0 && (
+          <StatTile
+            label="Avg per Recipe"
+            value={fmtTime(Math.round(totalOverall / totalCount))}
+            accent="text-yellow-400"
+          />
+        )}
+        {overlapPct !== null && (
+          <StatTile
+            label="Ingredient Overlap"
+            value={`${overlapPct}%`}
+            sub={`${sharedCount} shared / ${totalUnique} ingredients`}
+            accent="text-purple-400"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Average per-serving nutrition panel ──────────────────────────────────────
 
 const NUTRITION_FIELDS: Array<{
   key: keyof NutritionFact;
@@ -357,11 +478,11 @@ function fmt(val: number, decimals: number): string {
   return decimals === 0 ? String(Math.round(val)) : val.toFixed(decimals).replace(/\.0$/, "");
 }
 
-function NutritionTile({ label, value, unit, color, decimals, dim }: {
-  label: string; value: number; unit: string; color: string; decimals: number; dim?: boolean;
+function NutritionTile({ label, value, unit, color, decimals }: {
+  label: string; value: number; unit: string; color: string; decimals: number;
 }) {
   return (
-    <div className={`flex flex-col items-center text-center rounded-lg px-2 py-3 gap-1 ${dim ? "bg-secondary/30" : "bg-secondary/50"}`}>
+    <div className="flex flex-col items-center text-center rounded-lg px-2 py-3 gap-1 bg-secondary/50">
       <span className={`text-base font-bold leading-none ${color}`}>
         {fmt(value, decimals)}
       </span>
@@ -371,93 +492,45 @@ function NutritionTile({ label, value, unit, color, decimals, dim }: {
   );
 }
 
-function DashboardNutritionPanel({
-  items,
-  people,
-  setPeople,
-}: {
-  items: MealPlanItem[];
-  people: number;
-  setPeople: (n: number) => void;
-}) {
+function AvgServingNutrition({ items }: { items: MealPlanItem[] }) {
   const withNutrition = items.filter((it) => it.recipe.nutrition);
   if (withNutrition.length === 0) return null;
 
-  // Sum totals — each plan item's nutrition is per recipe serving; multiply by item.servings
-  const totals: Partial<Record<keyof NutritionFact, number>> = {};
+  // Average per-serving nutrition across recipes (recipe.nutrition is already per serving)
+  const sums: Partial<Record<keyof NutritionFact, number>> = {};
+  const counts: Partial<Record<keyof NutritionFact, number>> = {};
   let hasEstimated = false;
   for (const item of withNutrition) {
     const n = item.recipe.nutrition!;
     if (n.isEstimated) hasEstimated = true;
-    const factor = item.servings ?? item.recipe.servings ?? 4;
     for (const { key } of NUTRITION_FIELDS) {
       const val = n[key];
       if (typeof val === "number") {
-        totals[key] = (totals[key] ?? 0) + val * factor;
+        sums[key] = (sums[key] ?? 0) + val;
+        counts[key] = (counts[key] ?? 0) + 1;
       }
     }
   }
 
-  const hasAny = NUTRITION_FIELDS.some(({ key }) => totals[key] != null);
+  const hasAny = NUTRITION_FIELDS.some(({ key }) => sums[key] != null);
   if (!hasAny) return null;
 
   return (
-    <div className="bg-card border border-border rounded-xl p-5 space-y-4 mt-3">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h3 className="font-semibold text-foreground text-sm">Weekly Nutrition</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {withNutrition.length < items.length
-              ? `${withNutrition.length} of ${items.length} recipes have data`
-              : `${items.length} recipes`}
-            {hasEstimated && " · AI estimates"}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Users className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">People:</span>
-          <button
-            onClick={() => setPeople(Math.max(1, people - 1))}
-            className="w-6 h-6 rounded-full bg-secondary hover:bg-brand-orange/20 flex items-center justify-center transition-colors"
-          >
-            <Minus className="w-3 h-3" />
-          </button>
-          <span className="text-sm font-semibold w-4 text-center">{people}</span>
-          <button
-            onClick={() => setPeople(people + 1)}
-            className="w-6 h-6 rounded-full bg-secondary hover:bg-brand-orange/20 flex items-center justify-center transition-colors"
-          >
-            <PlusIcon className="w-3 h-3" />
-          </button>
-        </div>
-      </div>
-
-      {/* Week total */}
+    <div className="bg-card border border-border rounded-xl p-5 space-y-3 mt-3">
       <div>
-        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Week Total</p>
-        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-          {NUTRITION_FIELDS.map(({ key, label, unit, color, decimals }) => {
-            const val = totals[key];
-            if (val == null) return null;
-            return <NutritionTile key={key} label={label} value={val} unit={unit} color={color} decimals={decimals} />;
-          })}
-        </div>
-      </div>
-
-      <div className="border-t border-border" />
-
-      {/* Per person */}
-      <div>
-        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-          Per Person · {people} {people === 1 ? "person" : "people"}
+        <h3 className="font-semibold text-foreground text-sm">Avg. Nutrition per Serving</h3>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Averaged across {withNutrition.length} recipe{withNutrition.length !== 1 ? "s" : ""}
+          {hasEstimated && " · AI estimates"}
         </p>
-        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-          {NUTRITION_FIELDS.map(({ key, label, unit, color, decimals }) => {
-            const val = totals[key];
-            if (val == null) return null;
-            return <NutritionTile key={key} label={label} value={val / people} unit={unit} color={color} decimals={decimals} dim />;
-          })}
-        </div>
+      </div>
+      <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+        {NUTRITION_FIELDS.map(({ key, label, unit, color, decimals }) => {
+          const s = sums[key];
+          const c = counts[key];
+          if (s == null || !c) return null;
+          return <NutritionTile key={key} label={label} value={s / c} unit={unit} color={color} decimals={decimals} />;
+        })}
       </div>
     </div>
   );

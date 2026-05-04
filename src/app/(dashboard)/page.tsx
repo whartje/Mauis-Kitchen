@@ -48,9 +48,14 @@ export default async function DashboardPage() {
               select: {
                 id: true,
                 title: true,
+                prepTime: true,
+                cookTime: true,
                 totalTime: true,
                 servings: true,
                 nutrition: true,
+                ingredients: {
+                  select: { name: true },
+                },
               },
             },
           },
