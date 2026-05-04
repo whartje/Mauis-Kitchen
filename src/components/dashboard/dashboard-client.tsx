@@ -54,6 +54,7 @@ interface Props {
   recipeCount: number;
   weekStart: string;
   mealPlanItems: MealPlanItem[];
+  pantryNames: string[];
 }
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -78,7 +79,7 @@ function fmtDate(date: Date): string {
   return `${months[date.getUTCMonth()]} ${date.getUTCDate()}`;
 }
 
-export function DashboardClient({ recentRecipes, recipeCount, weekStart, mealPlanItems }: Props) {
+export function DashboardClient({ recentRecipes, recipeCount, weekStart, mealPlanItems, pantryNames }: Props) {
   const router = useRouter();
   const [importOpen, setImportOpen] = useState(false);
   const [importTab, setImportTab] = useState<"url" | "photo">("url");
@@ -268,7 +269,7 @@ export function DashboardClient({ recentRecipes, recipeCount, weekStart, mealPla
           </div>
 
           {/* Week time + overlap stats */}
-          <WeeklyStats items={mealPlanItems} />
+          <WeeklyStats items={mealPlanItems} pantryNames={pantryNames} />
 
           {/* Avg per serving nutrition */}
           <AvgServingNutrition items={mealPlanItems} />
@@ -370,87 +371,155 @@ function StatTile({ label, value, sub, accent }: {
   );
 }
 
-function WeeklyStats({ items }: { items: MealPlanItem[] }) {
+const MEAL_TYPE_ORDER = ["BREAKFAST", "LUNCH", "DINNER", "SNACK"] as const;
+const MEAL_TYPE_LABEL: Record<string, string> = {
+  BREAKFAST: "Breakfast", LUNCH: "Lunch", DINNER: "Dinner", SNACK: "Snack",
+};
+
+function WeeklyStats({ items, pantryNames }: { items: MealPlanItem[]; pantryNames: string[] }) {
   if (items.length === 0) return null;
 
-  // Sum times across all plan items (each item = one cooking occasion)
-  let totalPrep = 0;
-  let totalCook = 0;
-  let totalOverall = 0;
-  let prepCount = 0;
-  let cookCount = 0;
-  let totalCount = 0;
+  const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
 
+  // ── Time sums ──────────────────────────────────────────────────────────────
+  let totalPrep = 0, totalCook = 0, totalOverall = 0;
+  let prepCount = 0, cookCount = 0, totalCount = 0;
   for (const item of items) {
-    if (item.recipe.prepTime != null) { totalPrep += item.recipe.prepTime; prepCount++; }
-    if (item.recipe.cookTime != null) { totalCook += item.recipe.cookTime; cookCount++; }
+    if (item.recipe.prepTime != null)  { totalPrep    += item.recipe.prepTime;  prepCount++;  }
+    if (item.recipe.cookTime != null)  { totalCook    += item.recipe.cookTime;  cookCount++;  }
     if (item.recipe.totalTime != null) { totalOverall += item.recipe.totalTime; totalCount++; }
   }
 
-  // Ingredient overlap — deduplicate by recipe ID first
+  // ── Ingredient overlap + pantry coverage (dedup by recipe) ─────────────────
   const seenRecipes = new Set<string>();
-  const ingredientRecipeCount = new Map<string, number>(); // normalised name → # of distinct recipes
-
+  const ingredientRecipeCount = new Map<string, number>();
   for (const item of items) {
     if (seenRecipes.has(item.recipe.id)) continue;
     seenRecipes.add(item.recipe.id);
     for (const ing of item.recipe.ingredients) {
-      const key = ing.name.toLowerCase().trim();
+      const key = norm(ing.name);
       ingredientRecipeCount.set(key, (ingredientRecipeCount.get(key) ?? 0) + 1);
     }
   }
-
-  const totalUnique = ingredientRecipeCount.size;
+  const uniqueIngredients = [...ingredientRecipeCount.keys()];
+  const totalUnique = uniqueIngredients.length;
   const sharedCount = [...ingredientRecipeCount.values()].filter((c) => c > 1).length;
   const overlapPct = totalUnique > 0 ? Math.round((sharedCount / totalUnique) * 100) : null;
 
+  const pantrySet = new Set(pantryNames.map(norm));
+  const pantryMatches = totalUnique > 0 && pantrySet.size > 0
+    ? uniqueIngredients.filter((n) => pantrySet.has(n)).length
+    : null;
+  const pantryPct = pantryMatches !== null && totalUnique > 0
+    ? Math.round((pantryMatches / totalUnique) * 100)
+    : null;
+
+  // ── Days planned ───────────────────────────────────────────────────────────
+  const daysPlanned = new Set(
+    items.map((i) => i.dayOfWeek).filter((d): d is number => d !== null)
+  ).size;
+
+  // ── Meal type breakdown ────────────────────────────────────────────────────
+  const mealTypeCounts = new Map<string, number>();
+  for (const item of items) {
+    mealTypeCounts.set(item.mealType, (mealTypeCounts.get(item.mealType) ?? 0) + 1);
+  }
+  const mealBreakdown = MEAL_TYPE_ORDER
+    .filter((t) => mealTypeCounts.has(t))
+    .map((t) => {
+      const c = mealTypeCounts.get(t)!;
+      return `${c} ${MEAL_TYPE_LABEL[t]}${c !== 1 ? "s" : ""}`;
+    });
+
   const hasTime = prepCount > 0 || cookCount > 0 || totalCount > 0;
-  if (!hasTime && overlapPct === null) return null;
+  if (!hasTime && overlapPct === null && pantryPct === null) return null;
 
   return (
-    <div className="bg-card border border-border rounded-xl p-5 space-y-3 mt-3">
+    <div className="bg-card border border-border rounded-xl p-5 space-y-4 mt-3">
       <h3 className="font-semibold text-foreground text-sm">Week at a Glance</h3>
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-        {prepCount > 0 && (
+
+      {/* Row 1 — time stats */}
+      {hasTime && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {prepCount > 0 && (
+            <StatTile
+              label="Prep Time"
+              value={fmtTime(totalPrep)}
+              sub={prepCount < items.length ? `${prepCount} of ${items.length} recipes` : undefined}
+              accent="text-blue-400"
+            />
+          )}
+          {cookCount > 0 && (
+            <StatTile
+              label="Cook Time"
+              value={fmtTime(totalCook)}
+              sub={cookCount < items.length ? `${cookCount} of ${items.length} recipes` : undefined}
+              accent="text-orange-400"
+            />
+          )}
+          {totalCount > 0 && (
+            <StatTile
+              label="Total Time"
+              value={fmtTime(totalOverall)}
+              sub={totalCount < items.length ? `${totalCount} of ${items.length} recipes` : undefined}
+              accent="text-green-400"
+            />
+          )}
+          {totalCount > 0 && (
+            <StatTile
+              label="Avg per Recipe"
+              value={fmtTime(Math.round(totalOverall / totalCount))}
+              accent="text-yellow-400"
+            />
+          )}
+        </div>
+      )}
+
+      {/* Row 2 — coverage stats */}
+      <div className="grid grid-cols-3 gap-2">
+        <StatTile
+          label="Days Planned"
+          value={`${daysPlanned} / 7`}
+          accent="text-rose-400"
+        />
+        {pantryPct !== null ? (
           <StatTile
-            label="Prep Time"
-            value={fmtTime(totalPrep)}
-            sub={prepCount < items.length ? `${prepCount} of ${items.length} recipes` : undefined}
-            accent="text-blue-400"
+            label="Pantry Stocked"
+            value={`${pantryPct}%`}
+            sub={`${pantryMatches} of ${totalUnique} ingredients`}
+            accent="text-emerald-400"
           />
-        )}
-        {cookCount > 0 && (
+        ) : (
           <StatTile
-            label="Cook Time"
-            value={fmtTime(totalCook)}
-            sub={cookCount < items.length ? `${cookCount} of ${items.length} recipes` : undefined}
-            accent="text-orange-400"
-          />
-        )}
-        {totalCount > 0 && (
-          <StatTile
-            label="Total Time"
-            value={fmtTime(totalOverall)}
-            sub={totalCount < items.length ? `${totalCount} of ${items.length} recipes` : undefined}
-            accent="text-green-400"
-          />
-        )}
-        {totalCount > 0 && (
-          <StatTile
-            label="Avg per Recipe"
-            value={fmtTime(Math.round(totalOverall / totalCount))}
-            accent="text-yellow-400"
+            label="Pantry Stocked"
+            value="—"
+            sub="Add pantry items"
+            accent="text-muted-foreground"
           />
         )}
         {overlapPct !== null && (
           <StatTile
             label="Ingredient Overlap"
             value={`${overlapPct}%`}
-            sub={`${sharedCount} shared / ${totalUnique} ingredients`}
+            sub={`${sharedCount} shared / ${totalUnique}`}
             accent="text-purple-400"
           />
         )}
       </div>
+
+      {/* Meal type breakdown */}
+      {mealBreakdown.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 pt-0.5">
+          {mealBreakdown.map((label) => (
+            <span
+              key={label}
+              className="text-xs px-2.5 py-0.5 rounded-full bg-secondary text-muted-foreground"
+            >
+              {label}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ArrowLeft, Clock, ChefHat, Star, Heart, ExternalLink, Minus, Plus, Camera, Loader2, Pencil, BookOpen, Trash2, Tag, X, NotebookPen, ZoomIn, Sparkles, UtensilsCrossed, FileText } from "lucide-react";
+import { ArrowLeft, Clock, ChefHat, Star, Heart, ExternalLink, Minus, Plus, Camera, Loader2, Pencil, BookOpen, Trash2, Tag, X, NotebookPen, ZoomIn, Sparkles, UtensilsCrossed, FileText, Package } from "lucide-react";
 import { AddToMealPlanButton } from "./add-to-meal-plan-button";
 import { overlapColor } from "@/lib/meal-plan-overlap";
 import { scaleQuantity } from "@/lib/units";
@@ -39,10 +39,12 @@ interface Recipe {
 interface Props {
   recipe: Recipe;
   overlapPercent?: number | null;
+  pantryNames?: string[];
 }
 
-export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
+export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Props) {
   const [ingredients, setIngredients] = useState<Ingredient[]>(recipe.ingredients);
+  const [ingredientSort, setIngredientSort] = useState<"default" | "pantry">("default");
   const [editingIngredients, setEditingIngredients] = useState(false);
   const [newIngredientId, setNewIngredientId] = useState<string | null>(null);
   const [showNotes, setShowNotes] = useState(false);
@@ -158,6 +160,28 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
   }, []);
 
   const scaleFactor = servings / recipe.servings;
+
+  // ── Pantry coverage ────────────────────────────────────────────────────────
+  const normIngredient = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+  const pantrySet = new Set((pantryNames ?? []).map(normIngredient));
+  const pantryCount = pantrySet.size > 0
+    ? ingredients.filter((i) => pantrySet.has(normIngredient(i.name))).length
+    : null;
+  const pantryPct = pantryCount !== null && ingredients.length > 0
+    ? Math.round((pantryCount / ingredients.length) * 100)
+    : null;
+
+  // Sorted ingredient list for display
+  const displayIngredients = ingredientSort === "pantry" && pantrySet.size > 0
+    ? [...ingredients].sort((a, b) => {
+        const aIn = pantrySet.has(normIngredient(a.name)) ? 0 : 1;
+        const bIn = pantrySet.has(normIngredient(b.name)) ? 0 : 1;
+        return aIn - bIn;
+      })
+    : ingredients;
+
+  const pantryIngredients = displayIngredients.filter((i) => pantrySet.has(normIngredient(i.name)));
+  const missingIngredients = displayIngredients.filter((i) => !pantrySet.has(normIngredient(i.name)));
 
   // ── Nutrition ──────────────────────────────────────────────────────────────
   const [nutrition, setNutrition] = useState(recipe.nutrition);
@@ -921,8 +945,36 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
           <div className="bg-card border border-border rounded-xl p-5">
             {/* Row 1: title + notes/edit buttons */}
             <div className="flex items-center justify-between gap-2 mb-2">
-              <h2 className="font-semibold text-foreground">Ingredients</h2>
+              <div className="flex items-center gap-2 min-w-0">
+                <h2 className="font-semibold text-foreground">Ingredients</h2>
+                {pantryPct !== null && (
+                  <span className={cn(
+                    "text-xs font-medium px-1.5 py-0.5 rounded-full",
+                    pantryPct >= 70 ? "bg-emerald-500/15 text-emerald-400" :
+                    pantryPct >= 40 ? "bg-yellow-500/15 text-yellow-400" :
+                    "bg-red-500/15 text-red-400"
+                  )}>
+                    {pantryPct}% stocked
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-1.5 shrink-0">
+                {/* Pantry sort toggle — only when not in edit mode and pantry has data */}
+                {!editingIngredients && pantrySet.size > 0 && (
+                  <button
+                    onClick={() => setIngredientSort((s) => s === "pantry" ? "default" : "pantry")}
+                    title={ingredientSort === "pantry" ? "Back to recipe order" : "Sort by pantry — stocked items first"}
+                    className={cn(
+                      "flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-colors",
+                      ingredientSort === "pantry"
+                        ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400"
+                        : "border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
+                    )}
+                  >
+                    <Package className="w-3 h-3" />
+                    Pantry
+                  </button>
+                )}
                 {/* Notes toggle — only when not in edit mode */}
                 {!editingIngredients && (
                   <button
@@ -941,7 +993,7 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
                 )}
                 {/* Edit toggle */}
                 <button
-                  onClick={() => { setEditingIngredients((v) => !v); setShowNotes(false); }}
+                  onClick={() => { setEditingIngredients((v) => !v); setShowNotes(false); setIngredientSort("default"); }}
                   className={cn(
                     "flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-colors",
                     editingIngredients
@@ -1001,23 +1053,73 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
                   Add ingredient
                 </button>
               </div>
-            ) : (
+            ) : ingredientSort === "pantry" && pantrySet.size > 0 ? (
               <ul className="space-y-2.5">
-                {ingredients.map((ing) => (
+                {/* Stocked ingredients */}
+                {pantryIngredients.length > 0 && (
+                  <>
+                    {pantryIngredients.map((ing) => (
+                      <li key={ing.id} className="flex items-start gap-2 text-sm">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-[7px] shrink-0" />
+                        <div className="min-w-0 break-words">
+                          <span className="text-foreground">{renderIngredientQuantity(ing)}</span>
+                          {showNotes && ing.notes && (
+                            <p className="text-xs text-muted-foreground/80 italic mt-0.5 leading-snug">{ing.notes}</p>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </>
+                )}
+                {/* Divider */}
+                {missingIngredients.length > 0 && pantryIngredients.length > 0 && (
+                  <li className="flex items-center gap-2 py-0.5">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                      Still need
+                    </span>
+                    <div className="flex-1 h-px bg-border" />
+                  </li>
+                )}
+                {/* Missing ingredients */}
+                {missingIngredients.map((ing) => (
                   <li key={ing.id} className="flex items-start gap-2 text-sm">
-                    <span className="w-1.5 h-1.5 rounded-full bg-brand-orange mt-[7px] shrink-0" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-orange/40 mt-[7px] shrink-0" />
                     <div className="min-w-0 break-words">
-                      <span className={cn(ing.quantity == null ? "text-muted-foreground italic" : "text-foreground")}>
+                      <span className={cn(ing.quantity == null ? "text-muted-foreground italic" : "text-foreground/70")}>
                         {renderIngredientQuantity(ing)}
                       </span>
                       {showNotes && ing.notes && (
-                        <p className="text-xs text-muted-foreground/80 italic mt-0.5 leading-snug">
-                          {ing.notes}
-                        </p>
+                        <p className="text-xs text-muted-foreground/80 italic mt-0.5 leading-snug">{ing.notes}</p>
                       )}
                     </div>
                   </li>
                 ))}
+              </ul>
+            ) : (
+              <ul className="space-y-2.5">
+                {ingredients.map((ing) => {
+                  const inPantry = pantrySet.size > 0 && pantrySet.has(normIngredient(ing.name));
+                  return (
+                    <li key={ing.id} className="flex items-start gap-2 text-sm">
+                      <span className={cn(
+                        "w-1.5 h-1.5 rounded-full mt-[7px] shrink-0",
+                        pantrySet.size > 0
+                          ? (inPantry ? "bg-emerald-400" : "bg-brand-orange/40")
+                          : "bg-brand-orange"
+                      )} />
+                      <div className="min-w-0 break-words">
+                        <span className={cn(ing.quantity == null ? "text-muted-foreground italic" : "text-foreground")}>
+                          {renderIngredientQuantity(ing)}
+                        </span>
+                        {showNotes && ing.notes && (
+                          <p className="text-xs text-muted-foreground/80 italic mt-0.5 leading-snug">
+                            {ing.notes}
+                          </p>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>

@@ -14,7 +14,7 @@ export default async function RecipeDetailPage({ params }: Props) {
 
   const { id } = await params;
 
-  const [recipe, mealPlanSet] = await Promise.all([
+  const [recipe, mealPlanSet, pantryItems] = await Promise.all([
     prisma.recipe.findFirst({
       where: { id, userId },
       include: {
@@ -24,11 +24,21 @@ export default async function RecipeDetailPage({ params }: Props) {
       },
     }),
     getMealPlanIngredientSet(userId, prisma),
+    prisma.pantryItem.findMany({
+      where: { userId },
+      select: { name: true },
+    }),
   ]);
 
   if (!recipe) notFound();
 
   const overlapPercent = computeOverlapPercent(recipe.ingredients, mealPlanSet);
 
-  return <RecipeDetailClient recipe={recipe} overlapPercent={overlapPercent} />;
+  return (
+    <RecipeDetailClient
+      recipe={recipe}
+      overlapPercent={overlapPercent}
+      pantryNames={pantryItems.map((p) => p.name)}
+    />
+  );
 }

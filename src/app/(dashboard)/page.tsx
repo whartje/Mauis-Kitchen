@@ -19,7 +19,7 @@ export default async function DashboardPage() {
 
   const weekStart = currentWeekStart();
 
-  const [recentRecipes, recipeCount, mealPlan] = await Promise.all([
+  const [recentRecipes, recipeCount, mealPlan, pantryItems] = await Promise.all([
     prisma.recipe.findMany({
       where: { userId },
       orderBy: { importedAt: "desc" },
@@ -62,6 +62,10 @@ export default async function DashboardPage() {
         },
       },
     }),
+    prisma.pantryItem.findMany({
+      where: { userId },
+      select: { name: true },
+    }),
   ]);
 
   return (
@@ -70,6 +74,7 @@ export default async function DashboardPage() {
       recipeCount={recipeCount}
       weekStart={weekStart.toISOString()}
       mealPlanItems={mealPlan?.items ?? []}
+      pantryNames={pantryItems.map((p) => p.name)}
     />
   );
 }
