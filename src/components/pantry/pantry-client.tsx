@@ -11,13 +11,13 @@ const CATEGORY_ORDER: IngredientCategory[] = [
 ];
 
 const CATEGORY_META: Record<IngredientCategory, { label: string; icon: string }> = {
-  PRODUCE:    { label: "Produce",          icon: "🥬" },
+  PRODUCE:    { label: "Produce",          icon: "🥦" },
   FRUIT:      { label: "Fruit",            icon: "🍎" },
   PROTEIN:    { label: "Protein",          icon: "🥩" },
-  DAIRY:      { label: "Dairy",            icon: "🧀" },
+  DAIRY:      { label: "Dairy",            icon: "🥛" },
   GRAINS:     { label: "Grains & Bread",   icon: "🌾" },
   PANTRY:     { label: "Pantry & Canned",  icon: "🥫" },
-  SPICES:     { label: "Spices & Herbs",   icon: "🌿" },
+  SPICES:     { label: "Spices & Herbs",   icon: "🧂" },
   FROZEN:     { label: "Frozen",           icon: "❄️" },
   BEVERAGES:  { label: "Beverages",        icon: "🧃" },
   CONDIMENTS: { label: "Condiments",       icon: "🫙" },
