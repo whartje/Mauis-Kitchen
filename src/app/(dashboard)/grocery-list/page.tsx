@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import GroceryListClient from "@/components/grocery-list/grocery-list-client";

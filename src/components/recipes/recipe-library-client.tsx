@@ -174,14 +174,13 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overla
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold text-foreground">My Recipes</h1>
         <div className="flex items-center gap-2">
-          {/* Scan photo */}
+          {/* Scan photo — icon only so the URL button gets more room */}
           <button
             onClick={() => { setImportTab("photo"); setImportOpen(true); }}
             title="Scan a recipe photo"
-            className="flex items-center gap-2 bg-secondary hover:bg-brand-orange/10 border border-border hover:border-brand-orange/40 text-foreground hover:text-brand-orange px-3 py-2.5 rounded-lg transition-colors text-sm font-medium"
+            className="flex items-center justify-center bg-secondary hover:bg-brand-orange/10 border border-border hover:border-brand-orange/40 text-foreground hover:text-brand-orange p-2.5 rounded-lg transition-colors shrink-0"
           >
             <Camera className="w-4 h-4" />
-            <span className="hidden sm:inline">Scan Photo</span>
           </button>
           {/* Import from URL */}
           <button
@@ -190,7 +189,7 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overla
             className="flex items-center gap-2 bg-brand-orange hover:bg-brand-orange-dark text-black font-semibold px-3 py-2.5 rounded-lg transition-colors text-sm"
           >
             <LinkIcon className="w-4 h-4" />
-            <span className="hidden sm:inline">From URL</span>
+            <span>From URL</span>
           </button>
         </div>
       </div>
@@ -211,23 +210,23 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overla
         <select
           value={currentFilters.sort ?? "newest"}
           onChange={(e) => applyFilter("sort", e.target.value)}
-          className="bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/50"
+          className="bg-card border border-border rounded-lg px-2 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/50 shrink-0"
         >
           {SORT_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
 
+        {/* Filter toggle — icon + count only, no text label */}
         <button
           onClick={() => setFiltersOpen((v) => !v)}
           className={cn(
-            "flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors",
+            "flex items-center gap-1.5 px-2.5 py-2.5 rounded-lg border text-sm font-medium transition-colors shrink-0",
             filtersOpen || activeFilterCount > 0
               ? "bg-brand-orange/10 border-brand-orange/40 text-brand-orange"
               : "border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
           )}
         >
-          Filters
           {activeFilterCount > 0 && (
             <span className="bg-brand-orange text-black text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
               {activeFilterCount}

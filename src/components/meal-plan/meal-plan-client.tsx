@@ -634,51 +634,48 @@ function RecipeSlotCard({
   return (
     <div
       className={cn(
-        "relative h-full min-h-[90px] rounded-lg p-2.5 flex flex-col gap-1.5 group/card",
+        "h-full min-h-[90px] rounded-lg p-2.5 flex flex-col gap-1.5 group/card",
         item.isLocked
           ? "bg-brand-orange/10 border border-brand-orange/30"
           : "bg-secondary border border-border"
       )}
     >
-      {/* Action buttons */}
-      <div className="absolute top-1.5 right-1.5 flex gap-0.5">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleLock();
-          }}
-          className="p-1 rounded hover:bg-black/20 transition-colors"
-          title={item.isLocked ? "Unlock" : "Lock"}
+      {/* Top row: title (flex-1) + action buttons (shrink-0) */}
+      <div className="flex items-start gap-1">
+        {/* Clickable recipe title — gets all remaining width */}
+        <Link
+          href={`/recipes/${item.recipe.id}`}
+          className="flex-1 min-w-0 text-xs font-medium text-foreground leading-tight line-clamp-2 hover:text-brand-orange transition-colors group/link"
+          title={`View ${item.recipe.title}`}
         >
-          {item.isLocked ? (
-            <Lock className="w-3 h-3 text-brand-orange" />
-          ) : (
-            <Unlock className="w-3 h-3 text-muted-foreground hover:text-foreground" />
-          )}
-        </button>
-        {!item.isLocked && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove();
-            }}
-            className="p-1 rounded hover:bg-black/20 transition-colors"
-            title="Remove"
-          >
-            <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
-          </button>
-        )}
-      </div>
+          {item.recipe.title}
+          <ExternalLink className="inline w-2.5 h-2.5 ml-0.5 opacity-0 group-hover/link:opacity-60 transition-opacity align-baseline" />
+        </Link>
 
-      {/* Clickable recipe title */}
-      <Link
-        href={`/recipes/${item.recipe.id}`}
-        className="text-xs font-medium text-foreground leading-tight line-clamp-2 pr-10 hover:text-brand-orange transition-colors group/link flex items-start gap-1"
-        title={`View ${item.recipe.title}`}
-      >
-        <span>{item.recipe.title}</span>
-        <ExternalLink className="w-2.5 h-2.5 shrink-0 mt-0.5 opacity-0 group-hover/link:opacity-60 transition-opacity" />
-      </Link>
+        {/* Action buttons */}
+        <div className="flex gap-0.5 shrink-0">
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleLock(); }}
+            className="p-1 rounded hover:bg-black/20 transition-colors"
+            title={item.isLocked ? "Unlock" : "Lock"}
+          >
+            {item.isLocked ? (
+              <Lock className="w-3 h-3 text-brand-orange" />
+            ) : (
+              <Unlock className="w-3 h-3 text-muted-foreground hover:text-foreground" />
+            )}
+          </button>
+          {!item.isLocked && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onRemove(); }}
+              className="p-1 rounded hover:bg-black/20 transition-colors"
+              title="Remove"
+            >
+              <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Bottom row: time + servings adjuster */}
       <div className="flex items-center justify-between mt-auto gap-1">

@@ -24,6 +24,7 @@ interface Recipe {
   difficulty: string;
   rating: number | null;
   imageUrl: string | null;
+  imageGallery: string[];
   sourceUrl: string | null;
   sourceName: string | null;
   isFavorite: boolean;
@@ -54,6 +55,14 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
   const [rating, setRating] = useState(recipe.rating ?? 0);
   const [hoverRating, setHoverRating] = useState(0);
   const [imageUrl, setImageUrl] = useState(recipe.imageUrl);
+  const [gallery, setGallery] = useState<string[]>(() => {
+    // Merge legacy imageUrl into gallery if not already present
+    const g = recipe.imageGallery ?? [];
+    if (recipe.imageUrl && !g.includes(recipe.imageUrl)) {
+      return [recipe.imageUrl, ...g];
+    }
+    return g;
+  });
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
 
@@ -167,7 +176,7 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
     }
   }
 
-  // ── Thumbnail upload ───────────────────────────────────────────────────────
+  // ── Photo gallery ──────────────────────────────────────────────────────────
   async function uploadThumbnail(file: File) {
     setUploadingThumbnail(true);
     try {
@@ -175,10 +184,22 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
       form.append("file", file);
       const res = await fetch(`/api/recipes/${recipe.id}/thumbnail`, { method: "POST", body: form });
       const data = await res.json();
-      if (res.ok) setImageUrl(data.imageUrl);
+      if (res.ok) {
+        setImageUrl(data.imageUrl);
+        if (data.gallery) setGallery(data.gallery);
+      }
     } finally {
       setUploadingThumbnail(false);
     }
+  }
+
+  async function setPrimaryPhoto(url: string) {
+    const res = await fetch(`/api/recipes/${recipe.id}/thumbnail`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageUrl: url }),
+    });
+    if (res.ok) setImageUrl(url);
   }
 
   async function handleThumbnailChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -394,7 +415,7 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
           ) : (
             <Camera className="w-3.5 h-3.5" />
           )}
-          {uploadingThumbnail ? "Uploading…" : imageUrl ? "Change photo" : "Add photo"}
+          {uploadingThumbnail ? "Uploading…" : "Add photo"}
         </button>
 
         <input
@@ -405,6 +426,47 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
           onChange={handleThumbnailChange}
         />
       </div>
+
+      {/* Photo gallery strip — shown when there are 2+ photos */}
+      {gallery.length > 1 && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 -mt-1">
+          {gallery.map((url, i) => (
+            <button
+              key={url}
+              onClick={() => setPrimaryPhoto(url)}
+              title={url === imageUrl ? "Current main photo" : "Set as main photo"}
+              className={cn(
+                "relative shrink-0 w-16 h-12 rounded-lg overflow-hidden border-2 transition-all",
+                url === imageUrl
+                  ? "border-brand-orange ring-1 ring-brand-orange/40"
+                  : "border-transparent opacity-60 hover:opacity-100 hover:border-brand-orange/40"
+              )}
+            >
+              <Image src={url} alt={`Photo ${i + 1}`} fill className="object-cover" />
+              {url === imageUrl && (
+                <div className="absolute inset-0 bg-black/20 flex items-end justify-end p-1">
+                  <span className="text-[9px] font-semibold text-white bg-brand-orange rounded px-1 leading-4">
+                    main
+                  </span>
+                </div>
+              )}
+            </button>
+          ))}
+          {/* Add another photo */}
+          <button
+            onClick={() => thumbnailInputRef.current?.click()}
+            disabled={uploadingThumbnail}
+            title="Add another photo"
+            className="shrink-0 w-16 h-12 rounded-lg border-2 border-dashed border-border hover:border-brand-orange/50 flex items-center justify-center text-muted-foreground hover:text-brand-orange transition-colors disabled:opacity-40"
+          >
+            {uploadingThumbnail ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Plus className="w-4 h-4" />
+            )}
+          </button>
+        </div>
+      )}
 
       {/* Title + meta */}
       <div className="space-y-3">

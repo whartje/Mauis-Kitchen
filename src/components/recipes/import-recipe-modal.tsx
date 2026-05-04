@@ -404,8 +404,8 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
           ))}
         </div>
 
-        {/* Body */}
-        <div className="p-6 overflow-y-auto">
+        {/* Body — flex-1 + min-h-0 so it shrinks properly inside the flex column */}
+        <div className="p-6 overflow-y-auto flex-1 min-h-0">
 
           {/* ── URL tab ── */}
           {tab === "url" && (
@@ -552,25 +552,6 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
                   </p>
 
                   {cookbookField}
-
-                  {/* Action buttons */}
-                  <div className="flex gap-3 pt-1">
-                    <button
-                      onClick={() => {
-                        (photoStep as { kind: "pages"; pages: PageFile[] }).pages.forEach((p) => URL.revokeObjectURL(p.objectUrl));
-                        setPhotoStep({ kind: "idle" });
-                      }}
-                      className="flex-1 py-2.5 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                    >
-                      Start over
-                    </button>
-                    <button
-                      onClick={handlePhotoUpload}
-                      className="flex-1 py-2.5 rounded-lg bg-brand-orange hover:bg-brand-orange-dark text-black text-sm font-semibold transition-colors"
-                    >
-                      Scan Recipe
-                    </button>
-                  </div>
                 </>
               )}
 
@@ -636,6 +617,29 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
             </div>
           )}
         </div>
+
+        {/* Sticky action footer — always visible when pages are collected */}
+        {isPages && (
+          <div className="px-6 pb-5 pt-4 shrink-0 border-t border-border bg-card">
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  (photoStep as { kind: "pages"; pages: PageFile[] }).pages.forEach((p) => URL.revokeObjectURL(p.objectUrl));
+                  setPhotoStep({ kind: "idle" });
+                }}
+                className="flex-1 py-2.5 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              >
+                Start over
+              </button>
+              <button
+                onClick={handlePhotoUpload}
+                className="flex-1 py-2.5 rounded-lg bg-brand-orange hover:bg-brand-orange-dark text-black text-sm font-semibold transition-colors"
+              >
+                Scan Recipe
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

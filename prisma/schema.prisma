@@ -22,8 +22,9 @@ model Recipe {
   totalTime   Int?
   difficulty  Difficulty @default(MEDIUM)
   rating      Float?
-  imageUrl    String?
-  sourceUrl   String?
+  imageUrl     String?
+  imageGallery String[]  @default([])
+  sourceUrl    String?
   sourceName  String?
   collection  String?    // Cookbook or user-defined collection name
   notes       String?    // Personal notes about the recipe

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { pantryMatchesGrocery } from "@/lib/pantry-match";
 import {
   Check,
@@ -132,6 +133,7 @@ export default function GroceryListClient({
   hasMealPlan,
   pantryNames = [],
 }: Props) {
+  const router = useRouter();
   const [list, setList] = useState<GroceryListWithItems | null>(initialList);
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
@@ -162,6 +164,26 @@ export default function GroceryListClient({
     if (showSharePanel) document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showSharePanel]);
+
+  // ── Week guard: auto-refresh when the calendar week rolls over ───────────
+  useEffect(() => {
+    function getClientMonday(): string {
+      const now = new Date();
+      const day = now.getUTCDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      const monday = new Date(now);
+      monday.setUTCDate(now.getUTCDate() + diff);
+      monday.setUTCHours(0, 0, 0, 0);
+      return monday.toISOString().split("T")[0];
+    }
+    const serverWeek = currentWeekStart.split("T")[0];
+    function check() {
+      if (getClientMonday() !== serverWeek) router.refresh();
+    }
+    check(); // check immediately on mount (catches stale cached render)
+    const id = setInterval(check, 60_000); // re-check every minute
+    return () => clearInterval(id);
+  }, [currentWeekStart, router]);
 
   // ── Generate / Regenerate ────────────────────────────────────────────────
 
@@ -906,9 +928,9 @@ function GroceryItemRow({
         </span>
       )}
 
-      {/* Recipe sources */}
+      {/* Recipe sources — hidden on mobile portrait, visible sm+ (landscape/tablet) */}
       {sources.length > 0 && (
-        <div className="flex flex-col items-end gap-0.5 shrink-0 max-w-[130px]">
+        <div className="hidden sm:flex flex-col items-end gap-0.5 shrink-0 max-w-[130px]">
           {sources.map((id, i) => (
             <Link
               key={id}
