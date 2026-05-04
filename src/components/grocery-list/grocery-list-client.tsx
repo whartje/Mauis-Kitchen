@@ -761,7 +761,8 @@ export default function GroceryListClient({
               )}
 
               {/* Single-line natural text + category + Add */}
-              <div className="flex gap-2">
+              {/* flex-wrap: input takes full first row, select+button share second row on mobile */}
+              <div className="flex flex-wrap gap-2">
                 <input
                   ref={addInputRef}
                   type="text"
@@ -769,12 +770,12 @@ export default function GroceryListClient({
                   value={addText}
                   onChange={(e) => { setAddText(e.target.value); setAddError(null); }}
                   onKeyDown={(e) => { if (e.key === "Enter" && addText.trim()) addItem(); }}
-                  className="flex-1 min-w-0 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#E8834A] focus:border-[#E8834A]"
+                  className="w-full min-w-0 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#E8834A] focus:border-[#E8834A]"
                 />
                 <select
                   value={addCategory}
                   onChange={(e) => setAddCategory(e.target.value as IngredientCategory)}
-                  className="shrink-0 bg-background border border-border rounded-lg px-2 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#E8834A] focus:border-[#E8834A]"
+                  className="flex-1 min-w-0 bg-background border border-border rounded-lg px-2 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#E8834A] focus:border-[#E8834A]"
                 >
                   {CATEGORY_OPTIONS.map((cat) => (
                     <option key={cat} value={cat}>

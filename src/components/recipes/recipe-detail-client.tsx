@@ -398,15 +398,15 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
           </div>
         )}
 
-        {/* Change thumbnail button */}
+        {/* Add photo button — z-20 sits above the z-10 zoom overlay; always visible on mobile */}
         <button
           onClick={() => thumbnailInputRef.current?.click()}
           disabled={uploadingThumbnail}
           className={cn(
-            "absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+            "absolute top-3 right-3 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
             "bg-black/60 text-white backdrop-blur-sm border border-white/10",
             "hover:bg-black/80",
-            imageUrl ? "opacity-0 group-hover:opacity-100" : "opacity-100",
+            imageUrl ? "opacity-100 sm:opacity-0 sm:group-hover:opacity-100" : "opacity-100",
             "disabled:opacity-50"
           )}
         >
@@ -470,7 +470,8 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
 
       {/* Title + meta */}
       <div className="space-y-3">
-        <div className="flex items-start justify-between gap-4">
+        {/* Mobile: column (title full-width, buttons below). Desktop: side-by-side. */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
           {/* Editable title */}
           {editingField === "title" ? (
             <input
@@ -495,7 +496,7 @@ export function RecipeDetailClient({ recipe, overlapPercent }: Props) {
             </button>
           )}
 
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1 sm:shrink-0">
             <AddToMealPlanButton recipeId={recipe.id} servings={servings} />
             {/* Made it button */}
             <button

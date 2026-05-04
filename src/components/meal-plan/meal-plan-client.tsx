@@ -640,42 +640,39 @@ function RecipeSlotCard({
           : "bg-secondary border border-border"
       )}
     >
-      {/* Top row: title (flex-1) + action buttons (shrink-0) */}
-      <div className="flex items-start gap-1">
-        {/* Clickable recipe title — gets all remaining width */}
-        <Link
-          href={`/recipes/${item.recipe.id}`}
-          className="flex-1 min-w-0 text-xs font-medium text-foreground leading-tight line-clamp-2 hover:text-brand-orange transition-colors group/link"
-          title={`View ${item.recipe.title}`}
+      {/* Action buttons — compact row at the top, right-aligned */}
+      <div className="flex justify-end gap-0.5 -mt-0.5 -mr-0.5">
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleLock(); }}
+          className="p-1 rounded hover:bg-black/20 transition-colors"
+          title={item.isLocked ? "Unlock" : "Lock"}
         >
-          {item.recipe.title}
-          <ExternalLink className="inline w-2.5 h-2.5 ml-0.5 opacity-0 group-hover/link:opacity-60 transition-opacity align-baseline" />
-        </Link>
-
-        {/* Action buttons */}
-        <div className="flex gap-0.5 shrink-0">
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggleLock(); }}
-            className="p-1 rounded hover:bg-black/20 transition-colors"
-            title={item.isLocked ? "Unlock" : "Lock"}
-          >
-            {item.isLocked ? (
-              <Lock className="w-3 h-3 text-brand-orange" />
-            ) : (
-              <Unlock className="w-3 h-3 text-muted-foreground hover:text-foreground" />
-            )}
-          </button>
-          {!item.isLocked && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onRemove(); }}
-              className="p-1 rounded hover:bg-black/20 transition-colors"
-              title="Remove"
-            >
-              <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
-            </button>
+          {item.isLocked ? (
+            <Lock className="w-3 h-3 text-brand-orange" />
+          ) : (
+            <Unlock className="w-3 h-3 text-muted-foreground hover:text-foreground" />
           )}
-        </div>
+        </button>
+        {!item.isLocked && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            className="p-1 rounded hover:bg-black/20 transition-colors"
+            title="Remove"
+          >
+            <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
+          </button>
+        )}
       </div>
+
+      {/* Clickable recipe title — full card width, up to 3 lines */}
+      <Link
+        href={`/recipes/${item.recipe.id}`}
+        className="text-xs font-medium text-foreground leading-tight line-clamp-3 hover:text-brand-orange transition-colors group/link"
+        title={`View ${item.recipe.title}`}
+      >
+        {item.recipe.title}
+        <ExternalLink className="inline w-2.5 h-2.5 ml-0.5 opacity-0 group-hover/link:opacity-60 transition-opacity align-baseline" />
+      </Link>
 
       {/* Bottom row: time + servings adjuster */}
       <div className="flex items-center justify-between mt-auto gap-1">

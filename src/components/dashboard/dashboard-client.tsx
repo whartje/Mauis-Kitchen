@@ -166,10 +166,10 @@ export function DashboardClient({ recentRecipes, recipeCount, weekStart, mealPla
           </div>
           <button
             onClick={() => { setImportTab("photo"); setImportOpen(true); }}
-            className="flex items-center gap-2 px-4 py-2.5 border border-border rounded-lg text-sm text-muted-foreground hover:text-brand-orange hover:border-brand-orange/40 hover:bg-brand-orange/5 transition-colors"
+            title="Scan a recipe photo"
+            className="flex items-center justify-center p-2.5 border border-border rounded-lg text-muted-foreground hover:text-brand-orange hover:border-brand-orange/40 hover:bg-brand-orange/5 transition-colors shrink-0"
           >
             <Camera className="w-4 h-4" />
-            Scan Photo
           </button>
         </div>
 
