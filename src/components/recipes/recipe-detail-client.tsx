@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ArrowLeft, Clock, ChefHat, Star, Heart, ExternalLink, Minus, Plus, Camera, Loader2, Pencil, BookOpen, Trash2, Tag, X, NotebookPen, ZoomIn, Sparkles, UtensilsCrossed, FileText, Package } from "lucide-react";
+import { ArrowLeft, Clock, ChefHat, Star, Heart, ExternalLink, Minus, Plus, Camera, Loader2, Pencil, BookOpen, Trash2, Tag, X, NotebookPen, ZoomIn, Sparkles, UtensilsCrossed, FileText, Package, ChevronUp, ChevronDown } from "lucide-react";
 import { AddToMealPlanButton } from "./add-to-meal-plan-button";
 import { overlapColor } from "@/lib/meal-plan-overlap";
 import { scaleQuantity } from "@/lib/units";
@@ -45,6 +45,10 @@ interface Props {
 export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Props) {
   const [ingredients, setIngredients] = useState<Ingredient[]>(recipe.ingredients);
   const [ingredientSort, setIngredientSort] = useState<"default" | "pantry">("default");
+  const [instructions, setInstructions] = useState<Instruction[]>(recipe.instructions);
+  const [editingInstructions, setEditingInstructions] = useState(false);
+  const [draftInstructions, setDraftInstructions] = useState<Instruction[]>([]);
+  const [savingInstructions, setSavingInstructions] = useState(false);
   const [editingIngredients, setEditingIngredients] = useState(false);
   const [newIngredientId, setNewIngredientId] = useState<string | null>(null);
   const [showNotes, setShowNotes] = useState(false);
@@ -366,6 +370,54 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
       setIngredients((prev) => [...prev, ing]);
       setNewIngredientId(ing.id);
     }
+  }
+
+  // ── Instruction editing ────────────────────────────────────────────────────
+  function startEditingInstructions() {
+    setDraftInstructions(instructions.map((s) => ({ ...s })));
+    setEditingInstructions(true);
+  }
+
+  function cancelInstructions() {
+    setEditingInstructions(false);
+    setDraftInstructions([]);
+  }
+
+  async function saveInstructions() {
+    setSavingInstructions(true);
+    try {
+      const res = await fetch(`/api/recipes/${recipe.id}/instructions`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ steps: draftInstructions.map((s) => ({ text: s.text })) }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setInstructions(data.instructions);
+        setEditingInstructions(false);
+        setDraftInstructions([]);
+      }
+    } finally {
+      setSavingInstructions(false);
+    }
+  }
+
+  function moveDraftStep(i: number, dir: -1 | 1) {
+    const next = [...draftInstructions];
+    const j = i + dir;
+    [next[i], next[j]] = [next[j], next[i]];
+    setDraftInstructions(next);
+  }
+
+  function deleteDraftStep(i: number) {
+    setDraftInstructions((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  function addDraftStep() {
+    setDraftInstructions((prev) => [
+      ...prev,
+      { id: `new-${Date.now()}`, recipeId: recipe.id, stepNumber: prev.length + 1, text: "" },
+    ]);
   }
 
   function renderIngredientQuantity(ing: Ingredient): string {
@@ -1128,17 +1180,104 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
 
         {/* Instructions — right (60%) */}
         <div className="md:col-span-3">
-          <h2 className="font-semibold text-foreground mb-4">Instructions</h2>
-          <ol className="space-y-5">
-            {recipe.instructions.map((step) => (
-              <li key={step.id} className="flex gap-4">
-                <span className="flex-shrink-0 w-8 h-8 rounded-full bg-brand-orange/15 text-brand-orange text-sm font-semibold flex items-center justify-center">
-                  {step.stepNumber}
-                </span>
-                <p className="text-foreground leading-relaxed pt-1 break-words">{step.text}</p>
-              </li>
-            ))}
-          </ol>
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-foreground">Instructions</h2>
+            {!editingInstructions ? (
+              <button
+                onClick={startEditingInstructions}
+                className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              >
+                <Pencil className="w-3 h-3" />
+                Edit
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={cancelInstructions}
+                  className="text-xs px-2.5 py-1 rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveInstructions}
+                  disabled={savingInstructions}
+                  className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-brand-orange text-black font-semibold hover:bg-brand-orange/90 transition-colors disabled:opacity-50"
+                >
+                  {savingInstructions && <Loader2 className="w-3 h-3 animate-spin" />}
+                  Save
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Edit mode */}
+          {editingInstructions ? (
+            <div className="space-y-3">
+              {draftInstructions.map((step, i) => (
+                <div key={step.id} className="flex items-start gap-2">
+                  <span className="flex-shrink-0 w-8 h-8 rounded-full bg-brand-orange/15 text-brand-orange text-sm font-semibold flex items-center justify-center mt-0.5">
+                    {i + 1}
+                  </span>
+                  <textarea
+                    value={step.text}
+                    onChange={(e) => {
+                      const next = [...draftInstructions];
+                      next[i] = { ...next[i], text: e.target.value };
+                      setDraftInstructions(next);
+                    }}
+                    rows={3}
+                    placeholder={`Step ${i + 1}…`}
+                    className="flex-1 min-w-0 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground resize-y focus:outline-none focus:ring-1 focus:ring-brand-orange focus:border-brand-orange placeholder:text-muted-foreground/50"
+                  />
+                  <div className="flex flex-col gap-0.5 shrink-0">
+                    <button
+                      onClick={() => moveDraftStep(i, -1)}
+                      disabled={i === 0}
+                      title="Move up"
+                      className="p-1 rounded text-muted-foreground/40 hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                    >
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => moveDraftStep(i, 1)}
+                      disabled={i === draftInstructions.length - 1}
+                      title="Move down"
+                      className="p-1 rounded text-muted-foreground/40 hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                    >
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => deleteDraftStep(i)}
+                      title="Delete step"
+                      className="p-1 rounded text-muted-foreground/40 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <button
+                onClick={addDraftStep}
+                className="mt-1 w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg border border-dashed border-border hover:border-brand-orange/50 hover:bg-brand-orange/5 text-xs text-muted-foreground hover:text-brand-orange transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add step
+              </button>
+            </div>
+          ) : (
+            /* View mode */
+            <ol className="space-y-5">
+              {instructions.map((step) => (
+                <li key={step.id} className="flex gap-4">
+                  <span className="flex-shrink-0 w-8 h-8 rounded-full bg-brand-orange/15 text-brand-orange text-sm font-semibold flex items-center justify-center">
+                    {step.stepNumber}
+                  </span>
+                  <p className="flex-1 min-w-0 text-foreground leading-relaxed pt-1 break-words">{step.text}</p>
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
       </div>
       {/* Notes */}

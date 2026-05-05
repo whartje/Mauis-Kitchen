@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Link as LinkIcon, Camera, Search, ChevronDown, ChevronUp, BookOpen } from "lucide-react";
+import { Link as LinkIcon, Camera, Search, ChevronDown, ChevronUp, BookOpen, X } from "lucide-react";
 import { RecipeCard } from "./recipe-card";
 import { ImportRecipeModal } from "./import-recipe-modal";
 import { CatIcon } from "@/components/ui/cat-icon";
@@ -35,6 +35,7 @@ interface Filters {
   foodGroup?: string;
   collection?: string;
   protein?: string;
+  ingredient?: string;
 }
 
 interface Props {
@@ -117,7 +118,7 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overla
     const hasFilters = !!(
       currentFilters.q || currentFilters.difficulty || currentFilters.favorite ||
       currentFilters.mealType || currentFilters.timeRange || currentFilters.foodGroup ||
-      currentFilters.collection || currentFilters.protein
+      currentFilters.collection || currentFilters.protein || currentFilters.ingredient
     );
     if (!hasFilters) {
       try {
@@ -131,8 +132,10 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overla
   }, [currentFilters]);
   const [importTab, setImportTab] = useState<"url" | "photo">("url");
   const [search, setSearch] = useState(currentFilters.q ?? "");
+  const [ingredientSearch, setIngredientSearch] = useState(currentFilters.ingredient ?? "");
   const [filtersOpen, setFiltersOpen] = useState(
-    !!(currentFilters.mealType || currentFilters.timeRange || currentFilters.foodGroup || currentFilters.difficulty)
+    !!(currentFilters.mealType || currentFilters.timeRange || currentFilters.foodGroup ||
+       currentFilters.difficulty || currentFilters.ingredient)
   );
 
   function applyFilter(key: string, value: string | null) {
@@ -158,6 +161,19 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overla
     applyFilter("q", search || null);
   }
 
+  function handleIngredientSearch(e: React.FormEvent) {
+    e.preventDefault();
+    applyFilter("ingredient", ingredientSearch.trim() || null);
+  }
+
+  function handleIngredientChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value;
+    setIngredientSearch(val);
+    if (!val.trim() && currentFilters.ingredient) {
+      applyFilter("ingredient", null);
+    }
+  }
+
   const activeFilterCount = [
     currentFilters.mealType,
     currentFilters.timeRange,
@@ -166,6 +182,7 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overla
     currentFilters.favorite,
     currentFilters.collection,
     currentFilters.protein,
+    currentFilters.ingredient,
   ].filter(Boolean).length;
 
   return (
@@ -239,6 +256,31 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overla
       {/* Expandable filter panel */}
       {filtersOpen && (
         <div className="bg-card border border-border rounded-xl p-4 space-y-4">
+
+          {/* Ingredient search */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Search by Ingredient</p>
+            <form onSubmit={handleIngredientSearch} className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                value={ingredientSearch}
+                onChange={handleIngredientChange}
+                placeholder="e.g. chicken, garlic, lemon…"
+                className="w-full bg-background border border-border rounded-lg pl-9 pr-8 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange transition"
+              />
+              {ingredientSearch && (
+                <button
+                  type="button"
+                  onClick={() => { setIngredientSearch(""); applyFilter("ingredient", null); }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Clear ingredient search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </form>
+          </div>
 
           {/* Cookbooks */}
           {cookbooks.length > 0 && (
@@ -363,6 +405,17 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overla
       {/* Active filter summary */}
       {activeFilterCount > 0 && (
         <div className="flex flex-wrap items-center gap-2">
+          {currentFilters.ingredient && (
+            <span className="flex items-center gap-1 pl-2 pr-1 py-1 bg-brand-orange/15 border border-brand-orange/40 text-brand-orange text-xs font-medium rounded-full">
+              <Search className="w-3 h-3" />
+              {currentFilters.ingredient}
+              <button
+                onClick={() => { setIngredientSearch(""); applyFilter("ingredient", null); }}
+                className="ml-0.5 hover:opacity-70 p-0.5"
+                aria-label="Remove ingredient filter"
+              >×</button>
+            </span>
+          )}
           {currentFilters.collection && (
             <span className="flex items-center gap-1 pl-2 pr-1 py-1 bg-brand-orange/15 border border-brand-orange/40 text-brand-orange text-xs font-medium rounded-full">
               <BookOpen className="w-3 h-3" />
