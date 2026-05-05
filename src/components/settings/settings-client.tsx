@@ -58,7 +58,7 @@ export function SettingsClient() {
   }
 
   return (
-    <div className="space-y-8 pb-20 md:pb-0 max-w-2xl">
+    <div className="space-y-8 max-w-2xl">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Settings</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Personalise Maui&apos;s Kitchen</p>

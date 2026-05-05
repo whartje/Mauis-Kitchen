@@ -135,7 +135,8 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overla
   const [ingredientSearch, setIngredientSearch] = useState(currentFilters.ingredient ?? "");
   const [filtersOpen, setFiltersOpen] = useState(
     !!(currentFilters.mealType || currentFilters.timeRange || currentFilters.foodGroup ||
-       currentFilters.difficulty || currentFilters.ingredient)
+       currentFilters.difficulty || currentFilters.ingredient ||
+       currentFilters.collection || currentFilters.protein || currentFilters.favorite)
   );
 
   function applyFilter(key: string, value: string | null) {

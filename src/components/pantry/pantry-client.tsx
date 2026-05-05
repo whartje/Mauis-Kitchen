@@ -40,6 +40,38 @@ function inferCategory(name: string): IngredientCategory {
   return "OTHER";
 }
 
+/** Parse a quantity string that may be a decimal, slash-fraction, or unicode fraction.
+ *  e.g. "1/2" → 0.5, "1½" → 1.5, "¾" → 0.75, "2.5" → 2.5 */
+function parseFraction(s: string): number {
+  const unicodeMap: Record<string, number> = {
+    "½": 0.5, "¼": 0.25, "¾": 0.75,
+    "⅓": 1 / 3, "⅔": 2 / 3,
+    "⅛": 0.125, "⅜": 0.375, "⅝": 0.625, "⅞": 0.875,
+  };
+  let whole = 0;
+  let remaining = s.trim();
+  // Strip unicode fractions and accumulate their values
+  for (const [ch, val] of Object.entries(unicodeMap)) {
+    if (remaining.includes(ch)) {
+      remaining = remaining.replace(ch, "");
+      whole += val;
+    }
+  }
+  remaining = remaining.trim();
+  if (remaining.includes("/")) {
+    const [numStr, denStr] = remaining.split("/");
+    const num = parseFloat(numStr.trim());
+    const den = parseFloat(denStr.trim());
+    if (!isNaN(num) && !isNaN(den) && den !== 0) return whole + num / den;
+    return NaN;
+  }
+  if (remaining) {
+    const n = parseFloat(remaining);
+    if (!isNaN(n)) return whole + n;
+  }
+  return whole || NaN;
+}
+
 interface PantryItem {
   id: string;
   name: string;
@@ -89,7 +121,7 @@ export function PantryClient({ initialItems }: Props) {
     const UNITS = "ml|l|g|kg|oz|lb|cups?|tbsp|tablespoons?|tsp|teaspoons?|pints?|quarts?|gallons?|cloves?|bunches?|sprigs?|heads?|stalks?|slices?|pieces?|cans?|jars?|bags?|boxes?|packages?|handfuls?";
     const m = text.trim().match(new RegExp(`^([\\d./½¼¾⅓⅔⅛⅜⅝⅞]+)\\s*(${UNITS})?\\s+(.+)$`, "i"));
     if (m) {
-      const qty = parseFloat(m[1]);
+      const qty = parseFraction(m[1]);
       return {
         quantity: isNaN(qty) ? null : qty,
         unit: m[2] ? m[2].toLowerCase() : null,
@@ -485,7 +517,7 @@ function PantryRow({
   const [name, setName] = useState(item.name);
 
   function commitQty() {
-    const parsed = qty.trim() === "" ? null : parseFloat(qty);
+    const parsed = qty.trim() === "" ? null : parseFraction(qty);
     const value = parsed != null && !isNaN(parsed) ? parsed : null;
     if (value !== item.quantity) onUpdate({ quantity: value });
   }

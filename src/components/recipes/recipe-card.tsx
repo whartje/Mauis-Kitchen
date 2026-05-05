@@ -14,6 +14,7 @@ interface RecipeCardProps {
     imageUrl?: string | null;
     prepTime?: number | null;
     cookTime?: number | null;
+    totalTime?: number | null;
     difficulty: string;
     rating?: number | null;
     isFavorite: boolean;
@@ -32,7 +33,7 @@ export function RecipeCard({ recipe, onFavoriteToggle, onPhotoUpload, overlapPer
   const [uploading, setUploading] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
-  const totalTime = (recipe.prepTime ?? 0) + (recipe.cookTime ?? 0);
+  const totalTime = recipe.totalTime ?? ((recipe.prepTime ?? 0) + (recipe.cookTime ?? 0));
 
   async function handleFavorite(e: React.MouseEvent) {
     e.preventDefault();

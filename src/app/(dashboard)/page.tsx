@@ -30,6 +30,7 @@ export default async function DashboardPage() {
         imageUrl: true,
         prepTime: true,
         cookTime: true,
+        totalTime: true,
         difficulty: true,
         rating: true,
         isFavorite: true,

@@ -90,6 +90,9 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
   const [descriptionValue, setDescriptionValue] = useState(recipe.description ?? "");
   const [collectionValue, setCollectionValue] = useState(recipe.collection ?? "");
   const [editingField, setEditingField] = useState<"title" | "description" | "collection" | null>(null);
+  // Track last-saved values so Cancel/Escape reverts to the most recent save, not the original prop
+  const savedTitleRef = useRef(recipe.title);
+  const savedDescriptionRef = useRef(recipe.description ?? "");
   const [cookbooks, setCookbooks] = useState<string[]>([]);
 
   // ── Time fields ────────────────────────────────────────────────────────────
@@ -136,17 +139,20 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
 
   // ── Notes ─────────────────────────────────────────────────────────────────
   const [notesValue, setNotesValue] = useState(recipe.notes ?? "");
+  const savedNotesRef = useRef(recipe.notes ?? "");
   const [editingNotes, setEditingNotes] = useState(false);
   const [savingNotes, setSavingNotes] = useState(false);
 
   async function saveNotes() {
     setEditingNotes(false);
     setSavingNotes(true);
+    const trimmed = notesValue.trim();
     await fetch(`/api/recipes/${recipe.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ notes: notesValue.trim() || null }),
+      body: JSON.stringify({ notes: trimmed || null }),
     });
+    savedNotesRef.current = trimmed;
     setSavingNotes(false);
   }
 
@@ -308,7 +314,7 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
     const trimmed = value.trim();
     if (field === "title" && !trimmed) {
       // Revert — title is required
-      setTitleValue(recipe.title);
+      setTitleValue(savedTitleRef.current);
       return;
     }
     await fetch(`/api/recipes/${recipe.id}`, {
@@ -316,6 +322,9 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [field]: trimmed || null }),
     });
+    // Update saved-value refs so subsequent Escape reverts to the latest saved value
+    if (field === "title") savedTitleRef.current = trimmed;
+    if (field === "description") savedDescriptionRef.current = trimmed;
   }
 
   async function saveTags(newTags: string[]) {
@@ -428,7 +437,7 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
   }
 
   return (
-    <div className="space-y-6 pb-20 md:pb-0">
+    <div className="space-y-6">
       {/* Back nav */}
       <Link
         href="/recipes"
@@ -557,7 +566,7 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
               onBlur={() => saveField("title", titleValue)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") { e.preventDefault(); saveField("title", titleValue); }
-                if (e.key === "Escape") { setTitleValue(recipe.title); setEditingField(null); }
+                if (e.key === "Escape") { setTitleValue(savedTitleRef.current); setEditingField(null); }
               }}
               className="font-display text-3xl text-foreground leading-tight bg-transparent border-b-2 border-brand-orange focus:outline-none flex-1 min-w-0"
             />
@@ -639,7 +648,7 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
             onChange={(e) => setDescriptionValue(e.target.value)}
             onBlur={() => saveField("description", descriptionValue)}
             onKeyDown={(e) => {
-              if (e.key === "Escape") { setDescriptionValue(recipe.description ?? ""); setEditingField(null); }
+              if (e.key === "Escape") { setDescriptionValue(savedDescriptionRef.current); setEditingField(null); }
             }}
             rows={3}
             placeholder="Add a description…"
@@ -1303,7 +1312,7 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
             />
             <div className="flex items-center gap-2 justify-end">
               <button
-                onClick={() => { setNotesValue(recipe.notes ?? ""); setEditingNotes(false); }}
+                onClick={() => { setNotesValue(savedNotesRef.current); setEditingNotes(false); }}
                 className="px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
                 Cancel
