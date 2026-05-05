@@ -72,7 +72,14 @@ export default async function RecipesPage({ searchParams }: Props) {
     ...(protein === "medium" && { nutrition: { protein: { gte: 5, lte: 10 } } }),
     ...(protein === "low"    && { nutrition: { protein: { lt: 5 } } }),
     ...(ingredient && {
-      ingredients: { some: { name: { contains: ingredient, mode: "insensitive" as const } } },
+      ingredients: {
+        some: {
+          OR: [
+            { name: { contains: ingredient, mode: "insensitive" as const } },
+            { raw:  { contains: ingredient, mode: "insensitive" as const } },
+          ],
+        },
+      },
     }),
   };
 

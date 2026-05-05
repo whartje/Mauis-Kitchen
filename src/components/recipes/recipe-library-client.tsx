@@ -452,7 +452,9 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overla
               {activeFilterCount > 0 ? "No recipes match these filters" : "No recipes yet"}
             </p>
             <p className="text-muted-foreground text-sm mt-1">
-              {activeFilterCount > 0
+              {currentFilters.ingredient && activeFilterCount === 1
+                ? `No recipes found with "${currentFilters.ingredient}" in their ingredient list. Try the main search bar to search by title too.`
+                : activeFilterCount > 0
                 ? "Try removing some filters or import more recipes"
                 : "Import your first recipe from a URL or screenshot"}
             </p>

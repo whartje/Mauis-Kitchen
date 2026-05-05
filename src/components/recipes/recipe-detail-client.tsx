@@ -997,21 +997,9 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
           <div className="bg-card border border-border rounded-xl p-5">
             {/* Row 1: title + notes/edit buttons */}
             <div className="flex items-center justify-between gap-2 mb-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <h2 className="font-semibold text-foreground">Ingredients</h2>
-                {pantryPct !== null && (
-                  <span className={cn(
-                    "text-xs font-medium px-1.5 py-0.5 rounded-full",
-                    pantryPct >= 70 ? "bg-emerald-500/15 text-emerald-400" :
-                    pantryPct >= 40 ? "bg-yellow-500/15 text-yellow-400" :
-                    "bg-red-500/15 text-red-400"
-                  )}>
-                    {pantryPct}% stocked
-                  </span>
-                )}
-              </div>
+              <h2 className="font-semibold text-foreground shrink-0">Ingredients</h2>
               <div className="flex items-center gap-1.5 shrink-0">
-                {/* Pantry sort toggle — only when not in edit mode and pantry has data */}
+                {/* Pantry sort toggle — shows coverage % in label */}
                 {!editingIngredients && pantrySet.size > 0 && (
                   <button
                     onClick={() => setIngredientSort((s) => s === "pantry" ? "default" : "pantry")}
@@ -1020,11 +1008,13 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
                       "flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-colors",
                       ingredientSort === "pantry"
                         ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400"
-                        : "border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
+                        : pantryPct !== null && pantryPct < 40
+                          ? "border-red-500/30 text-red-400 hover:bg-red-500/10"
+                          : "border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
                     )}
                   >
                     <Package className="w-3 h-3" />
-                    Pantry
+                    {pantryPct !== null ? `${pantryPct}% stocked` : "Pantry"}
                   </button>
                 )}
                 {/* Notes toggle — only when not in edit mode */}
