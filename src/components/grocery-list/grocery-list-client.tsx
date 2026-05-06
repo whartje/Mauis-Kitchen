@@ -512,17 +512,15 @@ export default function GroceryListClient({
       <div className="max-w-2xl mx-auto px-4 py-8">
 
         {/* ── Header ── */}
-        <div className="flex items-start justify-between mb-2">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-              <ShoppingCart className="w-6 h-6 text-[#E8834A]" />
-              Grocery List
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">{currentWeekLabel}</p>
-          </div>
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <ShoppingCart className="w-6 h-6 text-[#E8834A]" />
+            Grocery List
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{currentWeekLabel}</p>
 
-          {/* Share + Generate/Regenerate on the same row */}
-          <div className="flex items-center gap-2">
+          {/* Share + Generate/Regenerate — row below the date */}
+          <div className="flex items-center gap-2 mt-3">
             {/* Share List — only shown when a list exists with unchecked items */}
             {list && list.items.some((it) => !it.isChecked) && (
               <div className="relative" ref={sharePanelRef}>

@@ -8,8 +8,9 @@ interface Props {
 
 /**
  * Walking cat silhouette — inline SVG so it stays crisp at any size.
- * Uses currentColor so Tailwind text-* classes control the fill.
- * viewBox traced from the original maui-cat PNG.
+ * brightness-0 dark:invert mirrors the original PNG behaviour:
+ * always black on light mode, always white on dark mode.
+ * The outer className controls size only (w-* h-*).
  */
 export function CatIcon({ className }: Props) {
   return (
@@ -17,8 +18,8 @@ export function CatIcon({ className }: Props) {
       <svg
         viewBox="0 0 120 80"
         xmlns="http://www.w3.org/2000/svg"
-        fill="currentColor"
-        className="w-full h-full"
+        fill="black"
+        className="w-full h-full brightness-0 dark:invert"
         aria-label="Maui's Kitchen"
       >
         <path d="
