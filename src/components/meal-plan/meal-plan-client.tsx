@@ -415,61 +415,83 @@ function DailyNutritionRow({ items, people }: { items: PlanItem[]; people: numbe
 
   return (
     <div className="grid grid-cols-[110px_repeat(7,1fr)] bg-secondary/20 border-t border-border">
-      {/* Label cell */}
-      <div className="p-3 flex flex-col justify-center border-r border-border gap-2">
-        <div>
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Daily</span>
-        </div>
-        <div className="flex gap-1 text-[9px] font-semibold text-muted-foreground/60 uppercase tracking-wide">
+
+      {/* ── Header row: "DAILY" + "Total | /Person" ── */}
+      <div className="px-3 pt-2.5 pb-1 border-r border-border">
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Daily</p>
+        <div className="mt-1 flex gap-1 text-[9px] font-semibold text-muted-foreground/60 uppercase tracking-wide">
           <span className="flex-1 text-center">Total</span>
           <span className="text-muted-foreground/30">|</span>
           <span className="flex-1 text-center">/Person</span>
         </div>
-        <div className="space-y-0.5 text-[10px] text-muted-foreground">
-          <p>Calories</p>
-          <p>Protein</p>
-          <p>Carbs</p>
-        </div>
       </div>
+      {/* 7 empty header cells (spacer to match label) */}
+      {dayTotals.map((_, i) => (
+        <div key={i} className="border-l border-border px-1 pt-2.5 pb-1" />
+      ))}
 
-      {/* Day cells */}
+      {/* ── Calories row ── */}
+      <div className="px-3 py-1 border-r border-border flex items-center">
+        <span className="text-[10px] text-muted-foreground">Calories</span>
+      </div>
       {dayTotals.map((d, i) => (
-        <div key={i} className="border-l border-border px-1 py-3 flex flex-col justify-center gap-1">
+        <div key={i} className="border-l border-border px-1 py-1 flex items-center gap-1">
           {d.hasData ? (
             <>
-              {/* Calories */}
-              <div className="flex items-center gap-1">
-                <span className="flex-1 text-center text-[11px] font-semibold text-orange-400 leading-none">
-                  {Math.round(d.cal!)}
-                </span>
-                <span className="text-muted-foreground/20 text-[9px]">|</span>
-                <span className="flex-1 text-center text-[11px] font-semibold text-orange-400/60 leading-none">
-                  {Math.round(d.cal! / people)}
-                </span>
-              </div>
-              {/* Protein */}
-              <div className="flex items-center gap-1">
-                <span className="flex-1 text-center text-[11px] font-medium text-blue-400 leading-none">
-                  {Math.round(d.protein!)}g
-                </span>
-                <span className="text-muted-foreground/20 text-[9px]">|</span>
-                <span className="flex-1 text-center text-[11px] font-medium text-blue-400/60 leading-none">
-                  {Math.round(d.protein! / people)}g
-                </span>
-              </div>
-              {/* Carbs */}
-              <div className="flex items-center gap-1">
-                <span className="flex-1 text-center text-[11px] font-medium text-yellow-400 leading-none">
-                  {Math.round(d.carbs!)}g
-                </span>
-                <span className="text-muted-foreground/20 text-[9px]">|</span>
-                <span className="flex-1 text-center text-[11px] font-medium text-yellow-400/60 leading-none">
-                  {Math.round(d.carbs! / people)}g
-                </span>
-              </div>
+              <span className="flex-1 text-center text-[11px] font-semibold text-orange-400 leading-none">
+                {Math.round(d.cal!)}
+              </span>
+              <span className="text-muted-foreground/20 text-[9px]">|</span>
+              <span className="flex-1 text-center text-[11px] font-semibold text-orange-400/60 leading-none">
+                {Math.round(d.cal! / people)}
+              </span>
             </>
           ) : (
-            <span className="text-[10px] text-muted-foreground/20 text-center">—</span>
+            <span className="flex-1 text-[10px] text-center text-muted-foreground/20">—</span>
+          )}
+        </div>
+      ))}
+
+      {/* ── Protein row ── */}
+      <div className="px-3 py-1 border-r border-border flex items-center">
+        <span className="text-[10px] text-muted-foreground">Protein</span>
+      </div>
+      {dayTotals.map((d, i) => (
+        <div key={i} className="border-l border-border px-1 py-1 flex items-center gap-1">
+          {d.hasData ? (
+            <>
+              <span className="flex-1 text-center text-[11px] font-medium text-blue-400 leading-none">
+                {Math.round(d.protein!)}g
+              </span>
+              <span className="text-muted-foreground/20 text-[9px]">|</span>
+              <span className="flex-1 text-center text-[11px] font-medium text-blue-400/60 leading-none">
+                {Math.round(d.protein! / people)}g
+              </span>
+            </>
+          ) : (
+            <span className="flex-1 text-[10px] text-center text-muted-foreground/20">—</span>
+          )}
+        </div>
+      ))}
+
+      {/* ── Carbs row ── */}
+      <div className="px-3 pt-1 pb-2.5 border-r border-border flex items-center">
+        <span className="text-[10px] text-muted-foreground">Carbs</span>
+      </div>
+      {dayTotals.map((d, i) => (
+        <div key={i} className="border-l border-border px-1 pt-1 pb-2.5 flex items-center gap-1">
+          {d.hasData ? (
+            <>
+              <span className="flex-1 text-center text-[11px] font-medium text-yellow-400 leading-none">
+                {Math.round(d.carbs!)}g
+              </span>
+              <span className="text-muted-foreground/20 text-[9px]">|</span>
+              <span className="flex-1 text-center text-[11px] font-medium text-yellow-400/60 leading-none">
+                {Math.round(d.carbs! / people)}g
+              </span>
+            </>
+          ) : (
+            <span className="flex-1 text-[10px] text-center text-muted-foreground/20">—</span>
           )}
         </div>
       ))}

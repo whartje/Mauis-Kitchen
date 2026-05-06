@@ -4,8 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ArrowLeft, Clock, ChefHat, Star, Heart, ExternalLink, Minus, Plus, Camera, Loader2, Pencil, BookOpen, Trash2, Tag, X, NotebookPen, ZoomIn, Sparkles, UtensilsCrossed, FileText, Package, ChevronUp, ChevronDown } from "lucide-react";
+import { ArrowLeft, Clock, ChefHat, Star, Heart, ExternalLink, Minus, Plus, Camera, Loader2, Pencil, BookOpen, Trash2, Tag, X, NotebookPen, ZoomIn, Sparkles, UtensilsCrossed, FileText, Package, ChevronUp, ChevronDown, Link as LinkIcon } from "lucide-react";
 import { AddToMealPlanButton } from "./add-to-meal-plan-button";
+import { ImportRecipeModal } from "./import-recipe-modal";
 import { overlapColor } from "@/lib/meal-plan-overlap";
 import { scaleQuantity } from "@/lib/units";
 import { cn, formatTime, difficultyLabel, difficultyColor } from "@/lib/utils";
@@ -84,6 +85,8 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
   const router = useRouter();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importTab, setImportTab] = useState<"url" | "photo">("url");
 
   // ── Editable fields ────────────────────────────────────────────────────────
   const [titleValue, setTitleValue] = useState(recipe.title);
@@ -438,14 +441,38 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
 
   return (
     <div className="space-y-6">
-      {/* Back nav */}
-      <Link
-        href="/recipes"
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        All Recipes
-      </Link>
+      {/* Back nav + quick-add buttons */}
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          href="/recipes"
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          All Recipes
+        </Link>
+
+        {/* Import shortcuts so you can queue up another recipe without leaving */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setImportTab("photo"); setImportOpen(true); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground text-xs font-medium transition-colors"
+            title="Import from photo"
+          >
+            <Camera className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Photo</span>
+          </button>
+          <button
+            onClick={() => { setImportTab("url"); setImportOpen(true); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-white text-xs font-medium transition-colors"
+            title="Import from URL"
+          >
+            <LinkIcon className="w-3.5 h-3.5" />
+            From URL
+          </button>
+        </div>
+      </div>
+
+      <ImportRecipeModal open={importOpen} onClose={() => setImportOpen(false)} initialTab={importTab} />
 
       {/* Hero image */}
       <div className={cn(
