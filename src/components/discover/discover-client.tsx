@@ -356,36 +356,41 @@ export function DiscoverClient({ initialResults, initialQuery, initialFilters }:
       </div>
 
       {/* Search bar */}
-      <form onSubmit={(e) => { e.preventDefault(); doSearch(); }} className="flex gap-3">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+      <div className="flex gap-2">
+        <form onSubmit={(e) => { e.preventDefault(); doSearch(); }} className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={sitesMode ? "Search within selected sites..." : "Search for any recipe..."}
-            className="w-full bg-card border border-border rounded-lg pl-10 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange transition"
+            className="w-full bg-card border border-border rounded-lg pl-10 pr-10 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange transition"
           />
-        </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="bg-brand-orange hover:bg-brand-orange-dark text-black font-semibold px-5 py-2.5 rounded-lg transition-colors text-sm disabled:opacity-60 flex items-center gap-2"
-        >
-          {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-          Search
-        </button>
+          {/* Submit icon button inside the input */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-brand-orange transition-colors disabled:opacity-40"
+            aria-label="Search"
+          >
+            {loading
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <Search className="w-4 h-4" />
+            }
+          </button>
+        </form>
+
+        {/* Compact filter toggle — icon + count badge only, mirrors Recipe Library */}
         <button
           type="button"
           onClick={() => setFiltersOpen((v) => !v)}
           className={cn(
-            "flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors",
+            "flex items-center gap-1.5 px-2.5 py-2.5 rounded-lg border text-sm font-medium transition-colors shrink-0",
             filtersOpen || activeFilterCount > 0
               ? "bg-brand-orange/10 border-brand-orange/40 text-brand-orange"
               : "border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
           )}
         >
-          Filters
           {activeFilterCount > 0 && (
             <span className="bg-brand-orange text-black text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
               {activeFilterCount}
@@ -393,7 +398,7 @@ export function DiscoverClient({ initialResults, initialQuery, initialFilters }:
           )}
           <ChevronDown className={cn("w-4 h-4 transition-transform", filtersOpen && "rotate-180")} />
         </button>
-      </form>
+      </div>
 
       {/* Filter panel */}
       {filtersOpen && (

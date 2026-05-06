@@ -521,54 +521,18 @@ export default function GroceryListClient({
             <p className="text-sm text-muted-foreground mt-0.5">{currentWeekLabel}</p>
           </div>
 
-          <div className="relative group">
-            <button
-              onClick={!hasMealPlan ? undefined : generateList}
-              disabled={generating || !hasMealPlan}
-              className={[
-                "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-                hasMealPlan
-                  ? "bg-[#E8834A] hover:bg-[#d4733c] text-white cursor-pointer disabled:opacity-60"
-                  : "bg-[#E8834A]/40 text-white/60 cursor-not-allowed",
-              ].join(" ")}
-            >
-              {generating ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : list ? (
-                <RefreshCw className="w-4 h-4" />
-              ) : (
-                <ShoppingCart className="w-4 h-4" />
-              )}
-              {list ? "Regenerate" : "Generate from Meal Plan"}
-            </button>
-
-            {!hasMealPlan && (
-              <div className="absolute right-0 top-full mt-1.5 z-10 hidden group-hover:block">
-                <div className="bg-card border border-border text-muted-foreground text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-lg">
-                  Add recipes to your meal plan first
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {generateError && (
-          <div className="mt-2 flex items-center gap-2 text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">
-            <X className="w-4 h-4 flex-shrink-0" />
-            {generateError}
-          </div>
-        )}
-
-        {/* ── Share bar ── */}
-        {list && list.items.some((it) => !it.isChecked) && (
-          <div className="mt-4 flex items-center gap-3 relative" ref={sharePanelRef}>
-            <button
-              onClick={handleShareClick}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-[#E8834A]/50 hover:bg-[#E8834A]/5 text-sm font-medium transition-colors"
-            >
-              <Share2 className="w-4 h-4" />
-              Share List
-            </button>
+          {/* Share + Generate/Regenerate on the same row */}
+          <div className="flex items-center gap-2">
+            {/* Share List — only shown when a list exists with unchecked items */}
+            {list && list.items.some((it) => !it.isChecked) && (
+              <div className="relative" ref={sharePanelRef}>
+                <button
+                  onClick={handleShareClick}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-[#E8834A]/50 hover:bg-[#E8834A]/5 text-sm font-medium transition-colors"
+                >
+                  <Share2 className="w-4 h-4" />
+                  Share List
+                </button>
 
             {/* Desktop share panel */}
             {showSharePanel && (
@@ -630,6 +594,46 @@ export default function GroceryListClient({
                 </div>
               </div>
             )}
+              </div>
+            )}
+
+            {/* Generate / Regenerate button */}
+            <div className="relative group">
+              <button
+                onClick={!hasMealPlan ? undefined : generateList}
+                disabled={generating || !hasMealPlan}
+                className={[
+                  "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                  hasMealPlan
+                    ? "bg-[#E8834A] hover:bg-[#d4733c] text-white cursor-pointer disabled:opacity-60"
+                    : "bg-[#E8834A]/40 text-white/60 cursor-not-allowed",
+                ].join(" ")}
+              >
+                {generating ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : list ? (
+                  <RefreshCw className="w-4 h-4" />
+                ) : (
+                  <ShoppingCart className="w-4 h-4" />
+                )}
+                {list ? "Regenerate" : "Generate from Meal Plan"}
+              </button>
+
+              {!hasMealPlan && (
+                <div className="absolute right-0 top-full mt-1.5 z-10 hidden group-hover:block">
+                  <div className="bg-card border border-border text-muted-foreground text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-lg">
+                    Add recipes to your meal plan first
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {generateError && (
+          <div className="mt-2 flex items-center gap-2 text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">
+            <X className="w-4 h-4 flex-shrink-0" />
+            {generateError}
           </div>
         )}
 

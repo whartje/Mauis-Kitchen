@@ -192,13 +192,14 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overla
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold text-foreground">My Recipes</h1>
         <div className="flex items-center gap-2">
-          {/* Scan photo — icon only so the URL button gets more room */}
+          {/* Scan photo */}
           <button
             onClick={() => { setImportTab("photo"); setImportOpen(true); }}
             title="Scan a recipe photo"
-            className="flex items-center justify-center bg-secondary hover:bg-brand-orange/10 border border-border hover:border-brand-orange/40 text-foreground hover:text-brand-orange p-2.5 rounded-lg transition-colors shrink-0"
+            className="flex items-center gap-2 bg-secondary hover:bg-brand-orange/10 border border-border hover:border-brand-orange/40 text-foreground hover:text-brand-orange px-3 py-2.5 rounded-lg transition-colors text-sm font-medium"
           >
             <Camera className="w-4 h-4" />
+            <span className="hidden sm:inline">Scan Photo</span>
           </button>
           {/* Import from URL */}
           <button
@@ -207,7 +208,7 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overla
             className="flex items-center gap-2 bg-brand-orange hover:bg-brand-orange-dark text-black font-semibold px-3 py-2.5 rounded-lg transition-colors text-sm"
           >
             <LinkIcon className="w-4 h-4" />
-            <span>From URL</span>
+            <span className="hidden sm:inline">From URL</span>
           </button>
         </div>
       </div>
