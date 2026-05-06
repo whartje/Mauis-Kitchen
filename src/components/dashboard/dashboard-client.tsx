@@ -435,8 +435,9 @@ function WeeklyStats({ items, pantryNames }: { items: MealPlanItem[]; pantryName
   if (!hasTime && overlapPct === null && pantryPct === null) return null;
 
   return (
-    <div className="bg-card border border-border rounded-xl p-5 space-y-4 mt-3">
-      <h3 className="font-semibold text-foreground text-sm">Week at a Glance</h3>
+    <div className="mt-3">
+      <h2 className="text-lg font-semibold text-foreground mb-3">Week at a Glance</h2>
+      <div className="bg-card border border-border rounded-xl p-5 space-y-4">
 
       {/* Row 1 — time stats */}
       {hasTime && (
@@ -520,6 +521,7 @@ function WeeklyStats({ items, pantryNames }: { items: MealPlanItem[]; pantryName
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -585,14 +587,15 @@ function AvgServingNutrition({ items }: { items: MealPlanItem[] }) {
   if (!hasAny) return null;
 
   return (
-    <div className="bg-card border border-border rounded-xl p-5 space-y-3 mt-3">
-      <div>
-        <h3 className="font-semibold text-foreground text-sm">Avg. Nutrition per Serving</h3>
+    <div className="mt-3">
+      <div className="mb-3">
+        <h2 className="text-lg font-semibold text-foreground">Avg. Nutrition per Serving</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
           Averaged across {withNutrition.length} recipe{withNutrition.length !== 1 ? "s" : ""}
           {hasEstimated && " · AI estimates"}
         </p>
       </div>
+      <div className="bg-card border border-border rounded-xl p-5">
       <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
         {NUTRITION_FIELDS.map(({ key, label, unit, color, decimals }) => {
           const s = sums[key];
@@ -600,6 +603,7 @@ function AvgServingNutrition({ items }: { items: MealPlanItem[] }) {
           if (s == null || !c) return null;
           return <NutritionTile key={key} label={label} value={s / c} unit={unit} color={color} decimals={decimals} />;
         })}
+      </div>
       </div>
     </div>
   );
