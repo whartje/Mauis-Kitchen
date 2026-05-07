@@ -730,7 +730,7 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
             >
               <Clock className="w-4 h-4" />
               <span>{prepTime != null ? `Prep ${formatTime(prepTime)}` : "Add prep time"}</span>
-              <Pencil className="w-3 h-3 opacity-0 group-hover/prep:opacity-60 transition-opacity" />
+              <Pencil className="w-3 h-3 opacity-25 group-hover/prep:opacity-60 transition-opacity" />
             </button>
           )}
 
@@ -763,7 +763,7 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
             >
               <ChefHat className="w-4 h-4" />
               <span>{cookTime != null ? `Cook ${formatTime(cookTime)}` : "Add cook time"}</span>
-              <Pencil className="w-3 h-3 opacity-0 group-hover/cook:opacity-60 transition-opacity" />
+              <Pencil className="w-3 h-3 opacity-25 group-hover/cook:opacity-60 transition-opacity" />
             </button>
           )}
 
@@ -795,7 +795,7 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
                 title="Click to edit total time"
               >
                 <span>Total {formatTime(totalTime)}</span>
-                <Pencil className="w-3 h-3 opacity-0 group-hover/total:opacity-60 transition-opacity" />
+                <Pencil className="w-3 h-3 opacity-25 group-hover/total:opacity-60 transition-opacity" />
               </button>
             )
           )}
@@ -963,6 +963,12 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
             <span className="text-sm text-muted-foreground ml-1">{rating.toFixed(1)}</span>
           )}
         </div>
+
+        {/* Edit hint */}
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground/40 pt-1">
+          <Pencil className="w-3 h-3 shrink-0" />
+          Click any field to edit — changes save automatically
+        </p>
       </div>
 
       {/* ── Nutrition panel ── */}

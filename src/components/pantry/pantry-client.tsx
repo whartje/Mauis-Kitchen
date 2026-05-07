@@ -257,13 +257,17 @@ export function PantryClient({ initialItems }: Props) {
     <div className="space-y-6 pb-20 md:pb-0">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Pantry</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Track what you have on hand</p>
+          <p className="text-sm text-muted-foreground mt-0.5">What you already have on hand</p>
+          <p className="text-xs text-muted-foreground/60 mt-1 flex items-center gap-1.5">
+            <Package className="w-3.5 h-3.5 text-brand-orange shrink-0" />
+            Items here are flagged on your grocery list so you don&apos;t re-buy what you already have
+          </p>
         </div>
         {items.length > 0 && (
-          <span className="text-sm text-muted-foreground">
+          <span className="text-sm text-muted-foreground shrink-0 mt-1">
             {items.length} item{items.length !== 1 ? "s" : ""}
           </span>
         )}

@@ -238,8 +238,9 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props)
           {/* Ingredient Reuse badge */}
           {plan.items.length >= 2 && (
             <div
+              title="How much your meals share ingredients. Higher reuse means fewer unique items to buy — great for efficient shopping."
               className={cn(
-                "px-3 py-1.5 rounded-full text-sm font-medium border",
+                "px-3 py-1.5 rounded-full text-sm font-medium border cursor-help",
                 OVERLAP_STYLE[overlap.level]
               )}
             >
@@ -350,6 +351,22 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props)
           {/* Daily nutrition totals row */}
           <DailyNutritionRow items={plan.items} people={people} />
         </div>
+      </div>
+
+      {/* Grid legend */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground px-1">
+        <span className="flex items-center gap-1.5">
+          <Lock className="w-3 h-3 text-brand-orange" />
+          Locked — recipe stays when re-planning
+        </span>
+        <span className="flex items-center gap-1.5">
+          <Unlock className="w-3 h-3" />
+          Unlocked — will be replaced when re-planning
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-green-400/60 inline-block" />
+          High ingredient reuse = less to buy
+        </span>
       </div>
 
       {/* Shared ingredients */}
@@ -667,7 +684,9 @@ function RecipeSlotCard({
         <button
           onClick={(e) => { e.stopPropagation(); onToggleLock(); }}
           className="p-1 rounded hover:bg-black/20 transition-colors"
-          title={item.isLocked ? "Unlock" : "Lock"}
+          title={item.isLocked
+            ? "Locked — this recipe stays in place when you re-plan the week. Click to unlock."
+            : "Lock this recipe to keep it when re-planning the week."}
         >
           {item.isLocked ? (
             <Lock className="w-3 h-3 text-brand-orange" />

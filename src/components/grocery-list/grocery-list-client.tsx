@@ -919,10 +919,10 @@ function GroceryItemRow({
         ].join(" ")}
       />
 
-      {/* Pantry badge */}
+      {/* Pantry badge — desktop: shown here (before recipe sources) */}
       {inPantry && (
         <span
-          className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/30 leading-tight"
+          className="hidden sm:inline-flex shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/30 leading-tight"
           title="You already have this in your pantry"
         >
           in pantry
@@ -958,6 +958,16 @@ function GroceryItemRow({
           <X className="w-3.5 h-3.5" />
         )}
       </button>
+
+      {/* Pantry badge — mobile: shown after delete so it's flush right, aligning with the section count */}
+      {inPantry && (
+        <span
+          className="sm:hidden shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/30 leading-tight"
+          title="You already have this in your pantry"
+        >
+          in pantry
+        </span>
+      )}
     </li>
   );
 }

@@ -297,47 +297,89 @@ export function DashboardClient({ recentRecipes, recipeCount, weekStart, mealPla
         </div>
       )}
 
-      {/* Empty state */}
+      {/* Empty state — numbered getting-started flow */}
       {recipeCount === 0 && (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-2">
-          {[
-            {
-              title: "Import from URL",
-              desc: "Paste any recipe website URL — we'll extract and normalize it automatically.",
-              action: () => { setImportTab("url"); setImportOpen(true); },
-            },
-            {
-              title: "Scan a Photo",
-              desc: "Take a photo of a cookbook page or screenshot a recipe website.",
-              action: () => { setImportTab("photo"); setImportOpen(true); },
-            },
-            {
-              title: "Build a Meal Plan",
-              desc: "Select recipes and let us optimize your week around shared ingredients.",
-              action: undefined,
-              href: "/meal-plan",
-            },
-          ].map((card) => (
-            <div key={card.title} className="bg-card border border-border rounded-xl p-5 space-y-2">
-              <h3 className="font-medium text-foreground">{card.title}</h3>
-              <p className="text-sm text-muted-foreground">{card.desc}</p>
-              {card.href ? (
-                <Link
-                  href={card.href}
-                  className="text-sm text-brand-orange hover:text-brand-orange-light transition-colors font-medium"
-                >
-                  Get started →
-                </Link>
-              ) : (
+        <div className="mt-4">
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold text-foreground">Welcome to Maui&apos;s Kitchen 👋</h2>
+            <p className="text-muted-foreground text-sm mt-1">
+              Get the most out of your kitchen in three steps.
+            </p>
+          </div>
+
+          <div className="grid sm:grid-cols-3 gap-6">
+
+            {/* Step 1 — Import recipes (active) */}
+            <div className="relative bg-card border-2 border-brand-orange/40 rounded-xl p-5 pt-7">
+              <div className="absolute -top-3.5 left-5 flex items-center gap-2">
+                <span className="w-7 h-7 rounded-full bg-brand-orange text-white text-xs font-bold flex items-center justify-center shadow-sm">
+                  1
+                </span>
+                <span className="text-xs font-semibold text-brand-orange bg-background px-1">
+                  Start here
+                </span>
+              </div>
+              <h3 className="font-semibold text-foreground mb-1">Import recipes</h3>
+              <p className="text-sm text-muted-foreground mb-5">
+                Paste any recipe URL or scan a photo — we extract ingredients, cook times, and steps automatically.
+              </p>
+              <div className="flex flex-col gap-2">
                 <button
-                  onClick={card.action}
-                  className="text-sm text-brand-orange hover:text-brand-orange-light transition-colors font-medium"
+                  onClick={() => { setImportTab("url"); setImportOpen(true); }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-orange hover:bg-brand-orange-dark text-black text-sm font-semibold transition-colors"
                 >
-                  Get started →
+                  <LinkIcon className="w-4 h-4" />
+                  From URL
                 </button>
-              )}
+                <button
+                  onClick={() => { setImportTab("photo"); setImportOpen(true); }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary hover:bg-brand-orange/10 border border-border hover:border-brand-orange/40 text-foreground text-sm font-medium transition-colors"
+                >
+                  <Camera className="w-4 h-4" />
+                  Scan a Photo
+                </button>
+              </div>
             </div>
-          ))}
+
+            {/* Step 2 — Plan your week (dimmed) */}
+            <div className="relative bg-card border border-border rounded-xl p-5 pt-7 opacity-50">
+              <div className="absolute -top-3.5 left-5">
+                <span className="w-7 h-7 rounded-full bg-secondary border border-border text-muted-foreground text-xs font-bold flex items-center justify-center">
+                  2
+                </span>
+              </div>
+              <h3 className="font-semibold text-foreground mb-1">Plan your week</h3>
+              <p className="text-sm text-muted-foreground mb-5">
+                Drop recipes into a weekly calendar. Lock your favorites in place and see ingredient overlap to shop smarter.
+              </p>
+              <Link
+                href="/meal-plan"
+                className="text-sm text-brand-orange hover:text-brand-orange-light font-medium transition-colors"
+              >
+                Open meal plan →
+              </Link>
+            </div>
+
+            {/* Step 3 — Grocery list (dimmed) */}
+            <div className="relative bg-card border border-border rounded-xl p-5 pt-7 opacity-50">
+              <div className="absolute -top-3.5 left-5">
+                <span className="w-7 h-7 rounded-full bg-secondary border border-border text-muted-foreground text-xs font-bold flex items-center justify-center">
+                  3
+                </span>
+              </div>
+              <h3 className="font-semibold text-foreground mb-1">Generate your grocery list</h3>
+              <p className="text-sm text-muted-foreground mb-5">
+                One tap turns your meal plan into a categorized shopping list. Items already in your pantry are flagged automatically.
+              </p>
+              <Link
+                href="/grocery-list"
+                className="text-sm text-brand-orange hover:text-brand-orange-light font-medium transition-colors"
+              >
+                Go to grocery list →
+              </Link>
+            </div>
+
+          </div>
         </div>
       )}
 
