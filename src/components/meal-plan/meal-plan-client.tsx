@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Lock, Unlock, X, Plus, ChevronLeft, ChevronRight, Clock, ExternalLink, Minus, Users } from "lucide-react";
+import { Lock, Unlock, X, Plus, ChevronLeft, ChevronRight, Clock, ExternalLink, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { computeIngredientOverlap, type OverlapLevel } from "@/lib/overlap";
 import { RecipePickerDrawer, type RecipeForPicker } from "./recipe-picker-drawer";
@@ -90,7 +90,6 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props)
     mealType: MealTypeEnum;
   } | null>(null);
   const [pending, setPending] = useState<Set<string>>(new Set());
-  const [people, setPeople] = useState(2);
 
   // Score uses all items (including duplicate recipes) — intentional
   const overlap = computeIngredientOverlap(
@@ -303,7 +302,7 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props)
           </div>
 
           {/* Meal type rows */}
-          {MEAL_TYPES.map(({ value: mealType, label }, rowIdx) => (
+          {MEAL_TYPES.map(({ value: mealType, label }) => (
             <div
               key={mealType}
               className={cn(
@@ -349,7 +348,7 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props)
           ))}
 
           {/* Daily nutrition totals row */}
-          <DailyNutritionRow items={plan.items} people={people} />
+          <DailyNutritionRow items={plan.items} />
         </div>
       </div>
 
@@ -396,8 +395,11 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props)
         </div>
       )}
 
-      {/* Weekly nutrition summary */}
-      <WeeklyNutritionPanel items={plan.items} people={people} setPeople={setPeople} />
+      {/* Avg nutrition per serving */}
+      <AvgServingNutrition items={plan.items} />
+
+      {/* Suggested recipes with high ingredient overlap */}
+      <SuggestedRecipes recipes={recipes} planItems={plan.items} />
 
       <RecipePickerDrawer
         open={pickerSlot !== null}
@@ -413,7 +415,7 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props)
 
 // ─── Daily nutrition totals row ───────────────────────────────────────────────
 
-function DailyNutritionRow({ items, people }: { items: PlanItem[]; people: number }) {
+function DailyNutritionRow({ items }: { items: PlanItem[] }) {
   const dayTotals = Array.from({ length: 7 }, (_, dayIdx) => {
     const dayItems = items.filter((it) => it.dayOfWeek === dayIdx && it.recipe.nutrition);
     if (dayItems.length === 0) return { cal: null, protein: null, carbs: null, hasData: false };
@@ -433,16 +435,10 @@ function DailyNutritionRow({ items, people }: { items: PlanItem[]; people: numbe
   return (
     <div className="grid grid-cols-[110px_repeat(7,1fr)] bg-secondary/20 border-t border-border">
 
-      {/* ── Header row: "DAILY" + "Total | /Person" ── */}
+      {/* ── Header label ── */}
       <div className="px-3 pt-2.5 pb-1 border-r border-border">
-        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Daily</p>
-        <div className="mt-1 flex gap-1 text-[9px] font-semibold text-muted-foreground/60 uppercase tracking-wide">
-          <span className="flex-1 text-center">Total</span>
-          <span className="text-muted-foreground/30">|</span>
-          <span className="flex-1 text-center">/Person</span>
-        </div>
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Daily Total</p>
       </div>
-      {/* 7 empty header cells (spacer to match label) */}
       {dayTotals.map((_, i) => (
         <div key={i} className="border-l border-border px-1 pt-2.5 pb-1" />
       ))}
@@ -452,19 +448,13 @@ function DailyNutritionRow({ items, people }: { items: PlanItem[]; people: numbe
         <span className="text-[10px] text-muted-foreground">Calories</span>
       </div>
       {dayTotals.map((d, i) => (
-        <div key={i} className="border-l border-border px-1 py-1 flex items-center gap-1">
+        <div key={i} className="border-l border-border px-1 py-1 flex items-center justify-center">
           {d.hasData ? (
-            <>
-              <span className="flex-1 text-center text-[11px] font-semibold text-orange-400 leading-none">
-                {Math.round(d.cal!)}
-              </span>
-              <span className="text-muted-foreground/20 text-[9px]">|</span>
-              <span className="flex-1 text-center text-[11px] font-semibold text-orange-400/60 leading-none">
-                {Math.round(d.cal! / people)}
-              </span>
-            </>
+            <span className="text-[11px] font-semibold text-orange-400 leading-none">
+              {Math.round(d.cal!)}
+            </span>
           ) : (
-            <span className="flex-1 text-[10px] text-center text-muted-foreground/20">—</span>
+            <span className="text-[10px] text-muted-foreground/20">—</span>
           )}
         </div>
       ))}
@@ -474,19 +464,13 @@ function DailyNutritionRow({ items, people }: { items: PlanItem[]; people: numbe
         <span className="text-[10px] text-muted-foreground">Protein</span>
       </div>
       {dayTotals.map((d, i) => (
-        <div key={i} className="border-l border-border px-1 py-1 flex items-center gap-1">
+        <div key={i} className="border-l border-border px-1 py-1 flex items-center justify-center">
           {d.hasData ? (
-            <>
-              <span className="flex-1 text-center text-[11px] font-medium text-blue-400 leading-none">
-                {Math.round(d.protein!)}g
-              </span>
-              <span className="text-muted-foreground/20 text-[9px]">|</span>
-              <span className="flex-1 text-center text-[11px] font-medium text-blue-400/60 leading-none">
-                {Math.round(d.protein! / people)}g
-              </span>
-            </>
+            <span className="text-[11px] font-medium text-blue-400 leading-none">
+              {Math.round(d.protein!)}g
+            </span>
           ) : (
-            <span className="flex-1 text-[10px] text-center text-muted-foreground/20">—</span>
+            <span className="text-[10px] text-muted-foreground/20">—</span>
           )}
         </div>
       ))}
@@ -496,19 +480,13 @@ function DailyNutritionRow({ items, people }: { items: PlanItem[]; people: numbe
         <span className="text-[10px] text-muted-foreground">Carbs</span>
       </div>
       {dayTotals.map((d, i) => (
-        <div key={i} className="border-l border-border px-1 pt-1 pb-2.5 flex items-center gap-1">
+        <div key={i} className="border-l border-border px-1 pt-1 pb-2.5 flex items-center justify-center">
           {d.hasData ? (
-            <>
-              <span className="flex-1 text-center text-[11px] font-medium text-yellow-400 leading-none">
-                {Math.round(d.carbs!)}g
-              </span>
-              <span className="text-muted-foreground/20 text-[9px]">|</span>
-              <span className="flex-1 text-center text-[11px] font-medium text-yellow-400/60 leading-none">
-                {Math.round(d.carbs! / people)}g
-              </span>
-            </>
+            <span className="text-[11px] font-medium text-yellow-400 leading-none">
+              {Math.round(d.carbs!)}g
+            </span>
           ) : (
-            <span className="flex-1 text-[10px] text-center text-muted-foreground/20">—</span>
+            <span className="text-[10px] text-muted-foreground/20">—</span>
           )}
         </div>
       ))}
@@ -539,89 +517,44 @@ function fmt(val: number, decimals: number): string {
   return decimals === 0 ? String(Math.round(val)) : val.toFixed(decimals).replace(/\.0$/, "");
 }
 
-function WeeklyNutritionPanel({
-  items,
-  people,
-  setPeople,
-}: {
-  items: PlanItem[];
-  people: number;
-  setPeople: (n: number) => void;
-}) {
-  const recipesWithNutrition = items.filter((it) => it.recipe.nutrition);
-  if (recipesWithNutrition.length === 0) return null;
+// ─── Avg. Nutrition per Serving ───────────────────────────────────────────────
 
-  // Sum across all plan items — each item's nutrition is per-serving of that recipe,
-  // and each plan item represents `item.servings` servings.
-  const weekTotals: Record<string, number> = {};
-  let hasEstimated = false;
+function AvgServingNutrition({ items }: { items: PlanItem[] }) {
+  const withNutrition = items.filter((it) => it.recipe.nutrition);
+  if (withNutrition.length === 0) return null;
 
-  for (const item of recipesWithNutrition) {
-    const n = item.recipe.nutrition!;
-    // item.servings = how many servings the meal plan slot is set to
-    // recipe.servings is the base serving count the nutrition is defined for
-    // The nutrition is already per-serving, so multiply by item.servings
-    const factor = item.servings ?? 4;
-    if (n.isEstimated) hasEstimated = true;
-    for (const { key } of NUTRITION_FIELDS) {
-      const val = n[key];
-      if (typeof val === "number") {
-        weekTotals[key] = (weekTotals[key] ?? 0) + val * factor;
-      }
+  const hasEstimated = withNutrition.some((it) => it.recipe.nutrition!.isEstimated);
+
+  // Average the per-serving nutrition values across all plan slots with data
+  const avgValues: Partial<Record<keyof NutritionFact, number>> = {};
+  for (const { key } of NUTRITION_FIELDS) {
+    const vals = withNutrition
+      .map((it) => it.recipe.nutrition![key])
+      .filter((v): v is number => typeof v === "number");
+    if (vals.length > 0) {
+      avgValues[key] = vals.reduce((a, b) => a + b, 0) / vals.length;
     }
   }
 
-  const recipeCount = recipesWithNutrition.length;
-  const totalRecipes = items.length;
+  const totalInPlan = items.length;
 
   return (
-    <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="font-semibold text-foreground">Weekly Nutrition</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {recipeCount < totalRecipes
-              ? `${recipeCount} of ${totalRecipes} recipes have nutrition data`
-              : `All ${totalRecipes} recipes`}
-            {hasEstimated && " · includes AI estimates"}
-          </p>
-        </div>
-
-        {/* People adjuster */}
-        <div className="flex items-center gap-2">
-          <Users className="w-4 h-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">People:</span>
-          <button
-            onClick={() => setPeople(Math.max(1, people - 1))}
-            className="w-7 h-7 rounded-full bg-secondary hover:bg-brand-orange/20 flex items-center justify-center transition-colors"
-          >
-            <Minus className="w-3 h-3" />
-          </button>
-          <span className="text-sm font-semibold w-5 text-center">{people}</span>
-          <button
-            onClick={() => setPeople(people + 1)}
-            className="w-7 h-7 rounded-full bg-secondary hover:bg-brand-orange/20 flex items-center justify-center transition-colors"
-          >
-            <Plus className="w-3 h-3" />
-          </button>
-        </div>
-      </div>
-
-      {/* Row 1 — Week total */}
-      <div>
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-          Week Total
-        </p>
+    <div>
+      <h2 className="text-lg font-semibold text-foreground mb-1">Avg. Nutrition per Serving</h2>
+      <p className="text-xs text-muted-foreground mb-3">
+        {withNutrition.length < totalInPlan
+          ? `Based on ${withNutrition.length} of ${totalInPlan} planned recipes`
+          : `Based on all ${totalInPlan} planned recipes`}
+        {hasEstimated && " · includes AI estimates"}
+      </p>
+      <div className="bg-card border border-border rounded-xl p-5">
         <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
           {NUTRITION_FIELDS.map(({ key, label, unit, color, decimals }) => {
-            const val = weekTotals[key];
+            const val = avgValues[key];
             if (val == null) return null;
             return (
-              <div key={key} className="flex flex-col items-center text-center bg-secondary/50 rounded-lg px-2 py-3 gap-1">
-                <span className={`text-base font-bold leading-none ${color}`}>
-                  {fmt(val, decimals)}
-                </span>
+              <div key={key} className="flex flex-col items-center text-center rounded-lg px-2 py-3 gap-1 bg-secondary/50">
+                <span className={`text-base font-bold leading-none ${color}`}>{fmt(val, decimals)}</span>
                 <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">{unit}</span>
                 <span className="text-[10px] text-muted-foreground">{label}</span>
               </div>
@@ -629,31 +562,110 @@ function WeeklyNutritionPanel({
           })}
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Divider */}
-      <div className="border-t border-border" />
+// ─── Suggested Recipes with High Ingredient Overlap ──────────────────────────
 
-      {/* Row 2 — Per person */}
-      <div>
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-          Per Person · {people} {people === 1 ? "person" : "people"}
-        </p>
-        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-          {NUTRITION_FIELDS.map(({ key, label, unit, color, decimals }) => {
-            const val = weekTotals[key];
-            if (val == null) return null;
-            const perPerson = val / people;
-            return (
-              <div key={key} className="flex flex-col items-center text-center bg-secondary/30 rounded-lg px-2 py-3 gap-1">
-                <span className={`text-base font-bold leading-none ${color}`}>
-                  {fmt(perPerson, decimals)}
+function SuggestedRecipes({
+  recipes,
+  planItems,
+}: {
+  recipes: RecipeForPicker[];
+  planItems: PlanItem[];
+}) {
+  const planRecipeIds = new Set(planItems.map((it) => it.recipe.id));
+  const normalizeIng = (name: string) => name.toLowerCase().replace(/\s+/g, " ").trim();
+
+  // Build the full pool of ingredients from the current plan
+  const planPool = new Set<string>();
+  for (const item of planItems) {
+    for (const ing of item.recipe.ingredients) {
+      planPool.add(normalizeIng(ing.name));
+    }
+  }
+
+  if (planPool.size === 0) return null;
+
+  const scored = recipes
+    .filter((r) => !planRecipeIds.has(r.id))
+    .map((r) => {
+      const recipeIngs = r.ingredients.map((i) => normalizeIng(i.name));
+      const shared = recipeIngs.filter((ing) => planPool.has(ing));
+      const overlapPct = recipeIngs.length > 0
+        ? Math.round((shared.length / recipeIngs.length) * 100)
+        : 0;
+      return { recipe: r, overlapPct, sharedIngs: shared };
+    })
+    .filter((s) => s.overlapPct > 0)
+    .sort((a, b) => b.overlapPct - a.overlapPct)
+    .slice(0, 6);
+
+  if (scored.length === 0) return null;
+
+  return (
+    <div>
+      <h2 className="text-lg font-semibold text-foreground mb-1">Suggested Recipes</h2>
+      <p className="text-xs text-muted-foreground mb-3">
+        High ingredient overlap with this week&apos;s plan — less to buy
+      </p>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {scored.map(({ recipe, overlapPct, sharedIngs }) => {
+          const badgeStyle =
+            overlapPct >= 60
+              ? "text-green-400 bg-green-400/10 border-green-400/20"
+              : overlapPct >= 30
+              ? "text-amber-400 bg-amber-400/10 border-amber-400/20"
+              : "text-muted-foreground bg-secondary border-border";
+
+          return (
+            <div
+              key={recipe.id}
+              className="bg-card border border-border rounded-xl p-4 flex flex-col gap-2"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <Link
+                  href={`/recipes/${recipe.id}`}
+                  className="text-sm font-medium text-foreground hover:text-brand-orange transition-colors line-clamp-2"
+                >
+                  {recipe.title}
+                </Link>
+                <span
+                  className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold border ${badgeStyle}`}
+                  title={`${overlapPct}% of this recipe's ingredients are already in your plan`}
+                >
+                  {overlapPct}%
                 </span>
-                <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">{unit}</span>
-                <span className="text-[10px] text-muted-foreground">{label}</span>
               </div>
-            );
-          })}
-        </div>
+
+              {recipe.totalTime != null && (
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <Clock className="w-3 h-3 shrink-0" />
+                  <span className="text-xs">{recipe.totalTime}m</span>
+                </div>
+              )}
+
+              {sharedIngs.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {sharedIngs.slice(0, 4).map((ing) => (
+                    <span
+                      key={ing}
+                      className="px-2 py-0.5 bg-brand-orange/10 text-brand-orange text-[10px] rounded-full capitalize"
+                    >
+                      {ing}
+                    </span>
+                  ))}
+                  {sharedIngs.length > 4 && (
+                    <span className="px-2 py-0.5 bg-secondary text-muted-foreground text-[10px] rounded-full">
+                      +{sharedIngs.length - 4} more
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
