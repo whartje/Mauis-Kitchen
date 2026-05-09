@@ -73,7 +73,7 @@ export default function SignInPage() {
       </div>
 
       {/* ── Right column — Clerk form + mobile features ── */}
-      <div className="flex-1 flex flex-col items-center justify-start px-4 py-10 overflow-y-auto">
+      <div className="flex-1 flex flex-col items-center justify-center px-4 py-10 overflow-y-auto">
         {/* Mobile: logo + tagline */}
         <div className="lg:hidden flex flex-col items-center mb-8 text-center">
           <CatIcon className="w-14 h-14 mb-3" />
