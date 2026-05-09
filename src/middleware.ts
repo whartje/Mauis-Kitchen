@@ -5,6 +5,10 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
   "/api/alexa/callback(.*)",
   "/api/webhooks/(.*)",
+  // PWA / SEO assets — must be unauthenticated so iOS and crawlers can fetch them
+  "/apple-icon.png",
+  "/icon.png",
+  "/manifest.webmanifest",
 ]);
 
 export default clerkMiddleware(async (auth, request) => {

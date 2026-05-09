@@ -1,5 +1,8 @@
 import { ImageResponse } from "next/og";
 
+export const runtime = "nodejs";       // Buffer is not available in edge runtime
+export const dynamic = "force-dynamic"; // render on request — don't statically generate at build time
+
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
 
