@@ -1,15 +1,12 @@
 import { ImageResponse } from "next/og";
-import fs from "fs";
-import path from "path";
+import { readFileSync } from "fs";
+import { join } from "path";
 
 export const size = { width: 32, height: 32 };
 export const contentType = "image/png";
 
-// Browser favicon — auto-served at /icon.png by Next.js
 export default function Icon() {
-  const catPng = fs.readFileSync(
-    path.join(process.cwd(), "public/maui-cat.png.png")
-  );
+  const catPng = readFileSync(join(process.cwd(), "public/maui-cat.png.png"));
   const catSrc = `data:image/png;base64,${catPng.toString("base64")}`;
 
   return new ImageResponse(
