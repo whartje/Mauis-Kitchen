@@ -5,10 +5,14 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Lock, Unlock, X, Plus, ChevronLeft, ChevronRight, Clock, ExternalLink, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { computeIngredientOverlap, type OverlapLevel } from "@/lib/overlap";
+import { computeIngredientOverlap, tokenize, buildTokenSet, type OverlapLevel } from "@/lib/overlap";
 import { RecipePickerDrawer, type RecipeForPicker } from "./recipe-picker-drawer";
 
 type MealTypeEnum = "BREAKFAST" | "LUNCH" | "DINNER" | "SNACK";
+
+interface PantryItem {
+  name: string;
+}
 
 interface NutritionFact {
   calories: number | null;
@@ -46,6 +50,7 @@ interface Props {
   recipes: RecipeForPicker[];
   weekStart: string; // ISO string — Monday of the displayed week
   isPro: boolean;
+  pantryItems: PantryItem[];
 }
 
 const MEAL_TYPES: { value: MealTypeEnum; label: string }[] = [
@@ -83,7 +88,7 @@ const OVERLAP_STYLE: Record<OverlapLevel, string> = {
   High: "text-green-400 bg-green-400/10 border-green-400/20",
 };
 
-export function MealPlanClient({ plan: initialPlan, recipes, weekStart, isPro }: Props) {
+export function MealPlanClient({ plan: initialPlan, recipes, weekStart, isPro, pantryItems }: Props) {
   const router = useRouter();
   const [plan, setPlan] = useState<Plan>(initialPlan);
   const [pickerSlot, setPickerSlot] = useState<{
@@ -109,18 +114,30 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart, isPro }:
       })
       .map((item) => ({ ingredients: item.recipe.ingredients }));
   })();
+  // Fuzzy-grouped shared ingredients: group by the first meaningful token so that
+  // "garlic cloves" and "minced garlic" both count as the same ingredient family.
   const sharedAcrossDistinct = (() => {
     if (distinctRecipeIngredients.length < 2) return [];
-    const counts = new Map<string, number>();
+    // primary token → { display name (first seen), recipe count }
+    const tokenInfo = new Map<string, { name: string; count: number }>();
     for (const recipe of distinctRecipeIngredients) {
-      const recipeIngredients = new Set(recipe.ingredients.map((i) => normalize(i.name)));
-      for (const ing of recipeIngredients) {
-        counts.set(ing, (counts.get(ing) ?? 0) + 1);
+      const seenPrimary = new Set<string>();
+      for (const ing of recipe.ingredients) {
+        const tokens = tokenize(ing.name);
+        const primary = tokens[0];
+        if (!primary || seenPrimary.has(primary)) continue;
+        seenPrimary.add(primary);
+        const existing = tokenInfo.get(primary);
+        if (!existing) {
+          tokenInfo.set(primary, { name: normalize(ing.name), count: 1 });
+        } else {
+          existing.count++;
+        }
       }
     }
-    return [...counts.entries()]
-      .filter(([, count]) => count > 1)
-      .map(([name]) => name)
+    return [...tokenInfo.values()]
+      .filter((v) => v.count > 1)
+      .map((v) => v.name)
       .sort();
   })();
 
@@ -404,7 +421,7 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart, isPro }:
       )}
 
       {/* Suggested recipes with high ingredient overlap */}
-      <SuggestedRecipes recipes={recipes} planItems={plan.items} />
+      <SuggestedRecipes recipes={recipes} planItems={plan.items} pantryItems={pantryItems} />
 
       <RecipePickerDrawer
         open={pickerSlot !== null}
@@ -593,107 +610,175 @@ function AvgServingNutrition({ items }: { items: PlanItem[] }) {
   );
 }
 
-// ─── Suggested Recipes with High Ingredient Overlap ──────────────────────────
+// ─── Suggested Recipes with filter chips (Meal Plan / Pantry / Both) ─────────
+
+type OverlapSource = "plan" | "pantry" | "both";
+
+const CHIP_LABELS: Record<OverlapSource, string> = {
+  plan:   "Meal Plan",
+  pantry: "Pantry",
+  both:   "Both",
+};
+
+const SUBTITLES: Record<OverlapSource, string> = {
+  plan:   "High ingredient overlap with this week's plan — less to buy",
+  pantry: "Recipes you can make with your pantry ingredients",
+  both:   "High overlap with your weekly plan & pantry",
+};
 
 function SuggestedRecipes({
   recipes,
   planItems,
+  pantryItems,
 }: {
   recipes: RecipeForPicker[];
   planItems: PlanItem[];
+  pantryItems: PantryItem[];
 }) {
+  const [overlapSource, setOverlapSource] = useState<OverlapSource>("plan");
+
+  // Hide the section entirely when there is nothing to match against in any mode
+  const hasAnyContent = planItems.length > 0 || pantryItems.length > 0;
+  if (!hasAnyContent) return null;
+
   const planRecipeIds = new Set(planItems.map((it) => it.recipe.id));
-  const normalizeIng = (name: string) => name.toLowerCase().replace(/\s+/g, " ").trim();
 
-  // Build the full pool of ingredients from the current plan
-  const planPool = new Set<string>();
-  for (const item of planItems) {
-    for (const ing of item.recipe.ingredients) {
-      planPool.add(normalizeIng(ing.name));
-    }
-  }
+  // Build token sets once per render
+  const planTokenSet = buildTokenSet(
+    planItems.flatMap((item) => item.recipe.ingredients.map((i) => i.name))
+  );
+  const pantryTokenSet = buildTokenSet(pantryItems.map((p) => p.name));
 
-  if (planPool.size === 0) return null;
+  // Active pool depends on the selected filter chip
+  const activeTokenSet = new Set<string>([
+    ...(overlapSource !== "pantry" ? planTokenSet : []),
+    ...(overlapSource !== "plan"   ? pantryTokenSet : []),
+  ]);
 
+  // Score every recipe not already in the plan
   const scored = recipes
     .filter((r) => !planRecipeIds.has(r.id))
     .map((r) => {
-      const recipeIngs = r.ingredients.map((i) => normalizeIng(i.name));
-      const shared = recipeIngs.filter((ing) => planPool.has(ing));
-      const overlapPct = recipeIngs.length > 0
-        ? Math.round((shared.length / recipeIngs.length) * 100)
-        : 0;
-      return { recipe: r, overlapPct, sharedIngs: shared };
+      const ings = r.ingredients.map((i) => ({
+        display: i.name.toLowerCase().replace(/\s+/g, " ").trim(),
+        tokens:  tokenize(i.name),
+      }));
+      const matched = ings.filter((ing) =>
+        ing.tokens.some((t) => activeTokenSet.has(t))
+      );
+      const overlapPct =
+        ings.length > 0 ? Math.round((matched.length / ings.length) * 100) : 0;
+      return { recipe: r, overlapPct, sharedIngs: matched.map((i) => i.display) };
     })
     .filter((s) => s.overlapPct > 0)
     .sort((a, b) => b.overlapPct - a.overlapPct)
     .slice(0, 6);
 
-  if (scored.length === 0) return null;
-
   return (
     <div>
-      <h2 className="text-lg font-semibold text-foreground mb-1">Suggested Recipes</h2>
-      <p className="text-xs text-muted-foreground mb-3">
-        High ingredient overlap with this week&apos;s plan — less to buy
-      </p>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {scored.map(({ recipe, overlapPct, sharedIngs }) => {
-          const badgeStyle =
-            overlapPct >= 60
-              ? "text-green-400 bg-green-400/10 border-green-400/20"
-              : overlapPct >= 30
-              ? "text-amber-400 bg-amber-400/10 border-amber-400/20"
-              : "text-muted-foreground bg-secondary border-border";
-
-          return (
-            <div
-              key={recipe.id}
-              className="bg-card border border-border rounded-xl p-4 flex flex-col gap-2"
+      {/* Header + filter chips */}
+      <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Suggested Recipes</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {SUBTITLES[overlapSource]}
+          </p>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {(["plan", "pantry", "both"] as const).map((src) => (
+            <button
+              key={src}
+              onClick={() => setOverlapSource(src)}
+              className={cn(
+                "px-3 py-1.5 rounded-full text-xs font-medium border transition-colors",
+                overlapSource === src
+                  ? "bg-brand-orange text-white border-brand-orange"
+                  : "bg-secondary text-muted-foreground border-border hover:border-brand-orange/50 hover:text-foreground"
+              )}
             >
-              <div className="flex items-start justify-between gap-2">
-                <Link
-                  href={`/recipes/${recipe.id}`}
-                  className="text-sm font-medium text-foreground hover:text-brand-orange transition-colors line-clamp-2"
-                >
-                  {recipe.title}
-                </Link>
-                <span
-                  className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold border ${badgeStyle}`}
-                  title={`${overlapPct}% of this recipe's ingredients are already in your plan`}
-                >
-                  {overlapPct}%
-                </span>
-              </div>
-
-              {recipe.totalTime != null && (
-                <div className="flex items-center gap-1 text-muted-foreground">
-                  <Clock className="w-3 h-3 shrink-0" />
-                  <span className="text-xs">{recipe.totalTime}m</span>
-                </div>
-              )}
-
-              {sharedIngs.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {sharedIngs.slice(0, 4).map((ing) => (
-                    <span
-                      key={ing}
-                      className="px-2 py-0.5 bg-brand-orange/10 text-brand-orange text-[10px] rounded-full capitalize"
-                    >
-                      {ing}
-                    </span>
-                  ))}
-                  {sharedIngs.length > 4 && (
-                    <span className="px-2 py-0.5 bg-secondary text-muted-foreground text-[10px] rounded-full">
-                      +{sharedIngs.length - 4} more
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
+              {CHIP_LABELS[src]}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* Empty-state messages */}
+      {activeTokenSet.size === 0 ? (
+        <p className="text-sm text-muted-foreground py-2">
+          {overlapSource === "pantry"
+            ? "Add items to your pantry to see suggestions."
+            : overlapSource === "both"
+            ? "Add meals to your plan or items to your pantry to see suggestions."
+            : "Add meals to your plan to see suggestions."}
+        </p>
+      ) : scored.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-2">
+          No matching recipes found. Try adding more recipes to your library.
+        </p>
+      ) : (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {scored.map(({ recipe, overlapPct, sharedIngs }) => {
+            const badgeStyle =
+              overlapPct >= 60
+                ? "text-green-400 bg-green-400/10 border-green-400/20"
+                : overlapPct >= 30
+                ? "text-amber-400 bg-amber-400/10 border-amber-400/20"
+                : "text-muted-foreground bg-secondary border-border";
+
+            const sourceLabel =
+              overlapSource === "plan"   ? "meal plan"
+              : overlapSource === "pantry" ? "pantry"
+              : "plan & pantry";
+
+            return (
+              <div
+                key={recipe.id}
+                className="bg-card border border-border rounded-xl p-4 flex flex-col gap-2"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <Link
+                    href={`/recipes/${recipe.id}`}
+                    className="text-sm font-medium text-foreground hover:text-brand-orange transition-colors line-clamp-2"
+                  >
+                    {recipe.title}
+                  </Link>
+                  <span
+                    className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold border ${badgeStyle}`}
+                    title={`${overlapPct}% of this recipe's ingredients match your ${sourceLabel}`}
+                  >
+                    {overlapPct}%
+                  </span>
+                </div>
+
+                {recipe.totalTime != null && (
+                  <div className="flex items-center gap-1 text-muted-foreground">
+                    <Clock className="w-3 h-3 shrink-0" />
+                    <span className="text-xs">{recipe.totalTime}m</span>
+                  </div>
+                )}
+
+                {sharedIngs.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {sharedIngs.slice(0, 4).map((ing) => (
+                      <span
+                        key={ing}
+                        className="px-2 py-0.5 bg-brand-orange/10 text-brand-orange text-[10px] rounded-full capitalize"
+                      >
+                        {ing}
+                      </span>
+                    ))}
+                    {sharedIngs.length > 4 && (
+                      <span className="px-2 py-0.5 bg-secondary text-muted-foreground text-[10px] rounded-full">
+                        +{sharedIngs.length - 4} more
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

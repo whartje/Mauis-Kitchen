@@ -61,9 +61,9 @@ export default async function MealPlanPage({ searchParams }: Props) {
     });
   }
 
-  const [recipes, sub] = await Promise.all([
+  const [recipes, sub, pantryItems] = await Promise.all([
     prisma.recipe.findMany({
-    where: { userId },
+      where: { userId },
       select: {
         id: true,
         title: true,
@@ -75,6 +75,10 @@ export default async function MealPlanPage({ searchParams }: Props) {
       orderBy: { title: "asc" },
     }),
     getSubSummary(userId),
+    prisma.pantryItem.findMany({
+      where: { userId },
+      select: { name: true },
+    }),
   ]);
 
   return (
@@ -84,6 +88,7 @@ export default async function MealPlanPage({ searchParams }: Props) {
       recipes={recipes}
       weekStart={weekStart.toISOString()}
       isPro={sub.isPro}
+      pantryItems={pantryItems}
     />
   );
 }
