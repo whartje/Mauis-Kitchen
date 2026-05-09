@@ -1,11 +1,18 @@
 import { ImageResponse } from "next/og";
+import fs from "fs";
+import path from "path";
 
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
 
 // iPhone home screen icon — auto-served at /apple-icon.png by Next.js
-// iOS uses this when a user taps "Add to Home Screen" in Safari
 export default function AppleIcon() {
+  // Read the cat PNG from the public folder at build/request time
+  const catPng = fs.readFileSync(
+    path.join(process.cwd(), "public/maui-cat.png.png")
+  );
+  const catSrc = `data:image/png;base64,${catPng.toString("base64")}`;
+
   return new ImageResponse(
     (
       <div
@@ -14,37 +21,18 @@ export default function AppleIcon() {
           height: "100%",
           background: "linear-gradient(145deg, #1c1c1f 0%, #27272a 100%)",
           display: "flex",
-          flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          gap: 6,
         }}
       >
-        {/* Large "M" in brand orange */}
-        <span
-          style={{
-            fontSize: 100,
-            fontWeight: 900,
-            color: "#f97316",
-            fontFamily: "Georgia, serif",
-            lineHeight: 1,
-            letterSpacing: -3,
-          }}
-        >
-          M
-        </span>
-        {/* Subtle "kitchen" wordmark beneath */}
-        <span
-          style={{
-            fontSize: 17,
-            color: "#71717a",
-            fontFamily: "system-ui, -apple-system, sans-serif",
-            letterSpacing: 4,
-            textTransform: "uppercase",
-          }}
-        >
-          kitchen
-        </span>
+        {/* Cat silhouette — same brightness(0) invert(1) treatment as the app */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={catSrc}
+          width={130}
+          height={130}
+          style={{ objectFit: "contain", filter: "brightness(0) invert(1)" }}
+        />
       </div>
     ),
     { width: 180, height: 180 }

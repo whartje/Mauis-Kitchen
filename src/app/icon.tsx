@@ -1,10 +1,17 @@
 import { ImageResponse } from "next/og";
+import fs from "fs";
+import path from "path";
 
 export const size = { width: 32, height: 32 };
 export const contentType = "image/png";
 
 // Browser favicon — auto-served at /icon.png by Next.js
 export default function Icon() {
+  const catPng = fs.readFileSync(
+    path.join(process.cwd(), "public/maui-cat.png.png")
+  );
+  const catSrc = `data:image/png;base64,${catPng.toString("base64")}`;
+
   return new ImageResponse(
     (
       <div
@@ -18,17 +25,13 @@ export default function Icon() {
           justifyContent: "center",
         }}
       >
-        <span
-          style={{
-            fontSize: 23,
-            fontWeight: 900,
-            color: "#f97316",
-            fontFamily: "Georgia, serif",
-            lineHeight: 1,
-          }}
-        >
-          M
-        </span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={catSrc}
+          width={22}
+          height={22}
+          style={{ objectFit: "contain", filter: "brightness(0) invert(1)" }}
+        />
       </div>
     ),
     { width: 32, height: 32 }
