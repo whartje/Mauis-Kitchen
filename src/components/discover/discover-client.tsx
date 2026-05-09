@@ -40,7 +40,7 @@ const FAVORITE_SITES = [
   { key: "simpleveganista",  label: "Simple Veganista" },
   { key: "sharonpalmer",     label: "Sharon Palmer" },
   { key: "happypear",        label: "Happy Pear" },
-  { key: "bigoven",          label: "BigOven" },
+  { key: "spoonacular",      label: "Spoonacular" },
 ];
 
 const MEAL_TYPES = [
