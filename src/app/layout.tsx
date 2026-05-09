@@ -25,6 +25,10 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "Maui's Kitchen",
   description: "Meal planning and recipe management — built around your ingredients.",
+  icons: {
+    icon: "/icon.png",
+    apple: "/apple-icon.png",
+  },
   // Tells Safari this app can run as a standalone PWA
   appleWebApp: {
     capable: true,
