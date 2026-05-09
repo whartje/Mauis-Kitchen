@@ -80,9 +80,6 @@ export async function POST(req: Request) {
     event = stripe.webhooks.constructEvent(body, sig, secret);
   } catch (err) {
     console.error("Stripe webhook signature failed:", err);
-    console.error("Secret length:", secret?.length, "| Secret prefix:", secret?.slice(0, 12));
-    console.error("Sig header:", sig?.slice(0, 40));
-    console.error("Body length:", body?.length);
     return NextResponse.json({ error: "Signature verification failed" }, { status: 400 });
   }
 
