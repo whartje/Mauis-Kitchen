@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "@/components/ui/toaster";
@@ -14,11 +14,22 @@ const playfair = Playfair_Display({
   subsets: ["latin"],
 });
 
+// Controls the <meta name="viewport"> and <meta name="theme-color"> tags
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",   // fills behind iPhone notch / Dynamic Island
+  themeColor: "#f97316",  // brand orange — tints the iOS status bar
+};
+
 export const metadata: Metadata = {
   title: "Maui's Kitchen",
   description: "Meal planning and recipe management — built around your ingredients.",
-  icons: {
-    icon: "/favicon.ico",
+  // Tells Safari this app can run as a standalone PWA
+  appleWebApp: {
+    capable: true,
+    title: "Maui's Kitchen",
+    statusBarStyle: "black-translucent", // status bar blends into the app
   },
 };
 
