@@ -18,8 +18,10 @@ export default async function DashboardLayout({
         {/* Desktop sidebar */}
         <Sidebar />
 
-        {/* Main content — pt-12 on mobile to clear top bar, pb-20 to clear bottom nav */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden pt-12 md:pt-0 pb-20 md:pb-0">
+        {/* Main content — mobile-content-padding handles top/bottom clearance
+            for the fixed bars + iOS safe areas (status bar & home indicator).
+            That class is scoped to <768 px so desktop layout is unaffected. */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden mobile-content-padding md:pt-0 md:pb-0">
           <div className="container mx-auto px-4 py-6 max-w-6xl">
             {children}
           </div>

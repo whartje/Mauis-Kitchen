@@ -21,24 +21,29 @@ export function MobileNav() {
   return (
     <>
       {/* Mobile top bar */}
-      <header className="md:hidden fixed top-0 left-0 right-0 bg-card border-b border-border z-50 flex items-center justify-between px-4 h-12">
-        <div className="flex items-center gap-2">
-          <CatIcon className="w-7 h-7 text-brand-orange" />
-          <span className="font-display text-sm text-foreground">Maui&apos;s Kitchen</span>
+      <header className="md:hidden fixed top-0 left-0 right-0 bg-card border-b border-border z-50">
+        {/* Fills the iOS status bar (time/battery/signal) — height = safe-area-inset-top */}
+        <div className="h-safe-top" />
+        {/* Actual header content row */}
+        <div className="h-12 flex items-center justify-between px-4">
+          <div className="flex items-center gap-2">
+            <CatIcon className="w-7 h-7 text-brand-orange" />
+            <span className="font-display text-sm text-foreground">Maui&apos;s Kitchen</span>
+          </div>
+          <Link
+            href="/settings"
+            className={cn(
+              "flex items-center gap-1.5 text-xs py-1.5 px-2 rounded-md transition-colors",
+              pathname.startsWith("/settings")
+                ? "text-brand-orange bg-brand-orange/10"
+                : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+            )}
+            aria-label="Settings"
+          >
+            <Settings className="w-4 h-4" />
+            <span>Settings</span>
+          </Link>
         </div>
-        <Link
-          href="/settings"
-          className={cn(
-            "flex items-center gap-1.5 text-xs py-1.5 px-2 rounded-md transition-colors",
-            pathname.startsWith("/settings")
-              ? "text-brand-orange bg-brand-orange/10"
-              : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-          )}
-          aria-label="Settings"
-        >
-          <Settings className="w-4 h-4" />
-          <span>Settings</span>
-        </Link>
       </header>
 
       {/* Mobile bottom nav */}
@@ -61,6 +66,8 @@ export function MobileNav() {
             );
           })}
         </div>
+        {/* Fills the iOS home indicator / gesture bar — height = safe-area-inset-bottom */}
+        <div className="h-safe-bottom" />
       </nav>
     </>
   );

@@ -109,4 +109,25 @@
   .text-balance {
     text-wrap: balance;
   }
+
+  /* ── PWA / iOS safe-area helpers ───────────────────────────────────────────
+   * env(safe-area-inset-*) is set by iOS when viewport-fit=cover is active.
+   * It equals the exact pixel height of the status bar (top) and the home
+   * indicator / gesture bar (bottom).  On desktop / Android it resolves to 0.
+   * ─────────────────────────────────────────────────────────────────────── */
+
+  /* Transparent spacers the exact height of each safe area */
+  .h-safe-top    { height: env(safe-area-inset-top);    min-height: env(safe-area-inset-top); }
+  .h-safe-bottom { height: env(safe-area-inset-bottom); min-height: env(safe-area-inset-bottom); }
+}
+
+/* Mobile main-content padding — clears the fixed top bar (48px) + iOS status
+ * bar, and the fixed bottom nav (80px) + iOS home indicator.
+ * Scoped to < 768 px so it doesn't interfere with the desktop sidebar layout.
+ * env() resolves to 0 on non-iOS, so this is harmless on Android/desktop. */
+@media (max-width: 767px) {
+  .mobile-content-padding {
+    padding-top:    calc(3rem + env(safe-area-inset-top));
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
 }
