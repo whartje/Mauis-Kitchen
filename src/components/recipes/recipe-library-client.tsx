@@ -130,7 +130,7 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overla
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentFilters]);
-  const [importTab, setImportTab] = useState<"url" | "photo">("url");
+  const [importTab, setImportTab] = useState<"url" | "photo" | "text">("url");
   const [search, setSearch] = useState(currentFilters.q ?? "");
   const [ingredientSearch, setIngredientSearch] = useState(currentFilters.ingredient ?? "");
   const [filtersOpen, setFiltersOpen] = useState(

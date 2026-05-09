@@ -45,6 +45,7 @@ interface Props {
   plan: Plan;
   recipes: RecipeForPicker[];
   weekStart: string; // ISO string — Monday of the displayed week
+  isPro: boolean;
 }
 
 const MEAL_TYPES: { value: MealTypeEnum; label: string }[] = [
@@ -82,7 +83,7 @@ const OVERLAP_STYLE: Record<OverlapLevel, string> = {
   High: "text-green-400 bg-green-400/10 border-green-400/20",
 };
 
-export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props) {
+export function MealPlanClient({ plan: initialPlan, recipes, weekStart, isPro }: Props) {
   const router = useRouter();
   const [plan, setPlan] = useState<Plan>(initialPlan);
   const [pickerSlot, setPickerSlot] = useState<{
@@ -395,8 +396,12 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart }: Props)
         </div>
       )}
 
-      {/* Avg nutrition per serving */}
-      <AvgServingNutrition items={plan.items} />
+      {/* Avg nutrition per serving — Pro only */}
+      {isPro ? (
+        <AvgServingNutrition items={plan.items} />
+      ) : (
+        <NutritionUpgradePrompt />
+      )}
 
       {/* Suggested recipes with high ingredient overlap */}
       <SuggestedRecipes recipes={recipes} planItems={plan.items} />
@@ -515,6 +520,28 @@ const NUTRITION_FIELDS: Array<{
 
 function fmt(val: number, decimals: number): string {
   return decimals === 0 ? String(Math.round(val)) : val.toFixed(decimals).replace(/\.0$/, "");
+}
+
+// ─── Nutrition Upgrade Prompt (free tier) ────────────────────────────────────
+
+function NutritionUpgradePrompt() {
+  return (
+    <div className="rounded-xl border border-border bg-card px-5 py-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-foreground">Avg. Nutrition Per Serving</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          See average calories, protein, carbs &amp; more across this week&apos;s meals.
+          Available on Pro.
+        </p>
+      </div>
+      <a
+        href="/pricing"
+        className="shrink-0 px-4 py-2 rounded-lg bg-brand-orange text-white text-sm font-semibold hover:bg-brand-orange/90 transition-colors"
+      >
+        Upgrade to Pro
+      </a>
+    </div>
+  );
 }
 
 // ─── Avg. Nutrition per Serving ───────────────────────────────────────────────

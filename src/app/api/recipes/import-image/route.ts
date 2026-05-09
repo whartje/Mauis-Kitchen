@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { normalizeRecipeFromImage } from "@/lib/claude";
 import { createClient } from "@supabase/supabase-js";
+import { checkRecipeLimit, checkPhotoLimit, incrementPhotoImport } from "@/lib/subscription";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -42,6 +43,40 @@ export async function POST(request: Request) {
 
   const collection = formData.get("collection") as string | null;
 
+  // ── Tier gates ────────────────────────────────────────────────────────────
+  const [recipeLimit, photoLimit] = await Promise.all([
+    checkRecipeLimit(userId),
+    checkPhotoLimit(userId),
+  ]);
+
+  if (!recipeLimit.allowed) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "RECIPE_LIMIT_REACHED",
+          message: `You've reached the ${recipeLimit.limit}-recipe limit on the free plan. Upgrade to Pro for unlimited recipes.`,
+          count: recipeLimit.count,
+          limit: recipeLimit.limit,
+        },
+      },
+      { status: 403 },
+    );
+  }
+
+  if (!photoLimit.allowed) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "PHOTO_LIMIT_REACHED",
+          message: `You've used all ${photoLimit.limit} photo imports for this month. Upgrade to Pro for 30/month.`,
+          used: photoLimit.used,
+          limit: photoLimit.limit,
+        },
+      },
+      { status: 403 },
+    );
+  }
+
   // Read all files (support multi-page recipes)
   const allFiles = formData.getAll("file") as File[];
   const files = allFiles.length > 0 ? allFiles : [file];
@@ -78,6 +113,9 @@ export async function POST(request: Request) {
       { status: 422 }
     );
   }
+
+  // Increment photo import counter now that Claude Vision succeeded
+  await incrementPhotoImport(userId);
 
   // Use collage thumbnail if provided, otherwise fall back to first file
   const thumbnailFile = formData.get("thumbnail") as File | null;

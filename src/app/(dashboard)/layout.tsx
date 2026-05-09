@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { UpgradeProvider } from "@/components/billing/upgrade-context";
 
 export default async function DashboardLayout({
   children,
@@ -12,19 +13,21 @@ export default async function DashboardLayout({
   if (!userId) redirect("/sign-in");
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      {/* Desktop sidebar */}
-      <Sidebar />
+    <UpgradeProvider>
+      <div className="flex h-screen bg-background overflow-hidden">
+        {/* Desktop sidebar */}
+        <Sidebar />
 
-      {/* Main content — pt-12 on mobile to clear top bar, pb-20 to clear bottom nav */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden pt-12 md:pt-0 pb-20 md:pb-0">
-        <div className="container mx-auto px-4 py-6 max-w-6xl">
-          {children}
-        </div>
-      </main>
+        {/* Main content — pt-12 on mobile to clear top bar, pb-20 to clear bottom nav */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden pt-12 md:pt-0 pb-20 md:pb-0">
+          <div className="container mx-auto px-4 py-6 max-w-6xl">
+            {children}
+          </div>
+        </main>
 
-      {/* Mobile bottom nav */}
-      <MobileNav />
-    </div>
+        {/* Mobile bottom nav */}
+        <MobileNav />
+      </div>
+    </UpgradeProvider>
   );
 }

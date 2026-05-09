@@ -35,7 +35,11 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(git push *)",
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\willi\\\\Maui's Kitchen\" -Recurse -Directory | Select-Object -First 30 | ForEach-Object { $_.FullName })",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\willi\\\\Maui's Kitchen\\\\src\\\\app\\\\api\" -Recurse -Filter \"*.ts\" -Filter \"*.tsx\")",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(node -e \"const Stripe = require\\('stripe'\\); const s = new Stripe\\('sk_test_x'\\); console.log\\(s.getApiField\\('version'\\)\\)\")"
     ]
   }
 }

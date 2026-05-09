@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Link as LinkIcon, Camera, X, Loader2, AlertCircle,
-  Upload, CheckCircle2, Clipboard, Plus, FileImage,
+  Upload, CheckCircle2, Clipboard, Plus, FileImage, FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
@@ -15,7 +15,7 @@ interface Props {
   initialTab?: Tab;
 }
 
-type Tab = "url" | "photo";
+type Tab = "url" | "photo" | "text";
 
 interface PageFile {
   file: File;
@@ -108,6 +108,12 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
   const [photoError, setPhotoError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Text / paste tab ──────────────────────────────────────────────────────
+  const [textInput, setTextInput] = useState("");
+  const [textLoading, setTextLoading] = useState(false);
+  const [textLoadingMsg, setTextLoadingMsg] = useState("");
+  const [textError, setTextError] = useState<string | null>(null);
+
   // ── Cookbook / collection ─────────────────────────────────────────────────
   const [collection, setCollection] = useState("");
   const [cookbooks, setCookbooks] = useState<string[]>([]);
@@ -171,6 +177,8 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
     setPhotoError(null);
     setUrl("");
     setUrlError(null);
+    setTextInput("");
+    setTextError(null);
     onClose();
   }
 
@@ -299,6 +307,46 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
     }
   }
 
+  // ── Text / paste import ───────────────────────────────────────────────────
+  async function handleTextSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!collection.trim()) {
+      setTextError("Please choose or enter a cookbook/collection.");
+      return;
+    }
+    if (textInput.trim().length < 10) {
+      setTextError("Please paste or type the recipe text first.");
+      return;
+    }
+    setTextError(null);
+    setTextLoading(true);
+    setTextLoadingMsg("Reading your recipe…");
+    const t1 = setTimeout(() => setTextLoadingMsg("Identifying ingredients…"), 2000);
+    const t2 = setTimeout(() => setTextLoadingMsg("Building the recipe…"), 4500);
+    try {
+      const res = await fetch("/api/recipes/import-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: textInput.trim(), collection: collection.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setTextError(data.error?.message ?? "Could not parse a recipe from this text. Make sure it includes a title, ingredients, and instructions.");
+        return;
+      }
+      router.push(`/recipes/${data.id}`);
+      router.refresh();
+      handleClose();
+    } catch {
+      setTextError("Something went wrong. Please try again.");
+    } finally {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      setTextLoading(false);
+      setTextLoadingMsg("");
+    }
+  }
+
   async function handleSelectRecipe(imageUrl: string, selectedTitle: string) {
     setPhotoStep({ kind: "selecting", imageUrl });
     setPhotoError(null);
@@ -344,6 +392,7 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
   // ── Render ────────────────────────────────────────────────────────────────
   const isBusy =
     urlLoading ||
+    textLoading ||
     photoStep.kind === "loading" ||
     photoStep.kind === "selecting" ||
     photoStep.kind === "done";
@@ -378,7 +427,7 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
       <div className="relative bg-card border border-border rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
-          <h2 className="text-lg font-semibold text-foreground">Import Recipe</h2>
+          <h2 className="text-lg font-semibold text-foreground">Add Recipe</h2>
           <button onClick={handleClose} disabled={isBusy} className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40">
             <X className="w-5 h-5" />
           </button>
@@ -387,18 +436,19 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
         {/* Tabs */}
         <div className="flex border-b border-border shrink-0">
           {([
-            { id: "url" as Tab, icon: LinkIcon, label: "From URL" },
-            { id: "photo" as Tab, icon: Camera, label: "Scan Photo" },
+            { id: "url"   as Tab, icon: LinkIcon,  label: "From URL"    },
+            { id: "photo" as Tab, icon: Camera,    label: "Scan Photo"  },
+            { id: "text"  as Tab, icon: FileText,  label: "Type / Paste"},
           ]).map(({ id, icon: Icon, label }) => (
             <button
               key={id}
               onClick={() => { if (!isBusy) setTab(id); }}
               className={cn(
-                "flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors border-b-2 -mb-px",
+                "flex-1 flex items-center justify-center gap-1.5 py-3 text-xs sm:text-sm font-medium transition-colors border-b-2 -mb-px",
                 tab === id ? "border-brand-orange text-brand-orange" : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
               {label}
             </button>
           ))}
@@ -436,12 +486,15 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Works with most recipe sites — Minimalist Baker, Oh She Glows, Lazy Cat Kitchen, and more.
-                  You can also{" "}
+                  Works with AllRecipes, Food.com, Minimalist Baker, and most recipe sites.
+                  Can&apos;t get the URL to work? Try{" "}
                   <button type="button" onClick={() => setTab("photo")} className="underline hover:text-foreground transition-colors">
-                    paste a screenshot
+                    Scan Photo
                   </button>{" "}
-                  to import from anywhere.
+                  or{" "}
+                  <button type="button" onClick={() => setTab("text")} className="underline hover:text-foreground transition-colors">
+                    Type / Paste
+                  </button>.
                 </p>
                 <button
                   type="submit"
@@ -615,6 +668,49 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
                 onChange={handleFileChange}
               />
             </div>
+          )}
+
+          {/* ── Text / Paste tab ── */}
+          {tab === "text" && (
+            textLoading ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-4">
+                <Loader2 className="w-8 h-8 text-brand-orange animate-spin" />
+                <p className="text-sm text-muted-foreground">{textLoadingMsg}</p>
+              </div>
+            ) : (
+              <form onSubmit={handleTextSubmit} className="space-y-4">
+                <div>
+                  <label className="text-sm text-muted-foreground block mb-2">
+                    Paste or type your recipe
+                  </label>
+                  <textarea
+                    value={textInput}
+                    onChange={(e) => setTextInput(e.target.value)}
+                    placeholder={`Paste a recipe from an email, cookbook, or anywhere else…\n\nExample:\nChocolate Chip Cookies\nMakes 24 cookies\n\n1 cup butter\n2 eggs\n2 cups flour\n…`}
+                    rows={10}
+                    autoFocus
+                    className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange transition resize-none"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    Include the title, ingredients, and instructions — Claude will parse and structure everything automatically.
+                  </p>
+                </div>
+                {cookbookField}
+                {textError && (
+                  <div className="flex items-start gap-2 text-sm text-red-400">
+                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                    <span>{textError}</span>
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  disabled={textInput.trim().length < 10}
+                  className="w-full bg-brand-orange hover:bg-brand-orange-dark text-black font-semibold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Parse &amp; Save Recipe
+                </button>
+              </form>
+            )
           )}
         </div>
 

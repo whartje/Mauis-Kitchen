@@ -1,13 +1,24 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { useClerk, useUser } from "@clerk/nextjs";
 import {
   Sun, Moon, LogOut, Settings2, Users,
-  Check, ChevronRight,
+  Check, ChevronRight, CreditCard, Zap, Loader2,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
+
+interface PlanStatus {
+  plan: "FREE" | "PRO";
+  isPro: boolean;
+  recipeCount: number;
+  recipeLimit: number | null;
+  photoImportsThisMonth: number;
+  photoLimit: number;
+  currentPeriodEnd: string | null;
+}
 
 // ── Local-storage keys ────────────────────────────────────────────────────────
 const LS_DIETARY  = "mauisKitchen_dietaryDefault";
@@ -29,11 +40,24 @@ export function SettingsClient() {
   const { theme, setTheme, mounted } = useTheme();
   const { user } = useUser();
   const { signOut, openUserProfile } = useClerk();
+  const searchParams = useSearchParams();
+  const activeTab = searchParams.get("tab") ?? "preferences";
 
   // Preferences — hydrated from localStorage after mount
   const [dietaryDefault, setDietaryDefault] = useState("");
   const [defaultServings, setDefaultServings] = useState(2);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
+
+  // Billing status
+  const [planStatus, setPlanStatus] = useState<PlanStatus | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/billing/status")
+      .then((r) => r.json())
+      .then((d) => setPlanStatus(d))
+      .catch(() => {});
+  }, []);
 
   // Load saved preferences from localStorage
   useEffect(() => {
@@ -45,6 +69,16 @@ export function SettingsClient() {
     } catch {}
     setPrefsLoaded(true);
   }, []);
+
+  async function openPortal() {
+    setPortalLoading(true);
+    try {
+      const res = await fetch("/api/billing/portal", { method: "POST" });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } catch {}
+    setPortalLoading(false);
+  }
 
   function saveDietary(value: string) {
     setDietaryDefault(value);
@@ -154,6 +188,75 @@ export function SettingsClient() {
               </div>
             )}
           </div>
+        </Card>
+      </section>
+
+      {/* ── Billing ─────────────────────────────────────────────────────────── */}
+      <section className="space-y-2">
+        <SectionLabel icon={<CreditCard className="w-3.5 h-3.5" />} title="Billing" />
+        <Card>
+          <Row>
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className={cn(
+                "w-9 h-9 rounded-full flex items-center justify-center shrink-0",
+                planStatus?.isPro ? "bg-brand-orange/15" : "bg-secondary",
+              )}>
+                <Zap className={cn(
+                  "w-4 h-4",
+                  planStatus?.isPro ? "text-brand-orange fill-brand-orange" : "text-muted-foreground",
+                )} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">
+                  {planStatus?.isPro ? "Pro plan" : "Free plan"}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {planStatus?.isPro
+                    ? planStatus.currentPeriodEnd
+                      ? `Renews ${new Date(planStatus.currentPeriodEnd).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+                      : "Active"
+                    : `${planStatus?.recipeCount ?? "—"} / ${planStatus?.recipeLimit ?? 30} recipes · ${planStatus?.photoImportsThisMonth ?? 0} / ${planStatus?.photoLimit ?? 5} photo scans this month`
+                  }
+                </p>
+              </div>
+            </div>
+            {planStatus?.isPro ? (
+              <button
+                onClick={openPortal}
+                disabled={portalLoading}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg px-3 py-1.5 hover:bg-secondary transition-colors shrink-0 disabled:opacity-60"
+              >
+                {portalLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                Manage
+                {!portalLoading && <ChevronRight className="w-3 h-3" />}
+              </button>
+            ) : (
+              <a
+                href="/pricing"
+                className="flex items-center gap-1 text-xs font-semibold text-brand-orange border border-brand-orange/30 bg-brand-orange/8 rounded-lg px-3 py-1.5 hover:bg-brand-orange/15 transition-colors shrink-0"
+              >
+                <Zap className="w-3 h-3 fill-brand-orange" />
+                Upgrade
+              </a>
+            )}
+          </Row>
+
+          {!planStatus?.isPro && (
+            <>
+              <Divider />
+              <div className="px-5 py-3">
+                <p className="text-xs text-muted-foreground mb-2">
+                  Have a founding member code? Use it when upgrading at checkout.
+                </p>
+                <a
+                  href="/pricing"
+                  className="text-xs font-medium text-brand-orange hover:text-brand-orange/80 transition-colors"
+                >
+                  View Pro features →
+                </a>
+              </div>
+            </>
+          )}
         </Card>
       </section>
 

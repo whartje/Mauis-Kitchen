@@ -12,43 +12,17 @@ interface Props {
   }>;
 }
 
-async function fetchPopular(): Promise<SpoonacularRecipe[]> {
-  const apiKey = process.env.SPOONACULAR_API_KEY;
-  if (!apiKey) return [];
-
-  try {
-    const params = new URLSearchParams({
-      apiKey,
-      number: "24",
-      addRecipeInformation: "true",
-      minRating: "0.6",
-      diet: "vegan",
-      sort: "popularity",
-      sortDirection: "desc",
-    });
-    const res = await fetch(
-      `https://api.spoonacular.com/recipes/complexSearch?${params}`,
-      { next: { revalidate: 3600 } }
-    );
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.results ?? [];
-  } catch {
-    return [];
-  }
-}
-
 export default async function DiscoverPage({ searchParams }: Props) {
   const { userId } = await auth();
   if (!userId) return null;
 
   const params = await searchParams;
-  const hasQuery = !!(params.q || params.diet || params.type || params.maxTime);
+  const hasQuery = !!(params.q || params.type || params.maxTime);
 
   let initialResults: SpoonacularRecipe[] = [];
 
   if (hasQuery) {
-    // Server-side fetch so first load has results
+    // Server-side fetch so first load has results when arriving via URL with params
     const apiKey = process.env.SPOONACULAR_API_KEY;
     if (apiKey) {
       const sp = new URLSearchParams({
@@ -59,7 +33,7 @@ export default async function DiscoverPage({ searchParams }: Props) {
         sort: params.sort ?? "popularity",
         sortDirection: "desc",
         ...(params.q && { query: params.q }),
-        diet: params.diet ?? "vegan",
+        ...(params.diet && { diet: params.diet }),
         ...(params.type && { type: params.type }),
         ...(params.maxTime && { maxReadyTime: params.maxTime }),
       });
@@ -75,9 +49,8 @@ export default async function DiscoverPage({ searchParams }: Props) {
         // client will retry
       }
     }
-  } else {
-    initialResults = await fetchPopular();
   }
+  // No else — don't pre-load popular recipes; show search prompt instead
 
   const apiConfigured = !!process.env.SPOONACULAR_API_KEY;
 
@@ -120,7 +93,7 @@ export default async function DiscoverPage({ searchParams }: Props) {
       initialResults={initialResults}
       initialQuery={params.q ?? ""}
       initialFilters={{
-        diet: params.diet ?? "vegan",
+        diet: params.diet,
         type: params.type,
         maxTime: params.maxTime,
         sort: params.sort,

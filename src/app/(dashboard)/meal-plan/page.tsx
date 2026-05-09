@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { MealPlanClient } from "@/components/meal-plan/meal-plan-client";
+import { getSubSummary } from "@/lib/subscription";
 
 interface Props {
   searchParams: Promise<{ week?: string }>;
@@ -60,18 +61,21 @@ export default async function MealPlanPage({ searchParams }: Props) {
     });
   }
 
-  const recipes = await prisma.recipe.findMany({
+  const [recipes, sub] = await Promise.all([
+    prisma.recipe.findMany({
     where: { userId },
-    select: {
-      id: true,
-      title: true,
-      imageUrl: true,
-      totalTime: true,
-      tags: true,
-      ingredients: { select: { name: true } },
-    },
-    orderBy: { title: "asc" },
-  });
+      select: {
+        id: true,
+        title: true,
+        imageUrl: true,
+        totalTime: true,
+        tags: true,
+        ingredients: { select: { name: true } },
+      },
+      orderBy: { title: "asc" },
+    }),
+    getSubSummary(userId),
+  ]);
 
   return (
     <MealPlanClient
@@ -79,6 +83,7 @@ export default async function MealPlanPage({ searchParams }: Props) {
       plan={plan as Parameters<typeof MealPlanClient>[0]["plan"]}
       recipes={recipes}
       weekStart={weekStart.toISOString()}
+      isPro={sub.isPro}
     />
   );
 }

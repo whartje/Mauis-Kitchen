@@ -201,6 +201,36 @@ model GroceryListItem {
 }
 
 // ─────────────────────────────────────────────
+// BILLING / SUBSCRIPTIONS
+// ─────────────────────────────────────────────
+
+model UserSubscription {
+  userId                String    @id
+  stripeCustomerId      String?   @unique
+  stripeSubscriptionId  String?   @unique
+  stripePriceId         String?
+  plan                  Plan      @default(FREE)
+  status                SubStatus @default(ACTIVE)
+  currentPeriodEnd      DateTime?
+  photoImportsThisMonth Int       @default(0)
+  photoImportResetAt    DateTime  @default(now())
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+enum Plan {
+  FREE
+  PRO
+}
+
+enum SubStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+  TRIALING
+}
+
+// ─────────────────────────────────────────────
 // ALEXA INTEGRATION
 // ─────────────────────────────────────────────
 

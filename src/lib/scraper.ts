@@ -37,15 +37,30 @@ export interface ScrapeResult {
 // Main entry point
 // ─────────────────────────────────────────────
 
+// Sites that don't host recipe content themselves
+const SOCIAL_HOSTS = [
+  "pinterest.com", "pinterest.co.uk", "pinterest.ca", "pinterest.fr",
+  "instagram.com", "facebook.com", "tiktok.com", "twitter.com", "x.com",
+  "reddit.com", "threads.net",
+];
+
 export async function scrapeRecipeFromUrl(url: string): Promise<ScrapeResult> {
-  const hostname = new URL(url).hostname.replace(/^www\./, "");
+  const parsedUrl = new URL(url);
+  const hostname = parsedUrl.hostname.replace(/^www\./, "");
+
+  // Pinterest / social media — these pages link TO recipes but contain none themselves
+  if (SOCIAL_HOSTS.some((h) => hostname === h || hostname.endsWith("." + h))) {
+    throw new Error(
+      "Pinterest and social media pages don't contain recipe data — they only link to it. Open the original recipe link and paste that URL instead, or use the photo scan to import from a screenshot."
+    );
+  }
 
   const html = await fetchHtml(url);
 
   // Detect Cloudflare / bot challenge pages
   if (isChallengePage(html)) {
     throw new Error(
-      "This site uses bot protection that blocks automated access. Try copying the recipe text and pasting it manually."
+      "This site uses bot protection that blocks automated access. Try copying the recipe text and using the Type / Paste option instead."
     );
   }
 
@@ -54,7 +69,13 @@ export async function scrapeRecipeFromUrl(url: string): Promise<ScrapeResult> {
   const jsonLd = (extractJsonLd(html) ?? extractMicrodata(html)) as any;
 
   if (!jsonLd || !jsonLd.name) {
-    throw new Error("No structured recipe data found on this page.");
+    // Give a more specific hint for JS-heavy sites
+    const jsHeavy = hostname.includes("foodnetwork") || hostname.includes("cooking.nytimes");
+    throw new Error(
+      jsHeavy
+        ? "This site renders recipes with JavaScript, which can't be fetched directly. Try the photo scan option — take a screenshot of the recipe and import that instead."
+        : "No recipe data found on this page. Make sure the URL links directly to a single recipe (not a search results page or homepage), or use the photo scan / paste options."
+    );
   }
 
   const prepTime = parseIsoDuration(jsonLd.prepTime);
@@ -63,11 +84,38 @@ export async function scrapeRecipeFromUrl(url: string): Promise<ScrapeResult> {
     parseIsoDuration(jsonLd.totalTime) ??
     (prepTime != null && cookTime != null ? prepTime + cookTime : null);
 
-  const ingredients = (jsonLd.recipeIngredient ?? []).map(
-    (raw: string, idx: number) => parseIngredient(raw, idx)
-  );
+  // recipeIngredient can be a string[], object[], or even a plain string on some sites
+  const rawIngredients: unknown[] = Array.isArray(jsonLd.recipeIngredient)
+    ? jsonLd.recipeIngredient
+    : typeof jsonLd.recipeIngredient === "string"
+      ? jsonLd.recipeIngredient.split(/\n+/).filter(Boolean)
+      : [];
 
-  const instructions = parseInstructions(jsonLd.recipeInstructions ?? []);
+  const ingredients = rawIngredients.map((raw: unknown, idx: number) => {
+    // Some sites return ingredient objects instead of strings
+    const str =
+      typeof raw === "string"
+        ? raw
+        : typeof raw === "object" && raw !== null
+          ? String(
+              (raw as Record<string, unknown>).name ??
+              (raw as Record<string, unknown>).text ??
+              (raw as Record<string, unknown>).description ??
+              raw
+            )
+          : String(raw);
+    return parseIngredient(str, idx);
+  });
+
+  // recipeInstructions can be a string, string[], or HowToStep[]/HowToSection[]
+  const rawInstructions =
+    typeof jsonLd.recipeInstructions === "string"
+      ? jsonLd.recipeInstructions.split(/\n+/).filter(Boolean)
+      : Array.isArray(jsonLd.recipeInstructions)
+        ? jsonLd.recipeInstructions
+        : [];
+
+  const instructions = parseInstructions(rawInstructions);
   const tags = buildTags(jsonLd);
   const difficulty = estimateDifficulty(totalTime, instructions.length);
   const servings = parseServings(jsonLd.recipeYield);
@@ -96,20 +144,45 @@ export async function scrapeRecipeFromUrl(url: string): Promise<ScrapeResult> {
 // Fetch HTML
 // ─────────────────────────────────────────────
 
+const DESKTOP_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+const MOBILE_UA =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
+
 async function fetchHtml(url: string): Promise<string> {
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-      "Accept-Language": "en-US,en;q=0.9",
-      "Accept-Encoding": "gzip, deflate, br",
-      "Cache-Control": "no-cache",
-    },
+  const baseHeaders = {
+    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Cache-Control": "no-cache",
+    Referer: "https://www.google.com/",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "cross-site",
+  };
+
+  let response = await fetch(url, {
+    headers: { ...baseHeaders, "User-Agent": DESKTOP_UA },
   });
 
+  // Some sites block desktop scrapers but allow mobile — try mobile UA as fallback
+  if (!response.ok && (response.status === 403 || response.status === 429 || response.status === 406)) {
+    response = await fetch(url, {
+      headers: { ...baseHeaders, "User-Agent": MOBILE_UA },
+    });
+  }
+
   if (!response.ok) {
-    throw new Error(`Failed to fetch page: HTTP ${response.status}`);
+    if (response.status === 404) {
+      throw new Error("404 — that page wasn't found. Double-check the URL is correct.");
+    }
+    if (response.status === 403 || response.status === 429) {
+      throw new Error(
+        "This site blocked access. Try copying the recipe text and using the Type / Paste option instead."
+      );
+    }
+    throw new Error(`Failed to fetch page (HTTP ${response.status}). Try the photo scan or paste options instead.`);
   }
 
   return response.text();
@@ -210,15 +283,21 @@ function extractJsonLd(html: string): Record<string, unknown> | null {
   return null;
 }
 
+function isRecipeType(type: unknown): boolean {
+  if (typeof type === "string") {
+    // Accept "Recipe", "http://schema.org/Recipe", "https://schema.org/Recipe"
+    return type === "Recipe" || type.endsWith("/Recipe");
+  }
+  if (Array.isArray(type)) return type.some(isRecipeType);
+  return false;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function findRecipeInLd(data: any): Record<string, unknown> | null {
   if (!data) return null;
 
   // Direct recipe object
-  if (data["@type"] === "Recipe") return data;
-
-  // Array of types: ["Recipe", "Article"]
-  if (Array.isArray(data["@type"]) && data["@type"].includes("Recipe")) return data;
+  if (isRecipeType(data["@type"])) return data;
 
   // @graph wrapper
   if (data["@graph"] && Array.isArray(data["@graph"])) {
@@ -233,6 +312,18 @@ function findRecipeInLd(data: any): Record<string, unknown> | null {
     for (const item of data) {
       const found = findRecipeInLd(item);
       if (found) return found;
+    }
+  }
+
+  // Recurse into any object that has nested LD (e.g. some CMS wrappers)
+  if (typeof data === "object") {
+    for (const key of Object.keys(data)) {
+      if (key.startsWith("@")) continue;
+      const val = data[key];
+      if (val && typeof val === "object") {
+        const found = findRecipeInLd(val);
+        if (found) return found;
+      }
     }
   }
 
@@ -410,25 +501,34 @@ function parseIngredient(raw: string, idx: number): ScrapedIngredient {
 }
 
 function parseInstructions(raw: unknown[]): ScrapedInstruction[] {
-  return raw
-    .map((step, idx) => {
-      let text = "";
-      if (typeof step === "string") {
-        text = step.trim();
-      } else if (typeof step === "object" && step !== null) {
-        const s = step as Record<string, unknown>;
-        // Handle HowToStep with itemListElement
-        if (s.itemListElement && Array.isArray(s.itemListElement)) {
-          text = s.itemListElement.map((i: unknown) => {
-            const item = i as Record<string, unknown>;
-            return String(item.text ?? "");
-          }).join(" ");
+  const flatSteps: string[] = [];
+
+  function extractSteps(items: unknown[]) {
+    for (const item of items) {
+      if (typeof item === "string") {
+        const t = item.trim();
+        if (t) flatSteps.push(t);
+      } else if (typeof item === "object" && item !== null) {
+        const s = item as Record<string, unknown>;
+        const type = s["@type"];
+
+        if (type === "HowToSection") {
+          // Section — recurse into its itemListElement to get the actual steps
+          if (s.itemListElement && Array.isArray(s.itemListElement)) {
+            extractSteps(s.itemListElement);
+          }
+        } else if (s.itemListElement && Array.isArray(s.itemListElement)) {
+          // Generic wrapper with nested items
+          extractSteps(s.itemListElement);
         } else {
-          text = String(s.text ?? s.name ?? "");
+          // HowToStep or plain object
+          const text = String(s.text ?? s.name ?? "").trim();
+          if (text) flatSteps.push(text);
         }
-        text = text.trim();
       }
-      return { stepNumber: idx + 1, text };
-    })
-    .filter(s => s.text.length > 0);
+    }
+  }
+
+  extractSteps(raw);
+  return flatSteps.map((text, idx) => ({ stepNumber: idx + 1, text }));
 }

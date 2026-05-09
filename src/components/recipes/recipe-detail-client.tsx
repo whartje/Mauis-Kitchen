@@ -86,7 +86,7 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [importTab, setImportTab] = useState<"url" | "photo">("url");
+  const [importTab, setImportTab] = useState<"url" | "photo" | "text">("url");
 
   // ── Editable fields ────────────────────────────────────────────────────────
   const [titleValue, setTitleValue] = useState(recipe.title);
@@ -1037,12 +1037,28 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
         {/* Ingredients — left (40%) */}
         <div className="md:col-span-2 space-y-4">
           <div className="bg-card border border-border rounded-xl p-5">
-            {/* Row 1: title + notes/edit buttons */}
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <h2 className="font-semibold text-foreground shrink-0">Ingredients</h2>
-              <div className="flex items-center gap-1.5 shrink-0">
-                {/* Pantry sort toggle — shows coverage % in label */}
-                {!editingIngredients && pantrySet.size > 0 && (
+            {/* Row 1: title + edit button — always just two items, always fits */}
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <h2 className="font-semibold text-foreground">Ingredients</h2>
+              <button
+                onClick={() => { setEditingIngredients((v) => !v); setShowNotes(false); setIngredientSort("default"); }}
+                className={cn(
+                  "flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-colors shrink-0",
+                  editingIngredients
+                    ? "bg-brand-orange/15 border-brand-orange/40 text-brand-orange"
+                    : "border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
+                )}
+              >
+                <Pencil className="w-3 h-3" />
+                {editingIngredients ? "Done" : "Edit"}
+              </button>
+            </div>
+
+            {/* Row 2: secondary action chips — own row so they never crowd the title */}
+            {!editingIngredients && (
+              <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                {/* Pantry sort toggle — only when pantry has items */}
+                {pantrySet.size > 0 && (
                   <button
                     onClick={() => setIngredientSort((s) => s === "pantry" ? "default" : "pantry")}
                     title={ingredientSort === "pantry" ? "Back to recipe order" : "Sort by pantry — stocked items first"}
@@ -1059,37 +1075,22 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
                     {pantryPct !== null ? `${pantryPct}% stocked` : "Pantry"}
                   </button>
                 )}
-                {/* Notes toggle — only when not in edit mode */}
-                {!editingIngredients && (
-                  <button
-                    onClick={() => setShowNotes((v) => !v)}
-                    title={showNotes ? "Hide per-ingredient notes" : "Show per-ingredient notes"}
-                    className={cn(
-                      "flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-colors",
-                      showNotes
-                        ? "bg-brand-orange/15 border-brand-orange/40 text-brand-orange"
-                        : "border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
-                    )}
-                  >
-                    <FileText className="w-3 h-3" />
-                    Notes
-                  </button>
-                )}
-                {/* Edit toggle */}
+                {/* Notes toggle */}
                 <button
-                  onClick={() => { setEditingIngredients((v) => !v); setShowNotes(false); setIngredientSort("default"); }}
+                  onClick={() => setShowNotes((v) => !v)}
+                  title={showNotes ? "Hide per-ingredient notes" : "Show per-ingredient notes"}
                   className={cn(
                     "flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-colors",
-                    editingIngredients
+                    showNotes
                       ? "bg-brand-orange/15 border-brand-orange/40 text-brand-orange"
                       : "border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
                   )}
                 >
-                  <Pencil className="w-3 h-3" />
-                  {editingIngredients ? "Done" : "Edit"}
+                  <FileText className="w-3 h-3" />
+                  Notes
                 </button>
               </div>
-            </div>
+            )}
 
             {/* Row 2: servings scaler — own row so it never crowds the title on mobile */}
             {!editingIngredients && (
@@ -1116,7 +1117,7 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
                 )}
               </div>
             )}
-            {editingIngredients && <div className="mb-4" />}
+            {editingIngredients && <div className="mb-3" />}
 
             {editingIngredients ? (
               <div className="space-y-1.5">

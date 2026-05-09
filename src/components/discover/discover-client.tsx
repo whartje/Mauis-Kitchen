@@ -40,6 +40,7 @@ const FAVORITE_SITES = [
   { key: "simpleveganista",  label: "Simple Veganista" },
   { key: "sharonpalmer",     label: "Sharon Palmer" },
   { key: "happypear",        label: "Happy Pear" },
+  { key: "bigoven",          label: "BigOven" },
 ];
 
 const MEAL_TYPES = [
@@ -160,7 +161,7 @@ export function DiscoverClient({ initialResults, initialQuery, initialFilters }:
   const [query, setQuery] = useState(initialQuery);
   const [type, setType] = useState(initialFilters.type ?? "");
   const [cuisine, setCuisine] = useState(initialFilters.cuisine ?? "");
-  const [diet, setDiet] = useState(initialFilters.diet ?? "vegan");
+  const [diet, setDiet] = useState(initialFilters.diet ?? "");
   const [maxTime, setMaxTime] = useState(initialFilters.maxTime ?? "");
   const [sort, setSort] = useState(initialFilters.sort ?? "popularity");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -169,7 +170,8 @@ export function DiscoverClient({ initialResults, initialQuery, initialFilters }:
   const [results, setResults] = useState<SearchResult[]>(
     initialResults.map((r) => ({ source: "spoonacular", data: r }))
   );
-  const [hasSearched, setHasSearched] = useState(initialResults.length > 0);
+  // hasSearched: true only if we arrived with a URL query or the user has interacted
+  const [hasSearched, setHasSearched] = useState(initialResults.length > 0 && !!initialQuery.trim());
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);

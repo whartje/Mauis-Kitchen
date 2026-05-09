@@ -1,12 +1,14 @@
+export const maxDuration = 60; // Vercel Hobby plan max
+
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { scrapeRecipeFromUrl } from "@/lib/scraper";
+import { normalizeRecipeFromText } from "@/lib/claude";
 import { checkRecipeLimit } from "@/lib/subscription";
 
-const ScrapeSchema = z.object({
-  url: z.string().url(),
+const Schema = z.object({
+  text: z.string().min(10).max(20000),
   collection: z.string().min(1).optional().nullable(),
 });
 
@@ -15,15 +17,15 @@ export async function POST(request: Request) {
   if (!userId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 });
 
   const body = await request.json();
-  const parsed = ScrapeSchema.safeParse(body);
+  const parsed = Schema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: { code: "VALIDATION_ERROR", details: parsed.error.flatten() } },
+      { error: { code: "VALIDATION_ERROR", message: "Recipe text is required (10–20,000 characters)." } },
       { status: 400 }
     );
   }
 
-  const { url, collection } = parsed.data;
+  const { text, collection } = parsed.data;
 
   // ── Tier gate: recipe count ──────────────────────────────────────────────
   const limit = await checkRecipeLimit(userId);
@@ -41,41 +43,22 @@ export async function POST(request: Request) {
     );
   }
 
-  const existing = await prisma.recipe.findFirst({
-    where: { userId, sourceUrl: url },
-    select: { id: true },
-  });
-  if (existing) {
-    return NextResponse.json(
-      { error: { code: "DUPLICATE", message: "You already have this recipe.", existingId: existing.id } },
-      { status: 409 }
-    );
-  }
-
-  let scrapeResult;
+  let recipe;
   try {
-    scrapeResult = await scrapeRecipeFromUrl(url);
+    recipe = await normalizeRecipeFromText(text);
   } catch (err) {
-    console.error("Scrape failed:", err);
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    const isNotFound = msg.includes("404");
-    const isBlocked = msg.includes("bot protection");
+    console.error("Text import error:", err);
     return NextResponse.json(
       {
         error: {
-          code: "SCRAPE_FAILED",
-          message: isNotFound
-            ? "That page wasn't found — double-check the URL is correct."
-            : isBlocked
-              ? msg
-              : "This site doesn't use standard recipe markup. Try a URL from Minimalist Baker, Oh She Glows, The First Mess, or similar.",
+          code: "AI_ERROR",
+          message:
+            "Could not parse a recipe from this text. Make sure you've included a title, at least a few ingredients, and some instructions.",
         },
       },
       { status: 422 }
     );
   }
-
-  const { recipe, sourceUrl, sourceName } = scrapeResult;
 
   const saved = await prisma.recipe.create({
     data: {
@@ -88,15 +71,24 @@ export async function POST(request: Request) {
       totalTime: recipe.totalTime,
       difficulty: recipe.difficulty,
       tags: recipe.tags,
-      imageUrl: recipe.imageUrl,
-      sourceUrl,
-      sourceName,
-      collection,
+      imageUrl: recipe.imageUrl ?? null,
+      collection: collection ?? undefined,
       ingredients: {
-        create: recipe.ingredients,
+        create: recipe.ingredients.map((ing, idx) => ({
+          name: ing.name,
+          quantity: ing.quantity ?? null,
+          unit: ing.unit ?? null,
+          raw: ing.raw,
+          notes: ing.notes ?? null,
+          category: ing.category,
+          sortOrder: idx,
+        })),
       },
       instructions: {
-        create: recipe.instructions,
+        create: recipe.instructions.map((step) => ({
+          stepNumber: step.stepNumber,
+          text: step.text,
+        })),
       },
     },
     include: {

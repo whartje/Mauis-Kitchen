@@ -80,6 +80,11 @@ const HTML_SITES: Record<string, { label: string; listingUrl: string; domain: st
   },
 };
 
+// BigOven — large multi-contributor recipe database with its own search
+const BIGOVEN_BASE = "https://www.bigoven.com";
+const BIGOVEN_BROWSE = `${BIGOVEN_BASE}/recipes?orderBy=PopularMonth`;
+const BIGOVEN_SEARCH = `${BIGOVEN_BASE}/recipes/search?query={q}`;
+
 // ─── Non-recipe title filter (title-only, no category check) ─────────────────
 
 const NON_RECIPE_PATTERNS = [
@@ -282,9 +287,97 @@ async function fetchHtmlSite(siteKey: string, query: string): Promise<CuratedRec
   }
 }
 
+// ─── BigOven HTML scraper ─────────────────────────────────────────────────────
+
+async function fetchBigOven(query: string): Promise<CuratedRecipe[]> {
+  const url = query.trim()
+    ? BIGOVEN_SEARCH.replace("{q}", encodeURIComponent(query.trim()))
+    : BIGOVEN_BROWSE;
+
+  try {
+    const res = await fetch(url, { headers: HEADERS, next: { revalidate: 300 } });
+    if (!res.ok) return [];
+    const html = await res.text();
+
+    const results: CuratedRecipe[] = [];
+    const seen = new Set<string>();
+
+    // BigOven recipe cards: links like /recipe/12345/recipe-name-here
+    const cardRe = /<article[^>]*class="[^"]*recipe-card[^"]*"[^>]*>([\s\S]*?)<\/article>/gi;
+    let cardMatch;
+    while ((cardMatch = cardRe.exec(html)) !== null) {
+      const card = cardMatch[1];
+
+      const linkMatch = /href="(\/recipe\/\d+\/[^"?#]+)"/i.exec(card);
+      if (!linkMatch) continue;
+      const href = `${BIGOVEN_BASE}${linkMatch[1]}`;
+      if (seen.has(href)) continue;
+
+      // Title: look for <a> text or data-title or aria-label
+      const titleMatch =
+        /data-title="([^"]+)"/i.exec(card) ??
+        /aria-label="([^"]+)"/i.exec(card) ??
+        /<h2[^>]*>([\s\S]*?)<\/h2>/i.exec(card) ??
+        /<h3[^>]*>([\s\S]*?)<\/h3>/i.exec(card) ??
+        /<a[^>]+href="\/recipe\/\d+\/[^"]*"[^>]*>([\s\S]*?)<\/a>/i.exec(card);
+      if (!titleMatch) continue;
+      const title = stripHtml(titleMatch[1]).trim();
+      if (!title || title.length < 3 || !isRecipeTitle(title)) continue;
+
+      // Image
+      const imgMatch =
+        /<img[^>]+src="(https?:\/\/[^"]+\.(?:jpg|jpeg|png|webp)(?:\?[^"]*)?)"/i.exec(card) ??
+        /<img[^>]+data-src="(https?:\/\/[^"]+\.(?:jpg|jpeg|png|webp)(?:\?[^"]*)?)"/i.exec(card);
+      const image = imgMatch ? imgMatch[1] : null;
+
+      seen.add(href);
+      results.push({
+        title,
+        link: href,
+        pubDate: null,
+        image,
+        description: null,
+        siteName: "BigOven",
+        siteKey: "bigoven",
+      });
+    }
+
+    // Fallback: if article cards not found, parse raw recipe links
+    if (results.length === 0) {
+      const linkRe = /href="(\/recipe\/\d+\/([^"?#/][^"?#]*))"[^>]*>\s*([\s\S]*?)\s*<\/a>/gi;
+      let m;
+      while ((m = linkRe.exec(html)) !== null) {
+        const href = `${BIGOVEN_BASE}${m[1]}`;
+        if (seen.has(href)) continue;
+        // Derive title from URL slug if inner text is just an icon/empty
+        const innerText = stripHtml(m[3]).trim();
+        const slug = m[2].replace(/-/g, " ");
+        const title = innerText.length > 3 ? innerText : slug;
+        if (!title || title.length < 3 || !isRecipeTitle(title)) continue;
+        seen.add(href);
+        results.push({
+          title: title.replace(/\b\w/g, (c) => c.toUpperCase()),
+          link: href,
+          pubDate: null,
+          image: null,
+          description: null,
+          siteName: "BigOven",
+          siteKey: "bigoven",
+        });
+        if (results.length >= 40) break;
+      }
+    }
+
+    return results.slice(0, 40);
+  } catch {
+    return [];
+  }
+}
+
 // ─── Main fetch dispatcher ────────────────────────────────────────────────────
 
 async function fetchSite(siteKey: string, query: string): Promise<CuratedRecipe[]> {
+  if (siteKey === "bigoven") return fetchBigOven(query);
   if (HTML_SITES[siteKey]) return fetchHtmlSite(siteKey, query);
 
   // Try WordPress REST API first (returns 50 posts with images)
@@ -305,7 +398,7 @@ export async function GET(req: NextRequest) {
   const sitesParam = sp.get("sites") ?? "";
   const query = sp.get("q") ?? "";
 
-  const allSiteKeys = [...Object.keys(SITES), ...Object.keys(HTML_SITES)];
+  const allSiteKeys = [...Object.keys(SITES), ...Object.keys(HTML_SITES), "bigoven"];
   const keys = sitesParam
     ? sitesParam.split(",").map((s) => s.trim()).filter((s) => allSiteKeys.includes(s))
     : allSiteKeys;
