@@ -63,6 +63,10 @@ const MEAL_TYPES = [
   { value: "lunch",     label: "Lunch" },
   { value: "dinner",    label: "Dinner" },
   { value: "snack",     label: "Snack / Side" },
+  { value: "dessert",   label: "Dessert" },
+  { value: "soup",      label: "Soup" },
+  { value: "salad",     label: "Salad" },
+  { value: "sauce",     label: "Sauce / Dressing" },
 ];
 
 const TIME_RANGES = [

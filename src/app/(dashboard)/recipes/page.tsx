@@ -34,6 +34,10 @@ const MEAL_TYPE_TAGS: Record<string, string[]> = {
   lunch:     ["lunch", "salad", "soup", "sandwich", "wrap"],
   dinner:    ["dinner", "main course", "main dish", "entrée", "entree"],
   snack:     ["snack", "appetizer", "side", "small plates"],
+  dessert:   ["dessert", "baking", "sweet", "cake", "cookies", "pastry", "pudding"],
+  soup:      ["soup", "stew", "chowder", "bisque", "chili", "broth", "chilli"],
+  salad:     ["salad", "slaw"],
+  sauce:     ["sauce", "dressing", "condiment", "dip", "marinade", "gravy", "pesto", "salsa", "vinaigrette"],
 };
 
 // Title keywords that positively identify a meal type (catches recipes with no/wrong tags)
@@ -46,6 +50,20 @@ const MEAL_TYPE_TITLE_KEYWORDS: Record<string, string[]> = {
   lunch:  [],
   dinner: [],
   snack:  [],
+  dessert: [
+    "cake", "cookie", "cookies", "pie", "brownie", "tart", "muffin", "cheesecake",
+    "cupcake", "sorbet", "ice cream", "pudding", "tiramisu", "macaron", "fudge",
+    "truffle", "mousse", "parfait", "cobbler", "crisp", "crumble", "biscotti",
+  ],
+  soup: [
+    "soup", "stew", "chowder", "bisque", "chili", "chilli", "ramen", "pho",
+    "minestrone", "gazpacho", "gumbo", "potage", "broth",
+  ],
+  salad: ["salad", "slaw", "coleslaw"],
+  sauce: [
+    "sauce", "dressing", "marinade", "gravy", "pesto", "salsa", "vinaigrette",
+    "aioli", "hummus", "dip", "tahini", "chimichurri", "romesco",
+  ],
 };
 
 // Title keywords that disqualify a recipe from a meal-type filter.
@@ -59,6 +77,10 @@ const MEAL_TYPE_TITLE_EXCLUSIONS: Record<string, string[]> = {
   breakfast: [],
   lunch:     [],
   snack:     [],
+  dessert:   [],
+  soup:      [],
+  salad:     [],
+  sauce:     [],
 };
 
 /** Build a Prisma sub-condition for meal-type filtering that combines
