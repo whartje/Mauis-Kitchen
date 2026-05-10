@@ -108,7 +108,13 @@ export function AddToMealPlanButton({ recipeId, servings }: { recipeId: string; 
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 z-50 bg-card border border-border rounded-xl shadow-2xl w-72 p-4 space-y-4">
+        <>
+          {/* Mobile backdrop */}
+          <div
+            className="fixed inset-0 z-40 bg-black/40 sm:hidden"
+            onClick={() => setOpen(false)}
+          />
+          <div className="fixed inset-x-4 bottom-4 z-50 bg-card border border-border rounded-xl shadow-2xl p-4 space-y-4 max-h-[85dvh] overflow-y-auto sm:absolute sm:inset-auto sm:right-0 sm:bottom-auto sm:top-full sm:mt-2 sm:w-72 sm:max-h-none sm:overflow-visible">
 
           {/* Week navigator */}
           <div className="flex items-center justify-between gap-2">
@@ -189,7 +195,8 @@ export function AddToMealPlanButton({ recipeId, servings }: { recipeId: string; 
               })}
             </div>
           )}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

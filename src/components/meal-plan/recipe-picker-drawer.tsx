@@ -11,6 +11,7 @@ export interface RecipeForPicker {
   totalTime: number | null;
   tags: string[];
   ingredients: { name: string }[];
+  servings?: number | null;
 }
 
 type MealTypeEnum = "BREAKFAST" | "LUNCH" | "DINNER" | "SNACK";

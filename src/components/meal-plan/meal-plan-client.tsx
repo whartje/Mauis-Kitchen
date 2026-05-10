@@ -28,7 +28,6 @@ interface NutritionFact {
 
 interface RecipeWithNutrition extends RecipeForPicker {
   nutrition: NutritionFact | null;
-  servings?: number;
 }
 
 interface PlanItem {
@@ -85,10 +84,51 @@ function fmtDate(date: Date): string {
   return `${months[date.getUTCMonth()]} ${date.getUTCDate()}`;
 }
 
-function fmtWeekRange(weekStart: string): string {
-  const start = new Date(weekStart);
-  const end = addDays(weekStart, 6);
+function fmtWeekRange(weekStart: string, offset = 0): string {
+  const start = addDays(weekStart, offset);
+  const end = addDays(weekStart, offset + 6);
   return `${fmtDate(start)} – ${fmtDate(end)}, ${end.getUTCFullYear()}`;
+}
+
+/**
+ * Returns the ISO date string (YYYY-MM-DD) for the Monday that the DB uses
+ * as the week key, given the user's week-start preference.
+ *
+ * The DB always stores weeks by Monday.  When the user's week starts on
+ * Sunday or Saturday the displayed week straddles two calendar weeks, so we
+ * need to find the correct Monday anchor.
+ */
+function getCurrentWeekMonday(startDay: string): string {
+  const now = new Date();
+  const utcDay = now.getUTCDay(); // 0=Sun … 6=Sat
+
+  let monday: Date;
+
+  if (startDay === "sunday") {
+    // User's week: Sun–Sat.  DB key = Monday after the most-recent Sunday.
+    const daysSinceSunday = utcDay; // 0 if today is Sun
+    const sunday = new Date(now);
+    sunday.setUTCDate(now.getUTCDate() - daysSinceSunday);
+    sunday.setUTCHours(0, 0, 0, 0);
+    monday = new Date(sunday);
+    monday.setUTCDate(sunday.getUTCDate() + 1);
+  } else if (startDay === "saturday") {
+    // User's week: Sat–Fri.  DB key = Monday 2 days after the most-recent Saturday.
+    const daysSinceSaturday = (utcDay + 1) % 7; // 0 if today is Sat
+    const saturday = new Date(now);
+    saturday.setUTCDate(now.getUTCDate() - daysSinceSaturday);
+    saturday.setUTCHours(0, 0, 0, 0);
+    monday = new Date(saturday);
+    monday.setUTCDate(saturday.getUTCDate() + 2);
+  } else {
+    // Monday start — standard ISO week Monday
+    const diff = utcDay === 0 ? -6 : 1 - utcDay;
+    monday = new Date(now);
+    monday.setUTCDate(now.getUTCDate() + diff);
+    monday.setUTCHours(0, 0, 0, 0);
+  }
+
+  return monday.toISOString().split("T")[0];
 }
 
 const OVERLAP_STYLE: Record<OverlapLevel, string> = {
@@ -165,11 +205,9 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart, isPro, p
       .sort();
   })();
 
-  function getSlotItem(dayOfWeek: number, mealType: MealTypeEnum): PlanItem | null {
-    return (
-      plan.items.find(
-        (item) => item.dayOfWeek === dayOfWeek && item.mealType === mealType
-      ) ?? null
+  function getSlotItems(dayOfWeek: number, mealType: MealTypeEnum): PlanItem[] {
+    return plan.items.filter(
+      (item) => item.dayOfWeek === dayOfWeek && item.mealType === mealType
     );
   }
 
@@ -186,18 +224,13 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart, isPro, p
       dayOfWeek,
       mealType,
       isLocked: false,
-      servings: 4,
+      servings: recipe.servings ?? 4,
       recipe: { ...recipe, nutrition: null },
     };
 
     setPlan((p) => ({
       ...p,
-      items: [
-        ...p.items.filter(
-          (i) => !(i.dayOfWeek === dayOfWeek && i.mealType === mealType)
-        ),
-        newItem,
-      ],
+      items: [...p.items, newItem],
     }));
     setPickerSlot(null);
 
@@ -271,7 +304,7 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart, isPro, p
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Meal Plan</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {fmtWeekRange(weekStart)}
+            {fmtWeekRange(weekStart, firstDayOffset)}
           </p>
         </div>
 
@@ -303,7 +336,10 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart, isPro, p
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
-              onClick={() => router.push("/meal-plan")}
+              onClick={() => {
+                const thisMonday = getCurrentWeekMonday(weekStartDay);
+                router.push(`/meal-plan?week=${thisMonday}`);
+              }}
               className="px-3 py-1.5 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
             >
               This Week
@@ -360,29 +396,35 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart, isPro, p
 
               {/* Day slots */}
               {dayOrder.map((dayIdx) => {
-                const item = getSlotItem(dayIdx, mealType);
+                const slotItems = getSlotItems(dayIdx, mealType);
                 return (
                   <div
                     key={dayIdx}
-                    className="p-2 border-l border-border min-h-[110px]"
+                    className="p-2 border-l border-border min-h-[110px] flex flex-col gap-1.5"
                   >
-                    {item ? (
+                    {slotItems.map((item) => (
                       <RecipeSlotCard
+                        key={item.id}
                         item={item}
                         onRemove={() => removeItem(item)}
                         onToggleLock={() => toggleLock(item)}
                         onServingsChange={(s) => patchServings(item.id, s)}
                       />
-                    ) : (
-                      <button
-                        onClick={() =>
-                          setPickerSlot({ dayOfWeek: dayIdx, mealType })
-                        }
-                        className="w-full h-full min-h-[90px] rounded-lg border border-dashed border-border hover:border-brand-orange/50 hover:bg-brand-orange/5 flex items-center justify-center transition-colors group"
-                      >
-                        <Plus className="w-4 h-4 text-muted-foreground/40 group-hover:text-brand-orange/60 transition-colors" />
-                      </button>
-                    )}
+                    ))}
+                    {/* Add button — full-height when slot is empty, compact row when items exist */}
+                    <button
+                      onClick={() =>
+                        setPickerSlot({ dayOfWeek: dayIdx, mealType })
+                      }
+                      className={cn(
+                        "w-full rounded-lg border border-dashed border-border hover:border-brand-orange/50 hover:bg-brand-orange/5 flex items-center justify-center transition-colors group",
+                        slotItems.length === 0
+                          ? "flex-1 min-h-[90px]"
+                          : "py-1.5"
+                      )}
+                    >
+                      <Plus className="w-4 h-4 text-muted-foreground/40 group-hover:text-brand-orange/60 transition-colors" />
+                    </button>
                   </div>
                 );
               })}

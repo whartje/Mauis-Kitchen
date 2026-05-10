@@ -70,6 +70,7 @@ export default async function MealPlanPage({ searchParams }: Props) {
         imageUrl: true,
         totalTime: true,
         tags: true,
+        servings: true,
         ingredients: { select: { name: true } },
       },
       orderBy: { title: "asc" },
