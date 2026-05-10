@@ -264,6 +264,41 @@ export default function GroceryListClient({
     [list]
   );
 
+  // ── Check / uncheck all items ────────────────────────────────────────────
+
+  const checkAll = useCallback(async (checked: boolean) => {
+    if (!list) return;
+    const targets = list.items.filter((it) => it.isChecked !== checked);
+    if (targets.length === 0) return;
+
+    // Optimistic update
+    setList((prev) => {
+      if (!prev) return prev;
+      return { ...prev, items: prev.items.map((it) => ({ ...it, isChecked: checked })) };
+    });
+
+    try {
+      await Promise.all(
+        targets.map((item) =>
+          fetch(`/api/grocery-list/${list.id}/items/${item.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isChecked: checked }),
+          })
+        )
+      );
+    } catch {
+      // revert on error
+      setList((prev) => {
+        if (!prev) return prev;
+        return { ...prev, items: prev.items.map((it) => {
+          const original = list.items.find((o) => o.id === it.id);
+          return original ? { ...it, isChecked: original.isChecked } : it;
+        }) };
+      });
+    }
+  }, [list]);
+
   // ── Clear checked items ──────────────────────────────────────────────────
 
   const clearChecked = useCallback(async () => {
@@ -641,20 +676,40 @@ export default function GroceryListClient({
               <span>
                 {checkedCount} of {totalItems} items
               </span>
-              {hasChecked && (
-                <button
-                  onClick={clearChecked}
-                  disabled={clearingChecked}
-                  className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
-                >
-                  {clearingChecked ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <Trash2 className="w-3 h-3" />
-                  )}
-                  Clear checked
-                </button>
-              )}
+              <div className="flex items-center gap-3">
+                {/* Check all / Uncheck all */}
+                {checkedCount < totalItems ? (
+                  <button
+                    onClick={() => checkAll(true)}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Check className="w-3 h-3" />
+                    Check all
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => checkAll(false)}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                    Uncheck all
+                  </button>
+                )}
+                {hasChecked && (
+                  <button
+                    onClick={clearChecked}
+                    disabled={clearingChecked}
+                    className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
+                  >
+                    {clearingChecked ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-3 h-3" />
+                    )}
+                    Clear checked
+                  </button>
+                )}
+              </div>
             </div>
             <div className="h-2 bg-border rounded-full overflow-hidden">
               <div

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { X, Plus, Package, Camera, Loader2, ScanLine, Check, ChevronRight } from "lucide-react";
+import { X, Plus, Package, Camera, Loader2, ScanLine, Check, ChevronRight, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type IngredientCategory = "PRODUCE" | "FRUIT" | "PROTEIN" | "DAIRY" | "GRAINS" | "PANTRY" | "SPICES" | "FROZEN" | "BEVERAGES" | "CONDIMENTS" | "OTHER";
@@ -241,6 +241,21 @@ export function PantryClient({ initialItems }: Props) {
     await fetch(`/api/pantry/${id}`, { method: "DELETE" });
   }
 
+  async function deleteCategory(cat: IngredientCategory) {
+    setItems((prev) => prev.filter((i) => i.category !== cat));
+    await fetch("/api/pantry", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category: cat }),
+    });
+  }
+
+  async function deleteAll() {
+    if (!window.confirm("Remove all pantry items? This cannot be undone.")) return;
+    setItems([]);
+    await fetch("/api/pantry", { method: "DELETE" });
+  }
+
   async function updateItem(id: string, patch: { name?: string; quantity?: number | null; unit?: string | null; category?: IngredientCategory }) {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
     await fetch(`/api/pantry/${id}`, {
@@ -267,9 +282,18 @@ export function PantryClient({ initialItems }: Props) {
           </p>
         </div>
         {items.length > 0 && (
-          <span className="text-sm text-muted-foreground shrink-0 mt-1">
-            {items.length} item{items.length !== 1 ? "s" : ""}
-          </span>
+          <div className="flex items-center gap-3 shrink-0 mt-1">
+            <span className="text-sm text-muted-foreground">
+              {items.length} item{items.length !== 1 ? "s" : ""}
+            </span>
+            <button
+              onClick={deleteAll}
+              className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 border border-red-400/20 hover:border-red-400/40 bg-red-400/5 hover:bg-red-400/10 px-2.5 py-1 rounded-lg transition-colors"
+            >
+              <Trash2 className="w-3 h-3" />
+              Remove all
+            </button>
+          </div>
         )}
       </div>
 
@@ -474,7 +498,15 @@ export function PantryClient({ initialItems }: Props) {
                   <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     {meta.label}
                   </span>
-                  <span className="text-xs text-muted-foreground ml-auto">{group.length}</span>
+                  <span className="text-xs text-muted-foreground">{group.length}</span>
+                  <button
+                    onClick={() => deleteCategory(cat)}
+                    className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground/50 hover:text-red-400 transition-colors"
+                    title={`Remove all ${meta.label} items`}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Remove all
+                  </button>
                 </div>
                 <div className="divide-y divide-border">
                   {group.map((item) => (

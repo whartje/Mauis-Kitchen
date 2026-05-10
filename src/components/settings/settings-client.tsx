@@ -6,7 +6,7 @@ import { useClerk, useUser } from "@clerk/nextjs";
 import {
   Sun, Moon, LogOut, Settings2, Users,
   Check, ChevronRight, CreditCard, Zap, Loader2,
-  Smartphone, CheckCircle2,
+  Smartphone, CheckCircle2, Calendar,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
@@ -22,8 +22,16 @@ interface PlanStatus {
 }
 
 // ── Local-storage keys ────────────────────────────────────────────────────────
-const LS_DIETARY  = "mauisKitchen_dietaryDefault";
-const LS_SERVINGS = "mauisKitchen_defaultServings";
+const LS_DIETARY    = "mauisKitchen_dietaryDefault";
+const LS_SERVINGS   = "mauisKitchen_defaultServings";
+const LS_WEEK_START = "mauisKitchen_weekStartDay";
+
+type WeekStartDay = "monday" | "sunday" | "saturday";
+const WEEK_START_OPTIONS: { value: WeekStartDay; label: string }[] = [
+  { value: "monday",   label: "Monday" },
+  { value: "sunday",   label: "Sunday" },
+  { value: "saturday", label: "Saturday" },
+];
 
 // ── Dietary filter options (matches recipe-library filter values) ─────────────
 const DIETARY_OPTIONS = [
@@ -47,6 +55,7 @@ export function SettingsClient() {
   // Preferences — hydrated from localStorage after mount
   const [dietaryDefault, setDietaryDefault] = useState("");
   const [defaultServings, setDefaultServings] = useState(2);
+  const [weekStartDay, setWeekStartDay] = useState<WeekStartDay>("monday");
   const [prefsLoaded, setPrefsLoaded] = useState(false);
 
   // Install-app detection (runs client-side only)
@@ -86,8 +95,10 @@ export function SettingsClient() {
     try {
       const dietary  = localStorage.getItem(LS_DIETARY)  ?? "";
       const servings = localStorage.getItem(LS_SERVINGS);
+      const weekDay  = localStorage.getItem(LS_WEEK_START) as WeekStartDay | null;
       setDietaryDefault(dietary);
       setDefaultServings(servings ? Math.max(1, Math.min(12, parseInt(servings, 10))) : 2);
+      if (weekDay && ["monday","sunday","saturday"].includes(weekDay)) setWeekStartDay(weekDay);
     } catch {}
     setPrefsLoaded(true);
   }, []);
@@ -111,6 +122,11 @@ export function SettingsClient() {
     const clamped = Math.max(1, Math.min(12, value));
     setDefaultServings(clamped);
     try { localStorage.setItem(LS_SERVINGS, String(clamped)); } catch {}
+  }
+
+  function saveWeekStart(value: WeekStartDay) {
+    setWeekStartDay(value);
+    try { localStorage.setItem(LS_WEEK_START, value); } catch {}
   }
 
   return (
@@ -284,6 +300,41 @@ export function SettingsClient() {
               </div>
             )}
           </div>
+
+          <Divider />
+
+          {/* Week start day */}
+          <Row>
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-foreground">Week starts on</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Sets the first day in your meal plan calendar
+                </p>
+              </div>
+            </div>
+            {prefsLoaded ? (
+              <div className="flex items-center gap-1 bg-secondary rounded-lg p-1 shrink-0">
+                {WEEK_START_OPTIONS.map(({ value, label }) => (
+                  <button
+                    key={value}
+                    onClick={() => saveWeekStart(value)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+                      weekStartDay === value
+                        ? "bg-card text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="h-9 w-48 bg-secondary rounded-lg animate-pulse shrink-0" />
+            )}
+          </Row>
         </Card>
       </section>
 

@@ -24,6 +24,37 @@ export async function GET() {
   return NextResponse.json({ items });
 }
 
+/** DELETE /api/pantry — bulk-delete pantry items.
+ *  Body: { ids?: string[]; category?: string }
+ *  - ids: delete only those IDs (must belong to the user)
+ *  - category: delete all items in that category
+ *  - neither: delete ALL items for the user
+ */
+export async function DELETE(request: Request) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+
+  let ids: string[] | undefined;
+  let category: string | undefined;
+  try {
+    const body = await request.json();
+    ids = body.ids;
+    category = body.category;
+  } catch {
+    // empty body is fine — delete all
+  }
+
+  await prisma.pantryItem.deleteMany({
+    where: {
+      userId,
+      ...(ids      ? { id: { in: ids } } : {}),
+      ...(category ? { category: category as typeof CATEGORIES[number] } : {}),
+    },
+  });
+
+  return NextResponse.json({ ok: true });
+}
+
 export async function POST(request: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });

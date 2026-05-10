@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Lock, Unlock, X, Plus, ChevronLeft, ChevronRight, Clock, ExternalLink, Minus } from "lucide-react";
@@ -60,7 +60,16 @@ const MEAL_TYPES: { value: MealTypeEnum; label: string }[] = [
   { value: "DINNER", label: "Dinner" },
 ];
 
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+// Canonical order: Mon=0 … Sun=6 (matches dayOfWeek stored in DB)
+const ALL_DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+// Day display order per week-start preference.
+// Each entry is the canonical dayOfWeek index (Mon=0 … Sun=6).
+const DAY_ORDER: Record<string, number[]> = {
+  monday:   [0, 1, 2, 3, 4, 5, 6],
+  sunday:   [6, 0, 1, 2, 3, 4, 5],
+  saturday: [5, 6, 0, 1, 2, 3, 4],
+};
 
 function addDays(isoStr: string, days: number): Date {
   const d = new Date(isoStr);
@@ -91,6 +100,21 @@ const OVERLAP_STYLE: Record<OverlapLevel, string> = {
 export function MealPlanClient({ plan: initialPlan, recipes, weekStart, isPro, pantryItems }: Props) {
   const router = useRouter();
   const [plan, setPlan] = useState<Plan>(initialPlan);
+
+  // Read week-start-day preference from localStorage (set in Settings)
+  const [weekStartDay, setWeekStartDay] = useState<string>("monday");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("mauisKitchen_weekStartDay");
+      if (saved && ["monday","sunday","saturday"].includes(saved)) setWeekStartDay(saved);
+    } catch {}
+  }, []);
+
+  // Ordered list of canonical dayOfWeek indices for display
+  const dayOrder = DAY_ORDER[weekStartDay] ?? DAY_ORDER.monday;
+  // Date offset: how many days from weekStart (Monday) is the first displayed day?
+  // monday→0, sunday→-1, saturday→-2
+  const firstDayOffset = weekStartDay === "sunday" ? -1 : weekStartDay === "saturday" ? -2 : 0;
   const [pickerSlot, setPickerSlot] = useState<{
     dayOfWeek: number;
     mealType: MealTypeEnum;
@@ -301,15 +325,15 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart, isPro, p
           {/* Day header row */}
           <div className="grid grid-cols-[110px_repeat(7,1fr)] border-b border-border bg-secondary/30">
             <div className="p-3" />
-            {DAY_LABELS.map((day, i) => {
-              const date = addDays(weekStart, i);
+            {dayOrder.map((dayIdx, colIdx) => {
+              const date = addDays(weekStart, firstDayOffset + colIdx);
               return (
                 <div
-                  key={day}
+                  key={dayIdx}
                   className="p-3 text-center border-l border-border"
                 >
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    {day}
+                    {ALL_DAY_LABELS[dayIdx]}
                   </p>
                   <p className="text-sm font-medium text-foreground mt-0.5">
                     {date.getUTCDate()}
@@ -335,7 +359,7 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart, isPro, p
               </div>
 
               {/* Day slots */}
-              {DAY_LABELS.map((_, dayIdx) => {
+              {dayOrder.map((dayIdx) => {
                 const item = getSlotItem(dayIdx, mealType);
                 return (
                   <div
@@ -799,15 +823,43 @@ function RecipeSlotCard({
   onToggleLock: () => void;
   onServingsChange: (servings: number) => void;
 }) {
+  const [showTitleTooltip, setShowTitleTooltip] = useState(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function startLongPress() {
+    longPressTimer.current = setTimeout(() => setShowTitleTooltip(true), 500);
+  }
+  function cancelLongPress() {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  }
+
   return (
     <div
       className={cn(
-        "h-full min-h-[90px] rounded-lg p-2.5 flex flex-col gap-1.5 group/card",
+        "relative h-full min-h-[90px] rounded-lg p-2.5 flex flex-col gap-1.5 group/card",
         item.isLocked
           ? "bg-brand-orange/10 border border-brand-orange/30"
           : "bg-secondary border border-border"
       )}
     >
+      {/* Full-title tooltip (mobile long-press) */}
+      {showTitleTooltip && (
+        <div
+          className="absolute inset-x-0 top-0 z-30 bg-popover border border-border rounded-lg shadow-lg p-3"
+          onClick={() => setShowTitleTooltip(false)}
+        >
+          <p className="text-xs font-medium text-foreground leading-snug pr-4">
+            {item.recipe.title}
+          </p>
+          <button
+            className="absolute top-1.5 right-1.5 p-0.5 rounded text-muted-foreground hover:text-foreground"
+            onClick={(e) => { e.stopPropagation(); setShowTitleTooltip(false); }}
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+
       {/* Action buttons — compact row at the top, right-aligned */}
       <div className="flex justify-end gap-0.5 -mt-0.5 -mr-0.5">
         <button
@@ -834,11 +886,16 @@ function RecipeSlotCard({
         )}
       </div>
 
-      {/* Clickable recipe title — full card width, up to 3 lines */}
+      {/* Clickable recipe title — full card width, up to 3 lines.
+          Long-press on mobile shows the full name in an overlay. */}
       <Link
         href={`/recipes/${item.recipe.id}`}
         className="text-xs font-medium text-foreground leading-tight line-clamp-3 hover:text-brand-orange transition-colors group/link"
-        title={`View ${item.recipe.title}`}
+        title={item.recipe.title}
+        onTouchStart={startLongPress}
+        onTouchEnd={cancelLongPress}
+        onTouchMove={cancelLongPress}
+        onClick={(e) => { if (showTitleTooltip) e.preventDefault(); }}
       >
         {item.recipe.title}
         <ExternalLink className="inline w-2.5 h-2.5 ml-0.5 opacity-0 group-hover/link:opacity-60 transition-opacity align-baseline" />
