@@ -54,7 +54,8 @@ export default async function RecipesPage({ searchParams }: Props) {
     userId,
     ...(q && {
       OR: [
-        { title: { contains: q, mode: "insensitive" as const } },
+        { title:      { contains: q, mode: "insensitive" as const } },
+        { sourceName: { contains: q, mode: "insensitive" as const } },
         { tags: { has: q.toLowerCase() } },
         { ingredients: { some: { name: { contains: q, mode: "insensitive" as const } } } },
       ],

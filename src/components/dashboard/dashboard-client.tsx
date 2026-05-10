@@ -250,7 +250,7 @@ export function DashboardClient({ recentRecipes, recipeCount, weekStart, mealPla
                       href={`/recipes/${item.recipe.id}`}
                       className="flex-1 min-w-0 flex items-center gap-1 group"
                     >
-                      <span className="text-sm font-medium text-foreground truncate group-hover:text-brand-orange transition-colors">
+                      <span className="text-sm font-medium text-foreground line-clamp-2 leading-snug group-hover:text-brand-orange transition-colors">
                         {item.recipe.title}
                       </span>
                       <ExternalLink className="w-3 h-3 text-muted-foreground/40 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
