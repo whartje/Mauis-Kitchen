@@ -387,7 +387,8 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overla
               </div>
             </div>
 
-            <div className="flex items-end pb-0.5">
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Favorites</p>
               <FilterChip
                 label="♥ Favorites only"
                 active={currentFilters.favorite === "true"}

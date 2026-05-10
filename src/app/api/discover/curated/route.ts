@@ -69,6 +69,54 @@ const SITES: Record<string, SiteConfig> = {
     feedUrl: "https://sharonpalmer.com/feed/",
     searchUrl: "https://sharonpalmer.com/?s={q}&feed=rss2",
   },
+  cookingforkeeps: {
+    label: "Cooking For Keeps",
+    baseUrl: "https://www.cookingforkeeps.com",
+    feedUrl: "https://www.cookingforkeeps.com/feed/",
+    searchUrl: "https://www.cookingforkeeps.com/?s={q}&feed=rss2",
+  },
+  recipetineats: {
+    label: "RecipeTin Eats",
+    baseUrl: "https://www.recipetineats.com",
+    feedUrl: "https://www.recipetineats.com/feed/",
+    searchUrl: "https://www.recipetineats.com/?s={q}&feed=rss2",
+  },
+  seasonsandsuppers: {
+    label: "Seasons & Suppers",
+    baseUrl: "https://www.seasonsandsuppers.ca",
+    feedUrl: "https://www.seasonsandsuppers.ca/feed/",
+    searchUrl: "https://www.seasonsandsuppers.ca/?s={q}&feed=rss2",
+  },
+  whippeditup: {
+    label: "Whipped It Up",
+    baseUrl: "https://www.whippeditup.com",
+    feedUrl: "https://www.whippeditup.com/feed/",
+    searchUrl: "https://www.whippeditup.com/?s={q}&feed=rss2",
+  },
+  foodie: {
+    label: "Foodie",
+    baseUrl: "https://www.foodie.com",
+    feedUrl: "https://www.foodie.com/feed/",
+    searchUrl: "https://www.foodie.com/?s={q}&feed=rss2",
+  },
+  smittenkitchen: {
+    label: "Smitten Kitchen",
+    baseUrl: "https://smittenkitchen.com",
+    feedUrl: "https://smittenkitchen.com/feed/",
+    searchUrl: "https://smittenkitchen.com/?s={q}&feed=rss2",
+  },
+  pinchofyum: {
+    label: "Pinch of Yum",
+    baseUrl: "https://pinchofyum.com",
+    feedUrl: "https://pinchofyum.com/feed/",
+    searchUrl: "https://pinchofyum.com/?s={q}&feed=rss2",
+  },
+  cookieandkate: {
+    label: "Cookie and Kate",
+    baseUrl: "https://cookieandkate.com",
+    feedUrl: "https://cookieandkate.com/feed/",
+    searchUrl: "https://cookieandkate.com/?s={q}&feed=rss2",
+  },
 };
 
 // Happy Pear has no WP REST API or RSS — scrape their listing page directly
@@ -293,6 +341,58 @@ async function fetchHtmlSite(siteKey: string, query: string): Promise<CuratedRec
   }
 }
 
+// ─── BigOven — Next.js SPA, parse __NEXT_DATA__ ───────────────────────────────
+
+async function fetchBigOven(query: string): Promise<CuratedRecipe[]> {
+  try {
+    const q = query.trim() || "dinner";
+    const url = `https://www.bigoven.com/recipes/search?query=${encodeURIComponent(q)}`;
+    const res = await fetch(url, {
+      headers: {
+        ...HEADERS,
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      next: { revalidate: 300 },
+    });
+    if (!res.ok) return [];
+
+    const html = await res.text();
+
+    // BigOven is a Next.js app — the rendered JSON lives in __NEXT_DATA__
+    const scriptMatch = /<script[^>]+id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i.exec(html);
+    if (!scriptMatch) return [];
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let data: any;
+    try { data = JSON.parse(scriptMatch[1]); } catch { return []; }
+
+    /* BigOven has changed its pageProps layout a few times — try several paths */
+    const pp = data?.props?.pageProps;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const items: any[] =
+      pp?.recipes?.Items ?? pp?.results?.Items ?? pp?.data?.Results ?? [];
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return items.slice(0, 24).map((r: any) => {
+      const id    = r.RecipeID ?? r.id ?? "";
+      const title = String(r.Title ?? r.title ?? "");
+      const slug  = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      return {
+        title,
+        link: `https://www.bigoven.com/recipe/${id}/${slug}`,
+        pubDate: null,
+        image: (r.ImageURL ?? r.PhotoUrl ?? null) as string | null,
+        description: r.Description ? String(r.Description).slice(0, 200) : null,
+        siteName: "BigOven",
+        siteKey: "bigoven",
+      };
+    }).filter((r) => r.title.length > 2);
+  } catch {
+    return [];
+  }
+}
+
 // ─── Spoonacular recipe discovery ─────────────────────────────────────────────
 
 async function fetchSpoonacular(query: string): Promise<CuratedRecipe[]> {
@@ -346,6 +446,7 @@ async function fetchSpoonacular(query: string): Promise<CuratedRecipe[]> {
 
 async function fetchSite(siteKey: string, query: string): Promise<CuratedRecipe[]> {
   if (siteKey === "spoonacular") return fetchSpoonacular(query);
+  if (siteKey === "bigoven") return fetchBigOven(query);
   if (HTML_SITES[siteKey]) return fetchHtmlSite(siteKey, query);
 
   // Try WordPress REST API first (returns 50 posts with images)
@@ -366,7 +467,7 @@ export async function GET(req: NextRequest) {
   const sitesParam = sp.get("sites") ?? "";
   const query = sp.get("q") ?? "";
 
-  const allSiteKeys = [...Object.keys(SITES), ...Object.keys(HTML_SITES), "spoonacular"];
+  const allSiteKeys = [...Object.keys(SITES), ...Object.keys(HTML_SITES), "spoonacular", "bigoven"];
   const keys = sitesParam
     ? sitesParam.split(",").map((s) => s.trim()).filter((s) => allSiteKeys.includes(s))
     : allSiteKeys;

@@ -424,7 +424,7 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={isBusy ? undefined : handleClose} />
 
-      <div className="relative bg-card border border-border rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
+      <div className="relative bg-card border border-border rounded-2xl w-full max-w-lg shadow-2xl flex flex-col" style={{ maxHeight: "min(90dvh, 90vh)" }}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
           <h2 className="text-lg font-semibold text-foreground">Add Recipe</h2>
@@ -558,8 +558,8 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
               {/* Pages collected */}
               {isPages && (
                 <>
-                  {/* Page thumbnails */}
-                  <div className="space-y-2">
+                  {/* Page thumbnails — capped height so the submit button always stays visible */}
+                  <div className="overflow-y-auto space-y-2" style={{ maxHeight: "13rem" }}>
                     {(photoStep as { kind: "pages"; pages: PageFile[] }).pages.map((p, i) => (
                       <div key={i} className="flex items-center gap-3 p-2 bg-secondary rounded-lg">
                         <div className="relative w-14 h-10 rounded overflow-hidden shrink-0 bg-background">

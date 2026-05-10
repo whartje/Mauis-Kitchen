@@ -40,6 +40,15 @@ const FAVORITE_SITES = [
   { key: "simpleveganista",  label: "Simple Veganista" },
   { key: "sharonpalmer",     label: "Sharon Palmer" },
   { key: "happypear",        label: "Happy Pear" },
+  { key: "cookingforkeeps",  label: "Cooking For Keeps" },
+  { key: "recipetineats",    label: "RecipeTin Eats" },
+  { key: "seasonsandsuppers", label: "Seasons & Suppers" },
+  { key: "whippeditup",      label: "Whipped It Up" },
+  { key: "foodie",           label: "Foodie" },
+  { key: "smittenkitchen",   label: "Smitten Kitchen" },
+  { key: "pinchofyum",       label: "Pinch of Yum" },
+  { key: "cookieandkate",    label: "Cookie and Kate" },
+  { key: "bigoven",          label: "BigOven" },
   { key: "spoonacular",      label: "Spoonacular" },
 ];
 
