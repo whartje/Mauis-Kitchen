@@ -36,6 +36,57 @@ const MEAL_TYPE_TAGS: Record<string, string[]> = {
   snack:     ["snack", "appetizer", "side", "small plates"],
 };
 
+// Title keywords that positively identify a meal type (catches recipes with no/wrong tags)
+const MEAL_TYPE_TITLE_KEYWORDS: Record<string, string[]> = {
+  breakfast: [
+    "pancake", "waffle", "oatmeal", "overnight oat", "granola", "frittata",
+    "omelet", "omelette", "french toast", "crepe", "smoothie bowl",
+    "eggs benedict", "shakshuka", "breakfast burrito", "breakfast",
+  ],
+  lunch:  [],
+  dinner: [],
+  snack:  [],
+};
+
+// Title keywords that disqualify a recipe from a meal-type filter.
+// Prevents generic tags like "main dish" on breakfast recipes from
+// polluting the dinner results.
+const MEAL_TYPE_TITLE_EXCLUSIONS: Record<string, string[]> = {
+  dinner: [
+    "pancake", "waffle", "oatmeal", "overnight oat", "granola", "frittata",
+    "omelet", "omelette", "french toast", "crepe", "smoothie bowl",
+  ],
+  breakfast: [],
+  lunch:     [],
+  snack:     [],
+};
+
+/** Build a Prisma sub-condition for meal-type filtering that combines
+ *  tag matching, title-keyword inclusion, and title-based exclusion. */
+function buildMealTypeWhere(mealType: string) {
+  const matchTags   = MEAL_TYPE_TAGS[mealType]            ?? [];
+  const matchTitles = MEAL_TYPE_TITLE_KEYWORDS[mealType]  ?? [];
+  const excTitles   = MEAL_TYPE_TITLE_EXCLUSIONS[mealType] ?? [];
+
+  return {
+    AND: [
+      // Must match via a tag OR a title keyword for this meal type
+      {
+        OR: [
+          ...(matchTags.length   ? [{ tags: { hasSome: matchTags } }] : []),
+          ...matchTitles.map((kw) => ({
+            title: { contains: kw, mode: "insensitive" as const },
+          })),
+        ],
+      },
+      // Must NOT contain title keywords that indicate a conflicting meal type
+      ...excTitles.map((kw) => ({
+        NOT: { title: { contains: kw, mode: "insensitive" as const } },
+      })),
+    ],
+  };
+}
+
 export default async function RecipesPage({ searchParams }: Props) {
   const { userId } = await auth();
   if (!userId) return null;
@@ -63,9 +114,7 @@ export default async function RecipesPage({ searchParams }: Props) {
     ...(difficulty && { difficulty: difficulty as "EASY" | "MEDIUM" | "HARD" }),
     ...(favorite === "true" && { isFavorite: true }),
     ...timeFilter,
-    ...(mealType && MEAL_TYPE_TAGS[mealType] && {
-      tags: { hasSome: MEAL_TYPE_TAGS[mealType] },
-    }),
+    ...(mealType && MEAL_TYPE_TAGS[mealType] && buildMealTypeWhere(mealType)),
     ...(foodGroup && FOOD_GROUP_TAGS[foodGroup] && {
       tags: { hasSome: FOOD_GROUP_TAGS[foodGroup] },
     }),

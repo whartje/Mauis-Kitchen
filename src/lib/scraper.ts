@@ -385,7 +385,23 @@ function buildTags(ld: Record<string, unknown>): string[] {
   addList(ld.recipeCategory);
   addList(ld.keywords);
 
-  return tags.slice(0, 6);
+  // ── Infer meal-type tag from title if the site didn't provide one ──────────
+  // Recipe sites often tag breakfast dishes as "main dish" or "main course"
+  // (a course, not a time-of-day). This causes false positives in the dinner
+  // filter. Inferring from the title gives us a reliable meal-time tag.
+  const title = String(ld.name ?? "").toLowerCase();
+  const hasMealTimeTag = tags.some((t) =>
+    ["breakfast", "brunch", "lunch", "dinner", "snack", "appetizer"].includes(t)
+  );
+  if (!hasMealTimeTag) {
+    if (/pancake|waffle|oatmeal|overnight oat|granola|frittata|omelet|omelette|french toast|crepe|shakshuka|eggs benedict/.test(title)) {
+      tags.push("breakfast");
+    } else if (/\bsandwich\b|\bwrap\b/.test(title)) {
+      tags.push("lunch");
+    }
+  }
+
+  return tags.slice(0, 8); // allow one extra slot for the inferred tag
 }
 
 function estimateDifficulty(
