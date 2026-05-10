@@ -24,9 +24,11 @@ interface RecipeCardProps {
   onFavoriteToggle?: (id: string, isFavorite: boolean) => void;
   onPhotoUpload?: (id: string, imageUrl: string) => void;
   overlapPercent?: number | null;
+  /** "meal plan" or "pantry" — used in the badge tooltip */
+  overlapLabel?: string;
 }
 
-export function RecipeCard({ recipe, onFavoriteToggle, onPhotoUpload, overlapPercent }: RecipeCardProps) {
+export function RecipeCard({ recipe, onFavoriteToggle, onPhotoUpload, overlapPercent, overlapLabel = "meal plan" }: RecipeCardProps) {
   const [isFavorite, setIsFavorite] = useState(recipe.isFavorite);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
   const [imageUrl, setImageUrl] = useState(recipe.imageUrl);
@@ -152,7 +154,7 @@ export function RecipeCard({ recipe, onFavoriteToggle, onPhotoUpload, overlapPer
                   "text-xs font-bold px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-sm",
                   overlapColor(overlapPercent)
                 )}
-                title={`${overlapPercent}% of ingredients already in this week's meal plan`}
+                title={`${overlapPercent}% of ingredients match your ${overlapLabel}`}
               >
                 {overlapPercent}%
               </span>

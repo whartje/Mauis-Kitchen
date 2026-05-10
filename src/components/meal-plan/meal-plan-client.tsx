@@ -655,20 +655,25 @@ function SuggestedRecipes({
     ...(overlapSource !== "plan"   ? pantryTokenSet : []),
   ]);
 
-  // Score every recipe not already in the plan
+  // Score every recipe not already in the plan.
+  // Only include ingredients that produce at least one meaningful token —
+  // pure measurement strings like "1 tbsp" tokenise to [] and would
+  // artificially inflate the score if left in the denominator.
   const scored = recipes
     .filter((r) => !planRecipeIds.has(r.id))
     .map((r) => {
-      const ings = r.ingredients.map((i) => ({
-        display: i.name.toLowerCase().replace(/\s+/g, " ").trim(),
-        tokens:  tokenize(i.name),
-      }));
+      const ings = r.ingredients
+        .map((i) => ({
+          display: i.name.toLowerCase().replace(/\s+/g, " ").trim(),
+          tokens:  tokenize(i.name),
+        }))
+        .filter((i) => i.tokens.length > 0); // exclude untokenisable ingredients
       const matched = ings.filter((ing) =>
         ing.tokens.some((t) => activeTokenSet.has(t))
       );
       const overlapPct =
         ings.length > 0 ? Math.round((matched.length / ings.length) * 100) : 0;
-      return { recipe: r, overlapPct, sharedIngs: matched.map((i) => i.display) };
+      return { recipe: r, overlapPct, matchedCount: matched.length, ingredientCount: ings.length, sharedIngs: matched.map((i) => i.display) };
     })
     .filter((s) => s.overlapPct > 0)
     .sort((a, b) => b.overlapPct - a.overlapPct)
@@ -717,7 +722,7 @@ function SuggestedRecipes({
         </p>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {scored.map(({ recipe, overlapPct, sharedIngs }) => {
+          {scored.map(({ recipe, overlapPct, matchedCount, ingredientCount, sharedIngs }) => {
             const badgeStyle =
               overlapPct >= 60
                 ? "text-green-400 bg-green-400/10 border-green-400/20"
@@ -744,7 +749,7 @@ function SuggestedRecipes({
                   </Link>
                   <span
                     className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold border ${badgeStyle}`}
-                    title={`${overlapPct}% of this recipe's ingredients match your ${sourceLabel}`}
+                    title={`${matchedCount} of ${ingredientCount} ingredients match your ${sourceLabel}`}
                   >
                     {overlapPct}%
                   </span>

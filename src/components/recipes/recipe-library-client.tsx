@@ -43,16 +43,19 @@ interface Props {
   currentFilters: Filters;
   cookbooks: string[];
   overlapMap?: Record<string, number | null>;
+  pantryOverlapMap?: Record<string, number | null>;
 }
 
 const SORT_OPTIONS = [
-  { value: "newest",    label: "Newest" },
-  { value: "oldest",   label: "Oldest" },
-  { value: "name",     label: "A–Z" },
-  { value: "rating",   label: "Highest Rated" },
-  { value: "fastest",  label: "Fastest" },
-  { value: "last_made",  label: "Recently Made" },
-  { value: "most_made",  label: "Most Made" },
+  { value: "newest",         label: "Newest" },
+  { value: "oldest",         label: "Oldest" },
+  { value: "name",           label: "A–Z" },
+  { value: "rating",         label: "Highest Rated" },
+  { value: "fastest",        label: "Fastest" },
+  { value: "last_made",      label: "Recently Made" },
+  { value: "most_made",      label: "Most Made" },
+  { value: "plan_overlap",   label: "Meal Plan Match" },
+  { value: "pantry_overlap", label: "Pantry Match" },
 ];
 
 const MEAL_TYPES = [
@@ -109,7 +112,7 @@ function FilterChip({
   );
 }
 
-export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overlapMap }: Props) {
+export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overlapMap, pantryOverlapMap }: Props) {
   const router = useRouter();
   const [importOpen, setImportOpen] = useState(false);
 
@@ -480,9 +483,23 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overla
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {recipes.map((recipe) => (
-            <RecipeCard key={recipe.id} recipe={recipe} overlapPercent={overlapMap?.[recipe.id] ?? null} />
-          ))}
+          {recipes.map((recipe) => {
+            const activeSort = currentFilters.sort ?? "newest";
+            const overlapPercent =
+              activeSort === "pantry_overlap"
+                ? (pantryOverlapMap?.[recipe.id] ?? null)
+                : (overlapMap?.[recipe.id] ?? null);
+            const overlapLabel =
+              activeSort === "pantry_overlap" ? "pantry" : "meal plan";
+            return (
+              <RecipeCard
+                key={recipe.id}
+                recipe={recipe}
+                overlapPercent={overlapPercent}
+                overlapLabel={overlapLabel}
+              />
+            );
+          })}
         </div>
       )}
 

@@ -1,3 +1,5 @@
+import { tokenize } from "@/lib/overlap";
+
 const normalize = (name: string) =>
   name.toLowerCase().replace(/\s+/g, " ").trim();
 
@@ -43,6 +45,26 @@ export function computeOverlapPercent(
     mealPlanSet.has(normalize(i.name))
   ).length;
   return Math.round((matches / recipeIngredients.length) * 100);
+}
+
+/**
+ * Fuzzy overlap % using token-based matching (same algorithm as SuggestedRecipes).
+ * Ingredients that tokenize to [] (pure stop-words / measurements) are excluded
+ * from both numerator and denominator so they can't artificially inflate the score.
+ */
+export function computeFuzzyOverlapPercent(
+  recipeIngredients: { name: string }[],
+  tokenSet: Set<string>
+): number | null {
+  if (recipeIngredients.length === 0 || tokenSet.size === 0) return null;
+  const tokenized = recipeIngredients
+    .map((i) => tokenize(i.name))
+    .filter((tokens) => tokens.length > 0);
+  if (tokenized.length === 0) return null;
+  const matched = tokenized.filter((tokens) =>
+    tokens.some((t) => tokenSet.has(t))
+  ).length;
+  return Math.round((matched / tokenized.length) * 100);
 }
 
 /** Tailwind color class based on overlap %. */
