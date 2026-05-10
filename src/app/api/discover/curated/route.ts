@@ -166,12 +166,16 @@ function isRecipeTitle(title: string): boolean {
 function stripHtml(html: string): string {
   return html
     .replace(/<[^>]+>/g, " ")
+    // Named entities
+    .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
-    .replace(/&#8217;/g, "'")
-    .replace(/&#8216;/g, "'")
+    .replace(/&apos;/g, "'")
+    // Catch-all: decode any remaining decimal or hex numeric entities
+    .replace(/&#x([0-9a-fA-F]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
     .replace(/\s+/g, " ")
     .trim();
 }
