@@ -103,6 +103,35 @@ const SORT_OPTIONS = [
   { value: "healthiness", label: "Healthiest" },
 ];
 
+// ─── Client-side keyword filters for curated (RSS / WP API) results ───────────
+// Spoonacular handles these server-side; for curated sites we match title + description.
+
+const CURATED_TYPE_KEYWORDS: Record<string, string[]> = {
+  breakfast: ["breakfast", "brunch", "pancake", "waffle", "oatmeal", "overnight oat",
+              "granola", "frittata", "omelet", "omelette", "french toast",
+              "shakshuka", "smoothie bowl", "crepe"],
+  lunch:     ["lunch", "sandwich", "wrap", "flatbread"],
+  dinner:    ["dinner", "supper"],
+  snack:     ["snack", "appetizer"],
+  dessert:   ["cake", "cookie", "cookies", "brownie", "tart", "muffin", "cheesecake",
+              "cupcake", "sorbet", "ice cream", "tiramisu", "macaron", "fudge",
+              "parfait", "cobbler", "biscotti", "gelato", "dessert"],
+  soup:      ["soup", "stew", "chowder", "bisque", "chili", "chilli", "ramen", "pho",
+              "minestrone", "gazpacho", "gumbo", "broth"],
+  salad:     ["salad", "slaw", "coleslaw"],
+  sauce:     ["sauce", "dressing", "marinade", "gravy", "pesto", "salsa",
+              "vinaigrette", "aioli", "hummus", "chimichurri"],
+};
+
+const CURATED_DIET_KEYWORDS: Record<string, string[]> = {
+  vegan:         ["vegan", "plant-based", "plant based"],
+  vegetarian:    ["vegetarian", "veggie", "meatless", "vegan"],
+  "gluten free": ["gluten-free", "gluten free"],
+  "dairy free":  ["dairy-free", "dairy free"],
+  paleo:         ["paleo"],
+  ketogenic:     ["keto", "ketogenic", "low-carb", "low carb"],
+};
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function StarRating({ score }: { score: number }) {
@@ -207,11 +236,38 @@ export function DiscoverClient({ initialResults, initialQuery, initialFilters }:
 
   const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
   const visibleResults = useMemo(() => {
-    if (selectedSources.size === 0) return results;
-    return results.filter(
-      (r) => r.source === "spoonacular" && r.data.sourceName && selectedSources.has(r.data.sourceName)
-    );
-  }, [results, selectedSources]);
+    // Source sub-filter (Spoonacular explore mode only)
+    let filtered = selectedSources.size === 0
+      ? results
+      : results.filter((r) => r.source === "spoonacular" && r.data.sourceName && selectedSources.has(r.data.sourceName));
+
+    if (sitesMode) {
+      // Meal type — client-side keyword match on title + description
+      if (type) {
+        const kws = CURATED_TYPE_KEYWORDS[type] ?? [];
+        if (kws.length > 0) {
+          filtered = filtered.filter((r) => {
+            if (r.source !== "curated") return true;
+            const text = `${r.data.title} ${r.data.description ?? ""}`.toLowerCase();
+            return kws.some((kw) => text.includes(kw));
+          });
+        }
+      }
+      // Diet — client-side keyword match on title + description
+      if (diet) {
+        const kws = CURATED_DIET_KEYWORDS[diet] ?? [];
+        if (kws.length > 0) {
+          filtered = filtered.filter((r) => {
+            if (r.source !== "curated") return true;
+            const text = `${r.data.title} ${r.data.description ?? ""}`.toLowerCase();
+            return kws.some((kw) => text.includes(kw));
+          });
+        }
+      }
+    }
+
+    return filtered;
+  }, [results, selectedSources, sitesMode, type, diet]);
 
   // ── Search ───────────────────────────────────────────────────────────────
 
@@ -305,14 +361,16 @@ export function DiscoverClient({ initialResults, initialQuery, initialFilters }:
     const current = key === "type" ? type : cuisine;
     const newVal = current === value ? "" : value;
     key === "type" ? setType(newVal) : setCuisine(newVal);
-    doSearch({ [key]: newVal });
+    // In sitesMode, meal-type filtering is client-side — no re-fetch needed
+    if (!sitesMode) doSearch({ [key]: newVal });
   }
 
   function handleFilterChange(key: "diet" | "maxTime" | "sort", value: string) {
     if (key === "diet") setDiet(value);
     if (key === "maxTime") setMaxTime(value);
     if (key === "sort") setSort(value);
-    doSearch({ [key]: value });
+    // In sitesMode, diet filtering is client-side — no re-fetch needed
+    if (!sitesMode) doSearch({ [key]: value });
   }
 
   // ── Import ───────────────────────────────────────────────────────────────
@@ -352,7 +410,10 @@ export function DiscoverClient({ initialResults, initialQuery, initialFilters }:
     }
   }
 
-  const activeFilterCount = [type, cuisine, diet, maxTime].filter(Boolean).length + selectedSites.size;
+  // In sitesMode only type + diet are meaningful; cuisine / time / sort are Spoonacular-only
+  const activeFilterCount = sitesMode
+    ? [type, diet].filter(Boolean).length + selectedSites.size
+    : [type, cuisine, diet, maxTime].filter(Boolean).length + selectedSites.size;
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -449,58 +510,65 @@ export function DiscoverClient({ initialResults, initialQuery, initialFilters }:
             </div>
           </div>
 
-          {/* Cuisine */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Cuisine
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {CUISINES.map((c) => (
-                <Chip
-                  key={c.value}
-                  label={c.label}
-                  active={cuisine === c.value}
-                  onClick={() => toggleChip("cuisine", c.value)}
-                />
-              ))}
+          {/* Cuisine — Spoonacular only */}
+          {!sitesMode && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Cuisine
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {CUISINES.map((c) => (
+                  <Chip
+                    key={c.value}
+                    label={c.label}
+                    active={cuisine === c.value}
+                    onClick={() => toggleChip("cuisine", c.value)}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Diet */}
           <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Diet</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Diet
+              {sitesMode && <span className="ml-1.5 text-muted-foreground/50 font-normal normal-case tracking-normal">· filters by title &amp; description</span>}
+            </p>
             <div className="flex flex-wrap gap-2">
               {DIETS.map((d) => (
                 <Chip
                   key={d.value}
                   label={d.label}
                   active={diet === d.value}
-                  onClick={() => { const v = diet === d.value ? "" : d.value; setDiet(v); doSearch({ diet: v }); }}
+                  onClick={() => { const v = diet === d.value ? "" : d.value; setDiet(v); if (!sitesMode) doSearch({ diet: v }); }}
                 />
               ))}
             </div>
           </div>
 
-          {/* Time / Sort */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-border">
-            {[
-              { label: "Max Time", key: "maxTime" as const, value: maxTime, options: TIME_OPTIONS },
-              { label: "Sort By",  key: "sort"    as const, value: sort,    options: SORT_OPTIONS },
-            ].map(({ label, key, value, options }) => (
-              <div key={key}>
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
-                  {label}
-                </label>
-                <select
-                  value={value}
-                  onChange={(e) => handleFilterChange(key, e.target.value)}
-                  className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/50"
-                >
-                  {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              </div>
-            ))}
-          </div>
+          {/* Time / Sort — Spoonacular only */}
+          {!sitesMode && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-border">
+              {[
+                { label: "Max Time", key: "maxTime" as const, value: maxTime, options: TIME_OPTIONS },
+                { label: "Sort By",  key: "sort"    as const, value: sort,    options: SORT_OPTIONS },
+              ].map(({ label, key, value, options }) => (
+                <div key={key}>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
+                    {label}
+                  </label>
+                  <select
+                    value={value}
+                    onChange={(e) => handleFilterChange(key, e.target.value)}
+                    className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/50"
+                  >
+                    {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Clear all */}
           {activeFilterCount > 0 && (
