@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Link as LinkIcon, Camera, X, Loader2, AlertCircle,
   Upload, CheckCircle2, Clipboard, Plus, FileImage, FileText,
+  GripVertical, ChevronUp, ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
@@ -107,6 +108,8 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
   const [photoStep, setPhotoStep] = useState<PhotoStep>({ kind: "idle" });
   const [photoError, setPhotoError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragIndexRef = useRef<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   // ── Text / paste tab ──────────────────────────────────────────────────────
   const [textInput, setTextInput] = useState("");
@@ -233,10 +236,49 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
 
   // ── Photo import ──────────────────────────────────────────────────────────
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    addPage(file);
+    const files = Array.from(e.target.files ?? []);
+    files.forEach((f) => addPage(f));
     e.target.value = "";
+  }
+
+  function movePage(idx: number, dir: -1 | 1) {
+    setPhotoStep((prev) => {
+      if (prev.kind !== "pages") return prev;
+      const pages = [...prev.pages];
+      const j = idx + dir;
+      if (j < 0 || j >= pages.length) return prev;
+      [pages[idx], pages[j]] = [pages[j], pages[idx]];
+      return { kind: "pages", pages };
+    });
+  }
+
+  function handleDragStart(i: number) {
+    dragIndexRef.current = i;
+  }
+
+  function handleDragOver(e: React.DragEvent, i: number) {
+    e.preventDefault();
+    setDragOverIndex(i);
+  }
+
+  function handleDrop(e: React.DragEvent, i: number) {
+    e.preventDefault();
+    setDragOverIndex(null);
+    const from = dragIndexRef.current;
+    if (from === null || from === i) return;
+    dragIndexRef.current = null;
+    setPhotoStep((prev) => {
+      if (prev.kind !== "pages") return prev;
+      const pages = [...prev.pages];
+      const [moved] = pages.splice(from, 1);
+      pages.splice(i, 0, moved);
+      return { kind: "pages", pages };
+    });
+  }
+
+  function handleDragEnd() {
+    setDragOverIndex(null);
+    dragIndexRef.current = null;
   }
 
   async function handlePhotoUpload() {
@@ -548,7 +590,8 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
                       className="flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-dashed border-border hover:border-brand-orange/50 hover:bg-brand-orange/5 transition-colors"
                     >
                       <Upload className="w-7 h-7 text-muted-foreground" />
-                      <span className="text-sm font-medium text-foreground">Upload File</span>
+                      <span className="text-sm font-medium text-foreground">Upload Files</span>
+                      <span className="text-xs text-muted-foreground -mt-2">Select multiple</span>
                     </button>
                   </div>
                   <p className="text-xs text-muted-foreground text-center">JPEG, PNG, or WEBP · up to 10 MB each</p>
@@ -558,20 +601,61 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
               {/* Pages collected */}
               {isPages && (
                 <>
-                  {/* Page thumbnails — capped height so the submit button always stays visible */}
-                  <div className="overflow-y-auto space-y-2" style={{ maxHeight: "13rem" }}>
-                    {(photoStep as { kind: "pages"; pages: PageFile[] }).pages.map((p, i) => (
-                      <div key={i} className="flex items-center gap-3 p-2 bg-secondary rounded-lg">
+                  {/* Page thumbnails — capped height, scrollable, drag-to-reorder */}
+                  <div className="overflow-y-auto space-y-1.5" style={{ maxHeight: "13rem" }}>
+                    {(photoStep as { kind: "pages"; pages: PageFile[] }).pages.map((p, i, arr) => (
+                      <div
+                        key={p.objectUrl}
+                        draggable
+                        onDragStart={() => handleDragStart(i)}
+                        onDragOver={(e) => handleDragOver(e, i)}
+                        onDrop={(e) => handleDrop(e, i)}
+                        onDragEnd={handleDragEnd}
+                        className={cn(
+                          "flex items-center gap-2 p-2 rounded-lg transition-colors",
+                          dragOverIndex === i
+                            ? "bg-brand-orange/15 ring-1 ring-brand-orange/40"
+                            : "bg-secondary"
+                        )}
+                      >
+                        {/* Drag handle */}
+                        <GripVertical className="w-4 h-4 text-muted-foreground/40 shrink-0 cursor-grab active:cursor-grabbing" />
+
+                        {/* Thumbnail */}
                         <div className="relative w-14 h-10 rounded overflow-hidden shrink-0 bg-background">
                           <Image src={p.objectUrl} alt={`Page ${i + 1}`} fill className="object-cover" />
                         </div>
+
+                        {/* Label */}
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-foreground">Page {i + 1}</p>
                           <p className="text-xs text-muted-foreground truncate">{p.file.name || "screenshot"}</p>
                         </div>
+
+                        {/* Up / down — mobile-friendly reorder */}
+                        <div className="flex flex-col gap-0 shrink-0">
+                          <button
+                            onClick={() => movePage(i, -1)}
+                            disabled={i === 0}
+                            aria-label="Move up"
+                            className="p-0.5 text-muted-foreground/40 hover:text-foreground transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                          >
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => movePage(i, 1)}
+                            disabled={i === arr.length - 1}
+                            aria-label="Move down"
+                            className="p-0.5 text-muted-foreground/40 hover:text-foreground transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                          >
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Remove */}
                         <button
                           onClick={() => removePage(i)}
-                          className="text-muted-foreground hover:text-red-400 transition-colors p-1"
+                          className="text-muted-foreground hover:text-red-400 transition-colors p-1 shrink-0"
                           aria-label="Remove page"
                         >
                           <X className="w-4 h-4" />
@@ -664,6 +748,7 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
                 ref={fileInputRef}
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
+                multiple
                 className="hidden"
                 onChange={handleFileChange}
               />
