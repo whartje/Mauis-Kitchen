@@ -6,6 +6,7 @@ import { useClerk, useUser } from "@clerk/nextjs";
 import {
   Sun, Moon, LogOut, Settings2, Users,
   Check, ChevronRight, CreditCard, Zap, Loader2,
+  Smartphone, CheckCircle2,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
@@ -48,6 +49,11 @@ export function SettingsClient() {
   const [defaultServings, setDefaultServings] = useState(2);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
 
+  // Install-app detection (runs client-side only)
+  const [installState, setInstallState] = useState<
+    "loading" | "installed" | "ios-safari" | "ios-other" | "other"
+  >("loading");
+
   // Billing status
   const [planStatus, setPlanStatus] = useState<PlanStatus | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
@@ -57,6 +63,22 @@ export function SettingsClient() {
       .then((r) => r.json())
       .then((d) => setPlanStatus(d))
       .catch(() => {});
+  }, []);
+
+  // Detect install state
+  useEffect(() => {
+    const ua = navigator.userAgent;
+    const standalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (navigator as any).standalone === true;
+    if (standalone) { setInstallState("installed"); return; }
+    const isIOS = /iPhone|iPad|iPod/.test(ua);
+    // CriOS = Chrome for iOS, FxiOS = Firefox for iOS — neither can add PWA icons
+    const isSafari = isIOS && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+    if (isSafari) { setInstallState("ios-safari"); return; }
+    if (isIOS)    { setInstallState("ios-other");  return; }
+    setInstallState("other");
   }, []);
 
   // Load saved preferences from localStorage
@@ -119,6 +141,80 @@ export function SettingsClient() {
               <div className="h-9 w-32 bg-secondary rounded-lg animate-pulse" />
             )}
           </Row>
+        </Card>
+      </section>
+
+      {/* ── Install App ─────────────────────────────────────────────────────── */}
+      <section className="space-y-2">
+        <SectionLabel icon={<Smartphone className="w-3.5 h-3.5" />} title="Install App" />
+        <Card>
+          {installState === "installed" && (
+            <div className="px-5 py-4 flex items-center gap-3">
+              <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-foreground">You&apos;re using the app</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Maui&apos;s Kitchen is already on your home screen — enjoy!
+                </p>
+              </div>
+            </div>
+          )}
+
+          {installState === "ios-safari" && (
+            <div className="px-5 py-4 space-y-4">
+              <div>
+                <p className="text-sm font-medium text-foreground">Add to your home screen</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Three taps and it works like a real app — no App Store needed.
+                </p>
+              </div>
+              <ol className="space-y-3">
+                {[
+                  { n: 1, icon: "⬆️", text: <>Tap the <strong className="text-foreground">Share</strong> button at the bottom of Safari (the box with an arrow pointing up)</> },
+                  { n: 2, icon: "📋", text: <>Scroll down the menu and tap <strong className="text-foreground">Add to Home Screen</strong></> },
+                  { n: 3, icon: "✅", text: <>Tap <strong className="text-foreground">Add</strong> in the top-right corner</> },
+                ].map(({ n, icon, text }) => (
+                  <li key={n} className="flex items-start gap-3">
+                    <span className="w-6 h-6 rounded-full bg-brand-orange/15 text-brand-orange text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                      {n}
+                    </span>
+                    <span className="text-sm text-muted-foreground leading-snug">
+                      <span className="mr-1">{icon}</span>{text}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+          {installState === "ios-other" && (
+            <div className="px-5 py-4 flex items-start gap-3">
+              <span className="text-xl shrink-0">🧭</span>
+              <div>
+                <p className="text-sm font-medium text-foreground">Open in Safari to install</p>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                  Home-screen installation only works in <strong className="text-foreground">Safari</strong>.
+                  Tap the share icon in your current browser and choose{" "}
+                  <strong className="text-foreground">&ldquo;Open in Safari&rdquo;</strong>, then follow the steps there.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {(installState === "other" || installState === "loading") && (
+            <div className="px-5 py-4 flex items-start gap-3">
+              <span className="text-xl shrink-0">📱</span>
+              <div>
+                <p className="text-sm font-medium text-foreground">Install on your iPhone</p>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                  Open <strong className="text-foreground">mauis-kitchen.com</strong> in{" "}
+                  <strong className="text-foreground">Safari on your iPhone</strong>, then tap the Share button ⬆️,
+                  choose <strong className="text-foreground">&ldquo;Add to Home Screen&rdquo;</strong>, and tap{" "}
+                  <strong className="text-foreground">Add</strong>.
+                </p>
+              </div>
+            </div>
+          )}
         </Card>
       </section>
 
