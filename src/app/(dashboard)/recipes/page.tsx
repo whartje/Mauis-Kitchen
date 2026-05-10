@@ -51,9 +51,9 @@ const MEAL_TYPE_TITLE_KEYWORDS: Record<string, string[]> = {
   dinner: [],
   snack:  [],
   dessert: [
-    "cake", "cookie", "cookies", "pie", "brownie", "tart", "muffin", "cheesecake",
-    "cupcake", "sorbet", "ice cream", "pudding", "tiramisu", "macaron", "fudge",
-    "truffle", "mousse", "parfait", "cobbler", "crisp", "crumble", "biscotti",
+    "cake", "cookie", "cookies", "brownie", "tart", "muffin", "cheesecake",
+    "cupcake", "sorbet", "ice cream", "tiramisu", "macaron", "fudge",
+    "parfait", "cobbler", "biscotti", "gelato", "cannoli", "churro",
   ],
   soup: [
     "soup", "stew", "chowder", "bisque", "chili", "chilli", "ramen", "pho",
