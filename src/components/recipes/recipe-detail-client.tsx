@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ArrowLeft, Clock, ChefHat, Star, Heart, ExternalLink, Minus, Plus, Camera, Loader2, Pencil, BookOpen, Trash2, Tag, X, NotebookPen, ZoomIn, Sparkles, UtensilsCrossed, FileText, Package, ChevronUp, ChevronDown, Link as LinkIcon } from "lucide-react";
+import { ArrowLeft, Clock, ChefHat, Star, Heart, ExternalLink, Minus, Plus, Camera, Loader2, Pencil, BookOpen, Trash2, Tag, X, NotebookPen, ZoomIn, Sparkles, UtensilsCrossed, FileText, Package, ChevronUp, ChevronDown, Link as LinkIcon, Sun } from "lucide-react";
 import { AddToMealPlanButton } from "./add-to-meal-plan-button";
 import { ImportRecipeModal } from "./import-recipe-modal";
 import { overlapColor } from "@/lib/meal-plan-overlap";
@@ -87,6 +87,59 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
   const [deleting, setDeleting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importTab, setImportTab] = useState<"url" | "photo" | "text">("url");
+
+  // ── Screen wake lock ──────────────────────────────────────────────────────
+  const [screenLockActive, setScreenLockActive] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const wakeLockRef = useRef<any>(null);
+
+  async function toggleScreenLock() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const nav = navigator as any;
+    if (!nav.wakeLock) return; // not supported
+    if (screenLockActive) {
+      await wakeLockRef.current?.release();
+      wakeLockRef.current = null;
+      setScreenLockActive(false);
+    } else {
+      try {
+        const lock = await nav.wakeLock.request("screen");
+        wakeLockRef.current = lock;
+        setScreenLockActive(true);
+        lock.addEventListener("release", () => {
+          wakeLockRef.current = null;
+          setScreenLockActive(false);
+        });
+      } catch {
+        // user denied or feature unavailable
+      }
+    }
+  }
+
+  // Re-acquire lock when tab regains focus (browser releases it on hide)
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const nav = navigator as any;
+    async function handleVisibility() {
+      if (document.visibilityState === "visible" && screenLockActive && !wakeLockRef.current && nav.wakeLock) {
+        try {
+          const lock = await nav.wakeLock.request("screen");
+          wakeLockRef.current = lock;
+          lock.addEventListener("release", () => {
+            wakeLockRef.current = null;
+            setScreenLockActive(false);
+          });
+        } catch { /* ignore */ }
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [screenLockActive]);
+
+  // Release on unmount
+  useEffect(() => {
+    return () => { wakeLockRef.current?.release(); };
+  }, []);
 
   // ── Editable fields ────────────────────────────────────────────────────────
   const [titleValue, setTitleValue] = useState(recipe.title);
@@ -631,6 +684,19 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
                   {madeCount}
                 </span>
               )}
+            </button>
+            {/* Screen wake lock — keeps screen on while cooking */}
+            <button
+              onClick={toggleScreenLock}
+              title={screenLockActive ? "Screen lock on — tap to turn off" : "Keep screen on while cooking"}
+              className={cn(
+                "p-2 rounded-full transition-colors",
+                screenLockActive
+                  ? "bg-amber-400/15 text-amber-400"
+                  : "hover:bg-secondary text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Sun className={cn("w-6 h-6 transition-all", screenLockActive && "drop-shadow-[0_0_6px_rgba(251,191,36,0.6)]")} />
             </button>
             <button
               onClick={toggleFavorite}
