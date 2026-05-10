@@ -5,54 +5,52 @@ import { prisma } from "@/lib/prisma";
 import GroceryListClient from "@/components/grocery-list/grocery-list-client";
 import type { PantryItem } from "@prisma/client";
 
-function getMondayOf(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getUTCDay();
+interface Props {
+  searchParams: Promise<{ week?: string }>;
+}
+
+function getMondayOf(dateStr: string): Date {
+  const date = new Date(dateStr + "T12:00:00Z");
+  const day = date.getUTCDay();
   const diff = day === 0 ? -6 : 1 - day;
-  d.setUTCDate(d.getUTCDate() + diff);
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
+  const monday = new Date(date);
+  monday.setUTCDate(date.getUTCDate() + diff);
+  monday.setUTCHours(0, 0, 0, 0);
+  return monday;
 }
 
-const MONTH_NAMES = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
-
-function formatShortDate(d: Date): string {
-  const month = MONTH_NAMES[d.getUTCMonth()];
-  const day = d.getUTCDate();
-  return `${month} ${day}`;
+function currentMonday(): Date {
+  const now = new Date();
+  const day = now.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setUTCDate(now.getUTCDate() + diff);
+  monday.setUTCHours(0, 0, 0, 0);
+  return monday;
 }
 
-export default async function GroceryListPage() {
+export default async function GroceryListPage({ searchParams }: Props) {
   const { userId } = await auth();
   if (!userId) return null;
 
-  const weekStart = getMondayOf(new Date());
+  const { week } = await searchParams;
+  const weekStart = week ? getMondayOf(week) : currentMonday();
+  const thisMonday = currentMonday();
 
-  // Sunday of this week
-  const weekEnd = new Date(weekStart);
-  weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
+  // Find the meal plan for the selected week
+  const mealPlan = await prisma.mealPlan.findFirst({
+    where: { userId, weekStartDate: weekStart },
+  });
 
-  const currentWeekLabel = `${formatShortDate(weekStart)} – ${formatShortDate(weekEnd)}`;
-
-  const [groceryList, mealPlan, pantryItems] = await Promise.all([
-    prisma.groceryList.findFirst({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      include: {
-        items: {
-          orderBy: { sortOrder: "asc" },
-        },
-      },
-    }),
-    prisma.mealPlan.findFirst({
-      where: {
-        userId,
-        weekStartDate: weekStart,
-      },
-    }),
+  // Find the grocery list linked to that meal plan (if it exists)
+  const [groceryList, pantryItems] = await Promise.all([
+    mealPlan
+      ? prisma.groceryList.findFirst({
+          where: { userId, mealPlanId: mealPlan.id },
+          orderBy: { createdAt: "desc" },
+          include: { items: { orderBy: { sortOrder: "asc" } } },
+        })
+      : Promise.resolve(null),
     prisma.pantryItem.findMany({
       where: { userId },
       select: { name: true },
@@ -64,8 +62,8 @@ export default async function GroceryListPage() {
   return (
     <GroceryListClient
       initialList={groceryList}
-      currentWeekStart={weekStart.toISOString()}
-      currentWeekLabel={currentWeekLabel}
+      weekStart={weekStart.toISOString()}
+      thisWeekStart={thisMonday.toISOString()}
       hasMealPlan={mealPlan !== null}
       pantryNames={pantryNames}
     />

@@ -15,6 +15,9 @@ import {
   CheckCircle2,
   Share2,
   Mail,
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -60,8 +63,10 @@ interface GroceryListWithItems {
 
 interface Props {
   initialList: GroceryListWithItems | null;
-  currentWeekStart: string;
-  currentWeekLabel: string;
+  /** Monday ISO string for the week being displayed */
+  weekStart: string;
+  /** Monday ISO string for the current real-world week — used for "This Week" nav */
+  thisWeekStart: string;
   hasMealPlan: boolean;
   pantryNames?: string[];
   alexaConnected?: boolean; // kept for backwards compat, no longer used
@@ -111,7 +116,34 @@ const CATEGORY_OPTIONS: IngredientCategory[] = [
   "OTHER",
 ];
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Week helpers ─────────────────────────────────────────────────────────────
+
+const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function fmtDate(d: Date): string {
+  return `${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCDate()}`;
+}
+
+/** Given the Monday ISO string and the user's preferred start day,
+ *  compute the display range (e.g. "Sun Apr 27 – Sat May 3, 2025"). */
+function computeWeekLabel(mondayIso: string, startDay: string): string {
+  const monday = new Date(mondayIso);
+  const offset = startDay === "sunday" ? -1 : startDay === "saturday" ? -2 : 0;
+  const start = new Date(monday);
+  start.setUTCDate(monday.getUTCDate() + offset);
+  const end = new Date(start);
+  end.setUTCDate(start.getUTCDate() + 6);
+  return `${fmtDate(start)} – ${fmtDate(end)}, ${end.getUTCFullYear()}`;
+}
+
+/** Add (or subtract) days from a Monday ISO string; returns a YYYY-MM-DD string. */
+function shiftWeek(mondayIso: string, weeks: number): string {
+  const d = new Date(mondayIso);
+  d.setUTCDate(d.getUTCDate() + weeks * 7);
+  return d.toISOString().split("T")[0];
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatQuantity(item: GroceryListItem): string {
   const parts: string[] = [];
@@ -128,8 +160,8 @@ function formatQuantity(item: GroceryListItem): string {
 
 export default function GroceryListClient({
   initialList,
-  currentWeekStart,
-  currentWeekLabel,
+  weekStart,
+  thisWeekStart,
   hasMealPlan,
   pantryNames = [],
 }: Props) {
@@ -138,6 +170,27 @@ export default function GroceryListClient({
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [clearingChecked, setClearingChecked] = useState(false);
+
+  // Week start day preference (from Settings, stored in localStorage)
+  const [weekStartDay, setWeekStartDay] = useState<string>("monday");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("mauisKitchen_weekStartDay");
+      if (saved && ["monday","sunday","saturday"].includes(saved)) setWeekStartDay(saved);
+    } catch {}
+  }, []);
+
+  const weekLabel = computeWeekLabel(weekStart, weekStartDay);
+  const isCurrentWeek = weekStart.split("T")[0] === thisWeekStart.split("T")[0];
+
+  function goWeek(dir: 1 | -1) {
+    const target = shiftWeek(weekStart, dir);
+    router.push(`/grocery-list?week=${target}`);
+  }
+
+  function goThisWeek() {
+    router.push("/grocery-list");
+  }
 
   // Add item form state
   const [addText, setAddText] = useState("");
@@ -166,7 +219,9 @@ export default function GroceryListClient({
   }, [showSharePanel]);
 
   // ── Week guard: auto-refresh when the calendar week rolls over ───────────
+  // Only relevant when viewing the current week — navigated weeks are stable.
   useEffect(() => {
+    if (!isCurrentWeek) return; // viewing a past/future week — no auto-refresh needed
     function getClientMonday(): string {
       const now = new Date();
       const day = now.getUTCDay();
@@ -176,14 +231,14 @@ export default function GroceryListClient({
       monday.setUTCHours(0, 0, 0, 0);
       return monday.toISOString().split("T")[0];
     }
-    const serverWeek = currentWeekStart.split("T")[0];
+    const serverWeek = thisWeekStart.split("T")[0];
     function check() {
       if (getClientMonday() !== serverWeek) router.refresh();
     }
-    check(); // check immediately on mount (catches stale cached render)
-    const id = setInterval(check, 60_000); // re-check every minute
+    check();
+    const id = setInterval(check, 60_000);
     return () => clearInterval(id);
-  }, [currentWeekStart, router]);
+  }, [isCurrentWeek, thisWeekStart, router]);
 
   // ── Generate / Regenerate ────────────────────────────────────────────────
 
@@ -194,7 +249,7 @@ export default function GroceryListClient({
       const res = await fetch("/api/grocery-list", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weekStart: currentWeekStart }),
+        body: JSON.stringify({ weekStart }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -208,7 +263,7 @@ export default function GroceryListClient({
     } finally {
       setGenerating(false);
     }
-  }, [currentWeekStart]);
+  }, [weekStart]);
 
   // ── Toggle isChecked ─────────────────────────────────────────────────────
 
@@ -551,9 +606,46 @@ export default function GroceryListClient({
             <ShoppingCart className="w-6 h-6 text-[#E8834A]" />
             Grocery List
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{currentWeekLabel}</p>
 
-          {/* Share + Generate/Regenerate — row below the date */}
+          {/* Week navigator */}
+          <div className="flex items-center gap-1.5 mt-2">
+            <button
+              onClick={() => goWeek(-1)}
+              className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              title="Previous week"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary/60 border border-border">
+              <CalendarDays className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium text-foreground">{weekLabel}</span>
+              {isCurrentWeek && (
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-[#E8834A] bg-[#E8834A]/10 px-1.5 py-0.5 rounded-full">
+                  This week
+                </span>
+              )}
+            </div>
+
+            <button
+              onClick={() => goWeek(1)}
+              className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              title="Next week"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+
+            {!isCurrentWeek && (
+              <button
+                onClick={goThisWeek}
+                className="text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg px-2.5 py-1.5 hover:bg-secondary transition-colors"
+              >
+                This Week
+              </button>
+            )}
+          </div>
+
+          {/* Share + Generate/Regenerate — row below the week nav */}
           <div className="flex items-center gap-2 mt-3">
             {/* Share List — only shown when a list exists with unchecked items */}
             {list && list.items.some((it) => !it.isChecked) && (
