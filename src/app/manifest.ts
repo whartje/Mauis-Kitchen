@@ -14,7 +14,7 @@ export default function manifest(): MetadataRoute.Manifest {
     orientation: "portrait-primary",
     icons: [
       {
-        src: "/apple-icon.png",
+        src: "/api/pwa-icon",
         sizes: "180x180",
         type: "image/png",
         purpose: "any",

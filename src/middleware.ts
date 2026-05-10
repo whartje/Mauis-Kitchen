@@ -9,6 +9,7 @@ const isPublicRoute = createRouteMatcher([
   "/apple-icon.png",
   "/icon.png",
   "/manifest.webmanifest",
+  "/api/pwa-icon",
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
