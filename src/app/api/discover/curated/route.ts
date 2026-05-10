@@ -166,9 +166,10 @@ function isRecipeTitle(title: string): boolean {
 function stripHtml(html: string): string {
   return html
     .replace(/<[^>]+>/g, " ")
-    // Named entities
-    .replace(/&nbsp;/g, " ")
+    // Decode &amp; first so double-encoded entities like &amp;nbsp; are handled correctly
     .replace(/&amp;/g, "&")
+    // Named entities (after &amp; is resolved)
+    .replace(/&nbsp;/g, " ")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
@@ -220,7 +221,7 @@ async function fetchViaWpApi(siteKey: string, query: string): Promise<CuratedRec
   try {
     const res = await fetch(`${site.baseUrl}/wp-json/wp/v2/posts?${params}`, {
       headers: HEADERS,
-      next: { revalidate: 300 },
+      next: { revalidate: 60 },
     });
     if (!res.ok) return null;
 
@@ -281,7 +282,7 @@ async function fetchViaRss(siteKey: string, query: string): Promise<CuratedRecip
     : site.feedUrl;
 
   try {
-    const res = await fetch(url, { headers: HEADERS, next: { revalidate: 300 } });
+    const res = await fetch(url, { headers: HEADERS, next: { revalidate: 60 } });
     if (!res.ok) return [];
     const xml = await res.text();
 
@@ -317,7 +318,7 @@ async function fetchHtmlSite(siteKey: string, query: string): Promise<CuratedRec
   const site = HTML_SITES[siteKey];
   if (!site) return [];
   try {
-    const res = await fetch(site.listingUrl, { headers: HEADERS, next: { revalidate: 300 } });
+    const res = await fetch(site.listingUrl, { headers: HEADERS, next: { revalidate: 60 } });
     if (!res.ok) return [];
     const html = await res.text();
     const results: CuratedRecipe[] = [];
@@ -357,7 +358,7 @@ async function fetchBigOven(query: string): Promise<CuratedRecipe[]> {
         Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
       },
-      next: { revalidate: 300 },
+      next: { revalidate: 60 },
     });
     if (!res.ok) return [];
 
@@ -421,7 +422,7 @@ async function fetchSpoonacular(query: string): Promise<CuratedRecipe[]> {
       url = `${SPOONACULAR_BASE}/recipes/random?${params}`;
     }
 
-    const res = await fetch(url, { next: { revalidate: 300 } });
+    const res = await fetch(url, { next: { revalidate: 60 } });
     if (!res.ok) return [];
     const data = await res.json();
 
