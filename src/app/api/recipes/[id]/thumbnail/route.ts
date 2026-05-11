@@ -71,6 +71,56 @@ export async function POST(
   return NextResponse.json({ imageUrl, gallery });
 }
 
+// ── DELETE: remove a photo from the gallery (and from Supabase if applicable) ──
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+
+  const { imageUrl: urlToDelete } = (await request.json()) as { imageUrl?: string };
+  if (!urlToDelete || typeof urlToDelete !== "string") {
+    return NextResponse.json({ error: "imageUrl required" }, { status: 400 });
+  }
+
+  const recipe = await prisma.recipe.findFirst({ where: { id, userId } });
+  if (!recipe) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Build the current full gallery (merge legacy imageUrl if needed)
+  const existing = recipe.imageGallery as string[];
+  let fullGallery = [...existing];
+  if (recipe.imageUrl && !fullGallery.includes(recipe.imageUrl)) {
+    fullGallery = [recipe.imageUrl, ...fullGallery];
+  }
+
+  const newGallery = fullGallery.filter((u) => u !== urlToDelete);
+
+  // If we removed the primary, promote the next photo (or clear it)
+  const newImageUrl: string | null =
+    recipe.imageUrl === urlToDelete ? (newGallery[0] ?? null) : recipe.imageUrl;
+
+  await prisma.recipe.update({
+    where: { id },
+    data: { imageGallery: newGallery, imageUrl: newImageUrl },
+  });
+
+  // Best-effort: delete from Supabase storage if this is a hosted URL
+  const supabaseBase = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (supabaseBase && urlToDelete.startsWith(supabaseBase)) {
+    const marker = "/recipe-images/";
+    const markerIdx = urlToDelete.indexOf(marker);
+    if (markerIdx !== -1) {
+      const storagePath = urlToDelete.slice(markerIdx + marker.length);
+      await supabase.storage.from("recipe-images").remove([storagePath]);
+    }
+  }
+
+  return NextResponse.json({ imageUrl: newImageUrl, gallery: newGallery });
+}
+
 // ── PATCH: set an existing gallery photo as the primary (no re-upload) ────────
 export async function PATCH(
   request: Request,

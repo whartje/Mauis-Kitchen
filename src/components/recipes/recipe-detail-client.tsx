@@ -292,6 +292,20 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
     if (res.ok) setImageUrl(url);
   }
 
+  async function deletePhoto(url: string) {
+    // Optimistic update
+    const newGallery = gallery.filter((u) => u !== url);
+    const newImageUrl = imageUrl === url ? (newGallery[0] ?? null) : imageUrl;
+    setGallery(newGallery);
+    setImageUrl(newImageUrl);
+
+    await fetch(`/api/recipes/${recipe.id}/thumbnail`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageUrl: url }),
+    });
+  }
+
   async function handleThumbnailChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -592,31 +606,52 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
         />
       </div>
 
-      {/* Photo gallery strip — shown when there are 2+ photos */}
-      {gallery.length > 1 && (
+      {/* Photo gallery strip — shown when there is at least 1 photo */}
+      {gallery.length >= 1 && (
         <div className="flex items-center gap-2 overflow-x-auto pb-1 -mt-1">
           {gallery.map((url, i) => (
-            <button
-              key={url}
-              onClick={() => setPrimaryPhoto(url)}
-              title={url === imageUrl ? "Current main photo" : "Set as main photo"}
-              className={cn(
-                "relative shrink-0 w-16 h-12 rounded-lg overflow-hidden border-2 transition-all",
-                url === imageUrl
-                  ? "border-brand-orange ring-1 ring-brand-orange/40"
-                  : "border-transparent opacity-60 hover:opacity-100 hover:border-brand-orange/40"
-              )}
-            >
-              <Image src={url} alt={`Photo ${i + 1}`} fill className="object-cover" />
-              {url === imageUrl && (
-                <div className="absolute inset-0 bg-black/20 flex items-end justify-end p-1">
-                  <span className="text-[9px] font-semibold text-white bg-brand-orange rounded px-1 leading-4">
-                    main
-                  </span>
-                </div>
-              )}
-            </button>
+            /* Wrapper gives us the group context for the hover-reveal delete button */
+            <div key={url} className="relative shrink-0 group/thumb">
+              <button
+                onClick={() => setPrimaryPhoto(url)}
+                title={url === imageUrl ? "Current main photo" : "Set as main photo"}
+                className={cn(
+                  "relative w-16 h-12 rounded-lg overflow-hidden border-2 transition-all",
+                  url === imageUrl
+                    ? "border-brand-orange ring-1 ring-brand-orange/40"
+                    : "border-transparent opacity-60 hover:opacity-100 hover:border-brand-orange/40"
+                )}
+              >
+                <Image src={url} alt={`Photo ${i + 1}`} fill className="object-cover" />
+                {url === imageUrl && (
+                  <div className="absolute inset-0 bg-black/20 flex items-end justify-end p-1">
+                    <span className="text-[9px] font-semibold text-white bg-brand-orange rounded px-1 leading-4">
+                      main
+                    </span>
+                  </div>
+                )}
+              </button>
+
+              {/* Delete button: always visible on touch screens, hover-only on desktop */}
+              <button
+                onClick={() => deletePhoto(url)}
+                title="Remove this photo"
+                aria-label="Remove photo"
+                className={cn(
+                  "absolute -top-1.5 -right-1.5 z-10",
+                  "w-5 h-5 rounded-full bg-black/70 hover:bg-red-500",
+                  "flex items-center justify-center",
+                  "transition-all",
+                  // Always shown on mobile (no hover); desktop hides until parent hovered
+                  "opacity-70 sm:opacity-0 sm:group-hover/thumb:opacity-100",
+                  "scale-90 sm:scale-75 sm:group-hover/thumb:scale-100"
+                )}
+              >
+                <X className="w-3 h-3 text-white" />
+              </button>
+            </div>
           ))}
+
           {/* Add another photo */}
           <button
             onClick={() => thumbnailInputRef.current?.click()}
