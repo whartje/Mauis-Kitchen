@@ -9,7 +9,7 @@ const TABS = [
     color: "text-brand-orange",
     bg: "bg-brand-orange/10",
     description:
-      "Your dashboard. See this week's planned meals at a glance, your most recently imported recipes, and quickly import anything new by pasting a URL or scanning a photo with the buttons in the top right.",
+      "Your dashboard. See this week's planned meals at a glance, your most recently imported recipes, and quickly import anything new with the buttons in the top right — paste a URL, scan a photo, type a recipe, or drop in a YouTube link (Pro) to let Claude read the video's transcript and build the recipe for you.",
   },
   {
     icon: BookOpen,
@@ -17,7 +17,7 @@ const TABS = [
     color: "text-blue-400",
     bg: "bg-blue-400/10",
     description:
-      "Your full recipe library. Filter by diet, cook time, or cuisine using the chips at the top. Open any recipe for step-by-step instructions — tap the ☀️ icon to keep your screen on while you cook, or the 📅 icon to add it straight to your meal plan.",
+      "Your full recipe library. Filter by diet, cook time, or cuisine using the chips at the top. Open any recipe for step-by-step instructions — tap the ☀️ icon to keep your screen on while you cook, or the 📅 icon to add it straight to your meal plan. Recipes imported from YouTube show a link back to the original video.",
   },
   {
     icon: Compass,
