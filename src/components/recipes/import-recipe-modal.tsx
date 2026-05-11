@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Link as LinkIcon, Camera, X, Loader2, AlertCircle,
   Upload, CheckCircle2, Clipboard, Plus, FileImage, FileText,
-  GripVertical, ChevronUp, ChevronDown,
+  GripVertical, ChevronUp, ChevronDown, Youtube, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
@@ -16,7 +16,7 @@ interface Props {
   initialTab?: Tab;
 }
 
-type Tab = "url" | "photo" | "text";
+type Tab = "url" | "photo" | "text" | "youtube";
 
 interface PageFile {
   file: File;
@@ -117,6 +117,12 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
   const [textLoadingMsg, setTextLoadingMsg] = useState("");
   const [textError, setTextError] = useState<string | null>(null);
 
+  // ── YouTube tab ───────────────────────────────────────────────────────────
+  const [ytUrl, setYtUrl] = useState("");
+  const [ytLoading, setYtLoading] = useState(false);
+  const [ytLoadingMsg, setYtLoadingMsg] = useState("");
+  const [ytError, setYtError] = useState<string | null>(null);
+
   // ── Cookbook / collection ─────────────────────────────────────────────────
   const [collection, setCollection] = useState("");
   const [cookbooks, setCookbooks] = useState<string[]>([]);
@@ -182,6 +188,8 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
     setUrlError(null);
     setTextInput("");
     setTextError(null);
+    setYtUrl("");
+    setYtError(null);
     onClose();
   }
 
@@ -389,6 +397,48 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
     }
   }
 
+  // ── YouTube import ────────────────────────────────────────────────────────
+  async function handleYouTubeSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!collection.trim()) {
+      setYtError("Please choose or enter a cookbook/collection.");
+      return;
+    }
+    setYtError(null);
+    setYtLoading(true);
+    setYtLoadingMsg("Fetching transcript…");
+    const t1 = setTimeout(() => setYtLoadingMsg("Reading recipe steps…"), 4000);
+    const t2 = setTimeout(() => setYtLoadingMsg("Saving to library…"), 9000);
+    try {
+      const res = await fetch("/api/recipes/import-youtube", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: ytUrl, collection: collection.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setYtError(
+          res.status === 403 && data.error?.code === "PRO_REQUIRED"
+            ? "YouTube importing is a Pro feature. Upgrade to unlock it."
+            : res.status === 409
+            ? "You already have this video saved."
+            : data.error?.message ?? "Could not import a recipe from this video."
+        );
+        return;
+      }
+      router.push(`/recipes/${data.id}`);
+      router.refresh();
+      handleClose();
+    } catch {
+      setYtError("Something went wrong. Please try again.");
+    } finally {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      setYtLoading(false);
+      setYtLoadingMsg("");
+    }
+  }
+
   async function handleSelectRecipe(imageUrl: string, selectedTitle: string) {
     setPhotoStep({ kind: "selecting", imageUrl });
     setPhotoError(null);
@@ -435,6 +485,7 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
   const isBusy =
     urlLoading ||
     textLoading ||
+    ytLoading ||
     photoStep.kind === "loading" ||
     photoStep.kind === "selecting" ||
     photoStep.kind === "done";
@@ -476,22 +527,32 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-border shrink-0">
+        <div className="flex border-b border-border shrink-0 overflow-x-auto">
           {([
-            { id: "url"   as Tab, icon: LinkIcon,  label: "From URL"    },
-            { id: "photo" as Tab, icon: Camera,    label: "Scan Photo"  },
-            { id: "text"  as Tab, icon: FileText,  label: "Type / Paste"},
-          ]).map(({ id, icon: Icon, label }) => (
+            { id: "url"     as Tab, icon: LinkIcon, label: "From URL"    },
+            { id: "photo"   as Tab, icon: Camera,   label: "Scan Photo"  },
+            { id: "text"    as Tab, icon: FileText,  label: "Paste Text" },
+            { id: "youtube" as Tab, icon: Youtube,  label: "YouTube", pro: true },
+          ]).map(({ id, icon: Icon, label, pro }) => (
             <button
               key={id}
               onClick={() => { if (!isBusy) setTab(id); }}
               className={cn(
-                "flex-1 flex items-center justify-center gap-1.5 py-3 text-xs sm:text-sm font-medium transition-colors border-b-2 -mb-px",
-                tab === id ? "border-brand-orange text-brand-orange" : "border-transparent text-muted-foreground hover:text-foreground"
+                "flex-1 min-w-0 flex items-center justify-center gap-1 py-3 text-xs sm:text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap px-2",
+                tab === id
+                  ? id === "youtube"
+                    ? "border-red-500 text-red-500"
+                    : "border-brand-orange text-brand-orange"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
               <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-              {label}
+              <span className="truncate">{label}</span>
+              {pro && (
+                <span className="hidden sm:inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-400/15 text-amber-500 leading-none ml-0.5">
+                  <Sparkles className="w-2 h-2" />PRO
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -793,6 +854,61 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
                   className="w-full bg-brand-orange hover:bg-brand-orange-dark text-black font-semibold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Parse &amp; Save Recipe
+                </button>
+              </form>
+            )
+          )}
+
+          {/* ── YouTube tab ── */}
+          {tab === "youtube" && (
+            ytLoading ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-4">
+                <Loader2 className="w-8 h-8 text-red-500 animate-spin" />
+                <p className="text-sm text-muted-foreground">{ytLoadingMsg}</p>
+              </div>
+            ) : (
+              <form onSubmit={handleYouTubeSubmit} className="space-y-4">
+                {/* Pro badge */}
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-amber-400/10 border border-amber-400/20">
+                  <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    <span className="font-semibold">Pro feature.</span> Claude reads the video&apos;s captions and extracts the full recipe for you.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-sm text-muted-foreground block mb-2">YouTube video URL</label>
+                  <input
+                    type="url"
+                    value={ytUrl}
+                    onChange={(e) => setYtUrl(e.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    required
+                    autoFocus
+                    className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-red-500/40 focus:border-red-500 transition"
+                  />
+                </div>
+
+                {cookbookField}
+
+                {ytError && (
+                  <div className="flex items-start gap-2 text-sm text-red-400">
+                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                    <span>{ytError}</span>
+                  </div>
+                )}
+
+                <p className="text-xs text-muted-foreground">
+                  Works best with cooking tutorials that have auto-generated captions. Supports youtube.com and youtu.be links.
+                </p>
+
+                <button
+                  type="submit"
+                  disabled={!ytUrl}
+                  className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <Youtube className="w-4 h-4" />
+                  Import from YouTube
                 </button>
               </form>
             )
