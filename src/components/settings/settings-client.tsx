@@ -6,7 +6,7 @@ import { useClerk, useUser } from "@clerk/nextjs";
 import {
   Sun, Moon, LogOut, Settings2, Users,
   Check, ChevronRight, CreditCard, Zap, Loader2,
-  Smartphone, CheckCircle2, Calendar,
+  Smartphone, CheckCircle2, Calendar, MessageSquarePlus, Send,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
@@ -67,6 +67,12 @@ export function SettingsClient() {
   const [planStatus, setPlanStatus] = useState<PlanStatus | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
 
+  // Feedback
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackDone, setFeedbackDone] = useState(false);
+
   useEffect(() => {
     fetch("/api/billing/status")
       .then((r) => r.json())
@@ -111,6 +117,26 @@ export function SettingsClient() {
       if (data.url) window.location.href = data.url;
     } catch {}
     setPortalLoading(false);
+  }
+
+  async function submitFeedback() {
+    if (feedbackText.trim().length < 5) return;
+    setFeedbackLoading(true);
+    try {
+      await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: feedbackText.trim() }),
+      });
+      setFeedbackDone(true);
+      setFeedbackText("");
+      setTimeout(() => {
+        setFeedbackDone(false);
+        setFeedbackOpen(false);
+      }, 2500);
+    } finally {
+      setFeedbackLoading(false);
+    }
   }
 
   function saveDietary(value: string) {
@@ -403,6 +429,70 @@ export function SettingsClient() {
                 </a>
               </div>
             </>
+          )}
+        </Card>
+      </section>
+
+      {/* ── Feedback ────────────────────────────────────────────────────────── */}
+      <section className="space-y-2">
+        <SectionLabel icon={<MessageSquarePlus className="w-3.5 h-3.5" />} title="Feedback" />
+        <Card>
+          {!feedbackOpen && !feedbackDone && (
+            <button
+              onClick={() => setFeedbackOpen(true)}
+              className="w-full px-5 py-4 flex items-center justify-between gap-4 hover:bg-secondary/50 transition-colors group"
+            >
+              <div className="text-left">
+                <p className="text-sm font-medium text-foreground">Share a suggestion</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Ideas, feature requests, or anything on your mind
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+            </button>
+          )}
+
+          {feedbackOpen && !feedbackDone && (
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm font-medium text-foreground">What&apos;s on your mind?</p>
+              <textarea
+                value={feedbackText}
+                onChange={(e) => setFeedbackText(e.target.value)}
+                placeholder="Type your suggestion, idea, or anything you'd like to see improved…"
+                rows={4}
+                autoFocus
+                className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange transition resize-none"
+              />
+              <div className="flex items-center gap-2 justify-end">
+                <button
+                  onClick={() => { setFeedbackOpen(false); setFeedbackText(""); }}
+                  className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitFeedback}
+                  disabled={feedbackText.trim().length < 5 || feedbackLoading}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {feedbackLoading
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    : <Send className="w-3.5 h-3.5" />
+                  }
+                  Send
+                </button>
+              </div>
+            </div>
+          )}
+
+          {feedbackDone && (
+            <div className="px-5 py-4 flex items-center gap-3">
+              <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-foreground">Thanks for the feedback!</p>
+                <p className="text-xs text-muted-foreground mt-0.5">We read every suggestion.</p>
+              </div>
+            </div>
           )}
         </Card>
       </section>
