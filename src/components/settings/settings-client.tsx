@@ -60,7 +60,7 @@ export function SettingsClient() {
 
   // Install-app detection (runs client-side only)
   const [installState, setInstallState] = useState<
-    "loading" | "installed" | "ios-safari" | "ios-other" | "other"
+    "loading" | "installed" | "ios-safari" | "ios-other" | "android" | "other"
   >("loading");
 
   // Billing status
@@ -94,6 +94,7 @@ export function SettingsClient() {
     const isSafari = isIOS && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
     if (isSafari) { setInstallState("ios-safari"); return; }
     if (isIOS)    { setInstallState("ios-other");  return; }
+    if (/Android/.test(ua)) { setInstallState("android"); return; }
     setInstallState("other");
   }, []);
 
@@ -251,17 +252,46 @@ export function SettingsClient() {
             </div>
           )}
 
-          {(installState === "other" || installState === "loading") && (
-            <div className="px-5 py-4 flex items-start gap-3">
-              <span className="text-xl shrink-0">📱</span>
+          {installState === "android" && (
+            <div className="px-5 py-4 space-y-4">
               <div>
-                <p className="text-sm font-medium text-foreground">Install on your iPhone</p>
-                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                  Open <strong className="text-foreground">mauis-kitchen.com</strong> in{" "}
-                  <strong className="text-foreground">Safari on your iPhone</strong>, then tap the Share button ⬆️,
-                  choose <strong className="text-foreground">&ldquo;Add to Home Screen&rdquo;</strong>, and tap{" "}
-                  <strong className="text-foreground">Add</strong>.
+                <p className="text-sm font-medium text-foreground">Add to your home screen</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Install in seconds — no Play Store needed.
                 </p>
+              </div>
+              <ol className="space-y-3">
+                {[
+                  { n: 1, icon: "⋮", text: <>Tap the <strong className="text-foreground">three-dot menu</strong> (⋮) in the top-right corner of Chrome</> },
+                  { n: 2, icon: "📲", text: <>Tap <strong className="text-foreground">Add to Home screen</strong></> },
+                  { n: 3, icon: "✅", text: <>Tap <strong className="text-foreground">Add</strong> to confirm</> },
+                ].map(({ n, icon, text }) => (
+                  <li key={n} className="flex items-start gap-3">
+                    <span className="w-6 h-6 rounded-full bg-brand-orange/15 text-brand-orange text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                      {n}
+                    </span>
+                    <span className="text-sm text-muted-foreground leading-snug">
+                      <span className="mr-1">{icon}</span>{text}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+          {(installState === "other" || installState === "loading") && (
+            <div className="px-5 py-4 space-y-3">
+              <div className="flex items-start gap-3">
+                <span className="text-xl shrink-0">📱</span>
+                <div>
+                  <p className="text-sm font-medium text-foreground">Install on your device</p>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                    <strong className="text-foreground">iPhone:</strong> Open in Safari → tap Share ⬆️ → <strong className="text-foreground">Add to Home Screen</strong>
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                    <strong className="text-foreground">Android:</strong> Open in Chrome → tap ⋮ → <strong className="text-foreground">Add to Home Screen</strong>
+                  </p>
+                </div>
               </div>
             </div>
           )}
@@ -303,37 +333,27 @@ export function SettingsClient() {
           <Divider />
 
           {/* Dietary default */}
-          <div className="px-5 py-4">
-            <div className="mb-3">
+          <Row>
+            <div>
               <p className="text-sm font-medium text-foreground">Default dietary filter</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Auto-applied when you open Recipes with no filters active
+                Auto-applied when you open Recipes
               </p>
             </div>
             {prefsLoaded ? (
-              <div className="flex flex-wrap gap-2">
+              <select
+                value={dietaryDefault}
+                onChange={(e) => saveDietary(e.target.value)}
+                className="shrink-0 text-sm border border-border rounded-lg px-3 py-1.5 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/30 cursor-pointer"
+              >
                 {DIETARY_OPTIONS.map(({ value, label }) => (
-                  <button
-                    key={value}
-                    onClick={() => saveDietary(value)}
-                    className={cn(
-                      "flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors",
-                      dietaryDefault === value
-                        ? "bg-brand-orange/15 border-brand-orange/40 text-brand-orange"
-                        : "border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
-                    )}
-                  >
-                    {dietaryDefault === value && <Check className="w-3 h-3" />}
-                    {label}
-                  </button>
+                  <option key={value} value={value}>{label}</option>
                 ))}
-              </div>
+              </select>
             ) : (
-              <div className="flex gap-2">
-                {[1,2,3].map(i => <div key={i} className="h-8 w-20 bg-secondary rounded-full animate-pulse" />)}
-              </div>
+              <div className="h-9 w-32 bg-secondary rounded-lg animate-pulse shrink-0" />
             )}
-          </div>
+          </Row>
 
           <Divider />
 

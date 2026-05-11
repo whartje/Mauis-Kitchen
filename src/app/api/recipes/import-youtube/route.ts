@@ -166,12 +166,12 @@ export async function POST(request: Request) {
 
   type CaptionTrack = { baseUrl: string; languageCode: string; kind?: string };
 
-  async function fetchCaptionTracksViaClient(
+  async function fetchPlayerData(
     clientName: string,
     clientVersion: string,
     userAgent: string,
     clientNameId: string,
-  ): Promise<CaptionTrack[] | null> {
+  ): Promise<{ tracks: CaptionTrack[] | null; description: string | null }> {
     try {
       const res = await fetch(INNERTUBE_URL, {
         method: "POST",
@@ -189,14 +189,19 @@ export async function POST(request: Request) {
         }),
         cache: "no-store",
       });
-      if (!res.ok) return null;
+      if (!res.ok) return { tracks: null, description: null };
       const data = await res.json() as {
         captions?: { playerCaptionsTracklistRenderer?: { captionTracks?: CaptionTrack[] } };
+        videoDetails?: { shortDescription?: string };
       };
       const tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-      return Array.isArray(tracks) && tracks.length > 0 ? tracks : null;
+      const description = data?.videoDetails?.shortDescription ?? null;
+      return {
+        tracks: Array.isArray(tracks) && tracks.length > 0 ? tracks : null,
+        description: description && description.length > 50 ? description : null,
+      };
     } catch {
-      return null;
+      return { tracks: null, description: null };
     }
   }
 
@@ -252,12 +257,16 @@ export async function POST(request: Request) {
   ] as const;
 
   let transcriptText: string | null = null;
+  let videoDescription: string | null = null;
 
   // 1. Try each custom InnerTube client context
   for (const cfg of CLIENT_CONFIGS) {
-    const tracks = await fetchCaptionTracksViaClient(
+    const { tracks, description } = await fetchPlayerData(
       cfg.clientName, cfg.clientVersion, cfg.userAgent, cfg.clientNameId,
     );
+    // Capture description from first successful player call as fallback
+    if (description && !videoDescription) videoDescription = description;
+
     if (!tracks) continue;
 
     // Prefer English ASR/auto track; then any English; then first available
@@ -289,14 +298,17 @@ export async function POST(request: Request) {
     }
   }
 
+  // 3. Description fallback — many channels post full recipes in their video description
+  if (!transcriptText && videoDescription && videoDescription.trim().length >= 100) {
+    transcriptText = `[No captions available — extracted from video description]\n\n${videoDescription}`;
+  }
+
   if (!transcriptText || transcriptText.trim().length < 50) {
     return NextResponse.json(
       {
         error: {
           code: "NO_TRANSCRIPT",
-          message: !transcriptText
-            ? "Could not read captions for this video. Make sure captions are enabled, then try again."
-            : "The transcript for this video is too short to extract a recipe from.",
+          message: "Could not extract recipe content from this video. Try a video that has captions enabled or includes the full recipe in its description.",
         },
       },
       { status: 422 }
