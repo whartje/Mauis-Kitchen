@@ -12,10 +12,15 @@ export async function POST() {
     return NextResponse.json({ error: "No billing account found" }, { status: 404 });
   }
 
-  const session = await stripe.billingPortal.sessions.create({
-    customer: sub.stripeCustomerId,
-    return_url: `${APP_URL}/settings?tab=billing`,
-  });
-
-  return NextResponse.json({ url: session.url });
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer: sub.stripeCustomerId,
+      return_url: `${APP_URL}/settings?tab=billing`,
+    });
+    return NextResponse.json({ url: session.url });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Stripe error";
+    console.error("[billing/portal]", msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }
