@@ -231,27 +231,23 @@ export async function POST(request: Request) {
     }
   }
 
-  // Client contexts to try in order. TVHTML5 (smart TV) and
-  // WEB_EMBEDDED_PLAYER (iframe embeds) are less aggressively filtered
-  // by YouTube for server/datacenter IPs than the Android client.
+  // Only IOS and ANDROID InnerTube clients return caption track data.
+  // WEB/TV clients get empty captions objects even locally.
+  // Try IOS first — it uses a distinct user-agent and YouTube applies
+  // different server-side policies to iOS app traffic vs Android, which
+  // can make the difference when requests come from Vercel datacenter IPs.
   const CLIENT_CONFIGS = [
     {
-      clientName: "TVHTML5",
-      clientVersion: "7.20241201.16.00",
-      userAgent: "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.0) AppleWebKit/538.1 (KHTML, like Gecko) Version/6.0 TV Safari/538.1",
-      clientNameId: "7",
+      clientName: "IOS",
+      clientVersion: "20.10.4",
+      userAgent: "com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X)",
+      clientNameId: "5",
     },
     {
-      clientName: "WEB_EMBEDDED_PLAYER",
-      clientVersion: "2.20241201.01.00",
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      clientNameId: "56",
-    },
-    {
-      clientName: "WEB",
-      clientVersion: "2.20241201.01.00",
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      clientNameId: "1",
+      clientName: "ANDROID",
+      clientVersion: "20.10.38",
+      userAgent: "com.google.android.youtube/20.10.38 (Linux; U; Android 14)",
+      clientNameId: "3",
     },
   ] as const;
 
