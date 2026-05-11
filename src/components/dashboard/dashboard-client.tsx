@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Link as LinkIcon, Camera, ArrowRight, CalendarDays, Clock, ExternalLink, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Link as LinkIcon, Camera, ArrowRight, CalendarDays, Clock, ExternalLink, Loader2, CheckCircle2, AlertCircle, HelpCircle } from "lucide-react";
 import { RecipeCard } from "@/components/recipes/recipe-card";
 import { ImportRecipeModal } from "@/components/recipes/import-recipe-modal";
+import { AppGuideModal } from "@/components/dashboard/app-guide-modal";
 
 interface RecipeSummary {
   id: string;
@@ -81,6 +82,7 @@ function fmtDate(date: Date): string {
 
 export function DashboardClient({ recentRecipes, recipeCount, weekStart, mealPlanItems, pantryNames }: Props) {
   const router = useRouter();
+  const [guideOpen, setGuideOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importTab, setImportTab] = useState<"url" | "photo">("url");
   const [quickUrl, setQuickUrl] = useState("");
@@ -123,7 +125,7 @@ export function DashboardClient({ recentRecipes, recipeCount, weekStart, mealPla
   return (
     <div className="space-y-8">
       {/* Welcome / quick import */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
@@ -131,8 +133,16 @@ export function DashboardClient({ recentRecipes, recipeCount, weekStart, mealPla
               ? `${recipeCount} recipe${recipeCount !== 1 ? "s" : ""} in your kitchen`
               : "Your kitchen is empty — import a recipe to get started"}
           </p>
+          {/* App guide link */}
+          <button
+            onClick={() => setGuideOpen(true)}
+            className="flex items-center gap-1 text-xs text-muted-foreground/60 hover:text-brand-orange transition-colors mt-1.5"
+          >
+            <HelpCircle className="w-3.5 h-3.5" />
+            App guide
+          </button>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => { setImportTab("photo"); setImportOpen(true); }}
             title="Scan a recipe photo"
@@ -384,6 +394,7 @@ export function DashboardClient({ recentRecipes, recipeCount, weekStart, mealPla
       )}
 
       <ImportRecipeModal open={importOpen} onClose={() => setImportOpen(false)} initialTab={importTab} />
+      <AppGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
     </div>
   );
 }

@@ -133,7 +133,7 @@ export function SettingsClient() {
     <div className="space-y-8 max-w-2xl">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Settings</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Personalise Maui&apos;s Kitchen</p>
+        <p className="text-sm text-muted-foreground mt-0.5">Personalize Maui&apos;s Kitchen</p>
       </div>
 
       {/* ── Appearance ──────────────────────────────────────────────────────── */}
@@ -303,9 +303,9 @@ export function SettingsClient() {
 
           <Divider />
 
-          {/* Week start day */}
-          <Row>
-            <div className="flex items-center gap-2 flex-1 min-w-0">
+          {/* Week start day — stacked so it never squeezes on mobile */}
+          <div className="px-5 py-4 space-y-3">
+            <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
               <div>
                 <p className="text-sm font-medium text-foreground">Week starts on</p>
@@ -315,7 +315,7 @@ export function SettingsClient() {
               </div>
             </div>
             {prefsLoaded ? (
-              <div className="flex items-center gap-1 bg-secondary rounded-lg p-1 shrink-0">
+              <div className="flex items-center gap-1 bg-secondary rounded-lg p-1 w-fit">
                 {WEEK_START_OPTIONS.map(({ value, label }) => (
                   <button
                     key={value}
@@ -332,9 +332,9 @@ export function SettingsClient() {
                 ))}
               </div>
             ) : (
-              <div className="h-9 w-48 bg-secondary rounded-lg animate-pulse shrink-0" />
+              <div className="h-9 w-48 bg-secondary rounded-lg animate-pulse" />
             )}
-          </Row>
+          </div>
         </Card>
       </section>
 
