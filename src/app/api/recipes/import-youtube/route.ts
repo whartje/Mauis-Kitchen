@@ -7,7 +7,12 @@ import { prisma } from "@/lib/prisma";
 import { normalizeRecipeFromText } from "@/lib/claude";
 import { checkRecipeLimit, getSubSummary } from "@/lib/subscription";
 import { createClient } from "@supabase/supabase-js";
-import { YoutubeTranscript } from "youtube-transcript";
+import {
+  YoutubeTranscript,
+  YoutubeTranscriptTooManyRequestError,
+  YoutubeTranscriptDisabledError,
+  YoutubeTranscriptNotAvailableLanguageError,
+} from "youtube-transcript";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -152,23 +157,54 @@ export async function POST(request: Request) {
   }
 
   // ── Fetch transcript ──────────────────────────────────────────────────────
-  let transcriptText = "";
-  try {
-    const segments = await YoutubeTranscript.fetchTranscript(videoId);
-    transcriptText = segments.map((s) => s.text).join(" ");
-  } catch (err) {
-    console.error("Transcript fetch failed:", err);
+  // Pass a cache-bypassing fetch so Next.js's extended fetch doesn't
+  // interfere with the InnerTube API POST or the caption XML download.
+  const noStoreFetch: typeof fetch = (url, init) =>
+    fetch(url, { ...init, cache: "no-store" });
+
+  // Try without a language override first (picks whatever track is default),
+  // then fall back to explicit language codes in case the auto-generated
+  // track (kind=asr) isn't matched by the default selection.
+  const langCandidates = [undefined, "en", "en-US", "en-GB"];
+  let segments: { text: string }[] = [];
+  let lastError: unknown;
+
+  for (const lang of langCandidates) {
+    try {
+      segments = await YoutubeTranscript.fetchTranscript(videoId, {
+        fetch: noStoreFetch,
+        ...(lang ? { lang } : {}),
+      });
+      if (segments.length > 0) { lastError = undefined; break; }
+    } catch (err) {
+      lastError = err;
+      // Rate-limit hits all language attempts the same way — stop early
+      if (err instanceof YoutubeTranscriptTooManyRequestError) break;
+      // Wrong-language errors are expected; keep trying other codes
+      if (!(err instanceof YoutubeTranscriptNotAvailableLanguageError)) break;
+    }
+  }
+
+  if (segments.length === 0) {
+    console.error("Transcript fetch failed:", lastError);
+    const isRateLimited = lastError instanceof YoutubeTranscriptTooManyRequestError;
+    const isDisabled    = lastError instanceof YoutubeTranscriptDisabledError;
     return NextResponse.json(
       {
         error: {
-          code: "NO_TRANSCRIPT",
-          message:
-            "This video doesn't have captions or a transcript available. Try a video that has auto-generated subtitles enabled.",
+          code: isRateLimited ? "RATE_LIMITED" : "NO_TRANSCRIPT",
+          message: isRateLimited
+            ? "YouTube is temporarily rate-limiting this server. Please try again in a few minutes."
+            : isDisabled
+            ? "Captions are disabled on this video. Try a video that has auto-generated subtitles enabled."
+            : "Could not read captions for this video. Make sure the video has captions turned on, then try again.",
         },
       },
       { status: 422 }
     );
   }
+
+  const transcriptText = segments.map((s) => s.text).join(" ");
 
   if (transcriptText.trim().length < 50) {
     return NextResponse.json(
