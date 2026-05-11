@@ -66,6 +66,7 @@ export function SettingsClient() {
   // Billing status
   const [planStatus, setPlanStatus] = useState<PlanStatus | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [portalError, setPortalError] = useState<string | null>(null);
 
   // Feedback
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -111,11 +112,18 @@ export function SettingsClient() {
 
   async function openPortal() {
     setPortalLoading(true);
+    setPortalError(null);
     try {
       const res = await fetch("/api/billing/portal", { method: "POST" });
       const data = await res.json();
-      if (data.url) window.location.href = data.url;
-    } catch {}
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setPortalError(data.error ?? "Could not open billing portal. Please try again.");
+      }
+    } catch {
+      setPortalError("Something went wrong. Please try again.");
+    }
     setPortalLoading(false);
   }
 
@@ -413,6 +421,15 @@ export function SettingsClient() {
               </a>
             )}
           </Row>
+
+          {portalError && (
+            <>
+              <Divider />
+              <div className="px-5 py-3">
+                <p className="text-xs text-red-400">{portalError}</p>
+              </div>
+            </>
+          )}
 
           {!planStatus?.isPro && (
             <>
