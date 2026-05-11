@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { X, Plus, Package, Camera, Loader2, ScanLine, Check, ChevronRight, Trash2 } from "lucide-react";
+import { X, Plus, Package, Camera, Loader2, ScanLine, Check, ChevronRight, Trash2, CalendarDays } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type IngredientCategory = "PRODUCE" | "FRUIT" | "PROTEIN" | "DAIRY" | "GRAINS" | "PANTRY" | "SPICES" | "FROZEN" | "BEVERAGES" | "CONDIMENTS" | "OTHER";
@@ -79,6 +79,7 @@ interface PantryItem {
   unit: string | null;
   raw: string;
   category: IngredientCategory;
+  expiresAt: string | null; // ISO datetime string, serialised by Next.js
 }
 
 interface ScannedIngredient {
@@ -256,7 +257,16 @@ export function PantryClient({ initialItems }: Props) {
     await fetch("/api/pantry", { method: "DELETE" });
   }
 
-  async function updateItem(id: string, patch: { name?: string; quantity?: number | null; unit?: string | null; category?: IngredientCategory }) {
+  async function updateItem(
+    id: string,
+    patch: {
+      name?: string;
+      quantity?: number | null;
+      unit?: string | null;
+      category?: IngredientCategory;
+      expiresAt?: string | null;
+    }
+  ) {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
     await fetch(`/api/pantry/${id}`, {
       method: "PATCH",
@@ -272,29 +282,32 @@ export function PantryClient({ initialItems }: Props) {
     <div className="space-y-6 pb-20 md:pb-0">
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Pantry</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">What you already have on hand</p>
-          <p className="text-xs text-muted-foreground/60 mt-1 flex items-center gap-1.5">
-            <Package className="w-3.5 h-3.5 text-brand-orange shrink-0" />
-            Items here are flagged on your grocery list so you don&apos;t re-buy what you already have
-          </p>
-        </div>
-        {items.length > 0 && (
-          <div className="flex items-center gap-3 shrink-0 mt-1">
-            <span className="text-sm text-muted-foreground">
-              {items.length} item{items.length !== 1 ? "s" : ""}
-            </span>
-            <button
-              onClick={deleteAll}
-              className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 border border-red-400/20 hover:border-red-400/40 bg-red-400/5 hover:bg-red-400/10 px-2.5 py-1 rounded-lg transition-colors"
-            >
-              <Trash2 className="w-3 h-3" />
-              Remove all
-            </button>
+      <div className="space-y-1.5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-foreground">Pantry</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">What you already have on hand</p>
           </div>
-        )}
+          {items.length > 0 && (
+            <div className="flex items-center gap-3 shrink-0 mt-1">
+              <span className="text-sm text-muted-foreground">
+                {items.length} item{items.length !== 1 ? "s" : ""}
+              </span>
+              <button
+                onClick={deleteAll}
+                className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 border border-red-400/20 hover:border-red-400/40 bg-red-400/5 hover:bg-red-400/10 px-2.5 py-1 rounded-lg transition-colors"
+              >
+                <Trash2 className="w-3 h-3" />
+                Remove all
+              </button>
+            </div>
+          )}
+        </div>
+        {/* Note spans full width so it never wraps too tightly on mobile */}
+        <p className="text-xs text-muted-foreground/60 flex items-center gap-1.5">
+          <Package className="w-3.5 h-3.5 text-brand-orange shrink-0" />
+          Items here are flagged on your grocery list so you don&apos;t re-buy what you already have
+        </p>
       </div>
 
       {/* ── Scan review panel ── */}
@@ -539,18 +552,40 @@ export function PantryClient({ initialItems }: Props) {
 
 // ─── Row component ────────────────────────────────────────────────────────────
 
+const EXPIRY_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
 function PantryRow({
   item,
   onUpdate,
   onDelete,
 }: {
   item: PantryItem;
-  onUpdate: (patch: { name?: string; quantity?: number | null; unit?: string | null; category?: IngredientCategory }) => void;
+  onUpdate: (patch: {
+    name?: string;
+    quantity?: number | null;
+    unit?: string | null;
+    category?: IngredientCategory;
+    expiresAt?: string | null;
+  }) => void;
   onDelete: () => void;
 }) {
   const [qty, setQty] = useState(item.quantity != null ? String(item.quantity) : "");
   const [unit, setUnit] = useState(item.unit ?? "");
   const [name, setName] = useState(item.name);
+
+  // ── Expiry helpers ──────────────────────────────────────────────────────────
+  const now = new Date();
+  const expiryDate = item.expiresAt ? new Date(item.expiresAt) : null;
+  const isExpired = expiryDate ? expiryDate < now : false;
+  const daysUntil = expiryDate
+    ? Math.ceil((expiryDate.getTime() - now.getTime()) / 86_400_000)
+    : null;
+  // YYYY-MM-DD value for the date input
+  const expiryDateValue = item.expiresAt ? item.expiresAt.split("T")[0] : "";
+  // Display label: "May 15" or "Expired May 15"
+  const fmtExpiry = expiryDate
+    ? `${EXPIRY_MONTHS[expiryDate.getUTCMonth()]} ${expiryDate.getUTCDate()}`
+    : null;
 
   function commitQty() {
     const parsed = qty.trim() === "" ? null : parseFraction(qty);
@@ -573,8 +608,25 @@ function PantryRow({
     onUpdate({ category: cat });
   }
 
+  function commitExpiry(val: string) {
+    // val is "YYYY-MM-DD" from the date input, or "" to clear
+    const expiresAt = val ? new Date(val + "T23:59:59.999Z").toISOString() : null;
+    onUpdate({ expiresAt });
+  }
+
+  const expiryBadgeStyle = isExpired
+    ? "text-red-400 border-red-400/30 bg-red-400/10"
+    : daysUntil !== null && daysUntil <= 3
+    ? "text-amber-400 border-amber-400/30 bg-amber-400/10"
+    : "text-muted-foreground/50 border-border/40";
+
   return (
-    <div className="flex items-center gap-2 px-4 py-2.5 group/row">
+    <div
+      className={cn(
+        "flex items-center gap-2 px-4 py-2.5 group/row transition-colors",
+        isExpired && "bg-red-500/10"
+      )}
+    >
       {/* Category emoji — clickable select */}
       <div className="shrink-0 relative">
         <select
@@ -631,7 +683,57 @@ function PantryRow({
           "px-1 py-0.5 text-sm text-foreground focus:outline-none transition-colors"
         )}
       />
-      {/* Delete */}
+
+      {/* ── Expiration date ────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-0.5 shrink-0">
+        {/* Trigger: badge when date set, subtle icon otherwise.
+            A transparent <input type="date"> sits on top to open the native picker. */}
+        <div
+          className="relative"
+          title={
+            fmtExpiry
+              ? isExpired
+                ? `Expired ${fmtExpiry} — click to change`
+                : `Expires ${fmtExpiry} — click to change`
+              : "Set expiration date"
+          }
+        >
+          {fmtExpiry ? (
+            <span className={cn(
+              "block text-[10px] px-1.5 py-0.5 rounded border font-medium select-none whitespace-nowrap",
+              expiryBadgeStyle
+            )}>
+              {isExpired ? "Exp " : ""}{fmtExpiry}
+            </span>
+          ) : (
+            <span className="block opacity-30 group-hover/row:opacity-60 transition-opacity">
+              <CalendarDays className="w-3.5 h-3.5 text-muted-foreground" />
+            </span>
+          )}
+          {/* Transparent date input — overlaid so clicking the badge/icon opens the native picker */}
+          <input
+            type="date"
+            value={expiryDateValue}
+            onChange={(e) => commitExpiry(e.target.value)}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            aria-label="Expiration date"
+          />
+        </div>
+
+        {/* Clear button — visible on hover when a date is set */}
+        {item.expiresAt && (
+          <button
+            onClick={() => onUpdate({ expiresAt: null })}
+            className="opacity-0 group-hover/row:opacity-40 hover:!opacity-100 text-muted-foreground hover:text-red-400 transition-opacity p-0.5 rounded shrink-0"
+            title="Clear expiration date"
+            aria-label="Clear expiration date"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+
+      {/* Delete item */}
       <button
         onClick={onDelete}
         className="p-1 rounded text-muted-foreground/0 group-hover/row:text-muted-foreground/40 hover:!text-red-400 hover:bg-red-400/10 transition-colors shrink-0"

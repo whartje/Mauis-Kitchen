@@ -3,13 +3,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 
-const CATEGORIES = ["PRODUCE", "FRUIT", "PROTEIN", "DAIRY", "GRAINS", "PANTRY", "SPICES", "FROZEN", "BEVERAGES", "OTHER"] as const;
+const CATEGORIES = ["PRODUCE", "FRUIT", "PROTEIN", "DAIRY", "GRAINS", "PANTRY", "SPICES", "FROZEN", "BEVERAGES", "CONDIMENTS", "OTHER"] as const;
 
 const UpdateSchema = z.object({
   name: z.string().min(1).optional(),
   quantity: z.number().nullable().optional(),
   unit: z.string().nullable().optional(),
   category: z.enum(CATEGORIES).optional(),
+  expiresAt: z.string().nullable().optional(), // ISO datetime string or null
 });
 
 export async function PATCH(
@@ -28,14 +29,27 @@ export async function PATCH(
   if (!parsed.success) return NextResponse.json({ error: "VALIDATION_ERROR" }, { status: 400 });
 
   const data = parsed.data;
-  const name = data.name ?? existing.name;
-  const quantity = "quantity" in data ? data.quantity : existing.quantity;
-  const unit = "unit" in data ? data.unit : existing.unit;
+  const { expiresAt: expiresAtStr, ...rest } = data;
+  const name = rest.name ?? existing.name;
+  const quantity = "quantity" in rest ? rest.quantity : existing.quantity;
+  const unit = "unit" in rest ? rest.unit : existing.unit;
   const raw = [quantity, unit, name].filter(Boolean).join(" ");
+
+  // Convert ISO string → Date (or null) for Prisma
+  const expiresAt =
+    expiresAtStr !== undefined
+      ? expiresAtStr
+        ? new Date(expiresAtStr)
+        : null
+      : undefined;
 
   const updated = await prisma.pantryItem.update({
     where: { id },
-    data: { ...data, raw },
+    data: {
+      ...rest,
+      raw,
+      ...(expiresAt !== undefined ? { expiresAt } : {}),
+    },
   });
 
   return NextResponse.json(updated);
