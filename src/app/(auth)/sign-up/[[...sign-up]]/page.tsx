@@ -5,12 +5,7 @@ const FEATURES = [
   {
     icon: "🔗",
     title: "Import from anywhere",
-    desc: "Paste a URL, scan a photo, or type a recipe — Claude extracts everything automatically.",
-  },
-  {
-    icon: "▶️",
-    title: "YouTube recipes ✨ Pro",
-    desc: "Drop in any YouTube cooking video and Claude reads the transcript to build the full recipe.",
+    desc: "Paste a URL, scan a photo, type a recipe, or drop in a YouTube link — we extract everything automatically.",
   },
   {
     icon: "📅",
@@ -21,6 +16,11 @@ const FEATURES = [
     icon: "🛒",
     title: "Auto grocery list",
     desc: "One tap turns your meal plan into a sorted, categorized shopping list.",
+  },
+  {
+    icon: "🥦",
+    title: "Smart pantry tracking",
+    desc: "Items you already have are flagged on your list so you never double-buy.",
   },
 ];
 
