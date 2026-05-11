@@ -10,8 +10,6 @@ import { createClient } from "@supabase/supabase-js";
 import {
   YoutubeTranscript,
   YoutubeTranscriptTooManyRequestError,
-  YoutubeTranscriptDisabledError,
-  YoutubeTranscriptNotAvailableLanguageError,
 } from "youtube-transcript";
 
 const supabase = createClient(
@@ -157,61 +155,152 @@ export async function POST(request: Request) {
   }
 
   // ── Fetch transcript ──────────────────────────────────────────────────────
-  // Pass a cache-bypassing fetch so Next.js's extended fetch doesn't
-  // interfere with the InnerTube API POST or the caption XML download.
-  const noStoreFetch: typeof fetch = (url, init) =>
-    fetch(url, { ...init, cache: "no-store" });
+  // YouTube's InnerTube API serves different responses to datacenter IPs
+  // (like Vercel) vs residential IPs. The youtube-transcript library uses
+  // the Android client context which gets stripped caption data on servers.
+  // We try three alternative client contexts first (TVHTML5 → WEB_EMBEDDED
+  // → WEB), which are granted different access rules by YouTube's CDN, then
+  // fall back to the library's own HTML-scraping path as a last resort.
 
-  // Try without a language override first (picks whatever track is default),
-  // then fall back to explicit language codes in case the auto-generated
-  // track (kind=asr) isn't matched by the default selection.
-  const langCandidates = [undefined, "en", "en-US", "en-GB"];
-  let segments: { text: string }[] = [];
-  let lastError: unknown;
+  const INNERTUBE_URL = "https://www.youtube.com/youtubei/v1/player?prettyPrint=false";
 
-  for (const lang of langCandidates) {
+  type CaptionTrack = { baseUrl: string; languageCode: string; kind?: string };
+
+  async function fetchCaptionTracksViaClient(
+    clientName: string,
+    clientVersion: string,
+    userAgent: string,
+    clientNameId: string,
+  ): Promise<CaptionTrack[] | null> {
     try {
-      segments = await YoutubeTranscript.fetchTranscript(videoId, {
-        fetch: noStoreFetch,
-        ...(lang ? { lang } : {}),
+      const res = await fetch(INNERTUBE_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "User-Agent": userAgent,
+          "X-YouTube-Client-Name": clientNameId,
+          "X-YouTube-Client-Version": clientVersion,
+          "Origin": "https://www.youtube.com",
+          "Referer": `https://www.youtube.com/watch?v=${videoId}`,
+        },
+        body: JSON.stringify({
+          context: { client: { clientName, clientVersion, hl: "en" } },
+          videoId,
+        }),
+        cache: "no-store",
       });
-      if (segments.length > 0) { lastError = undefined; break; }
-    } catch (err) {
-      lastError = err;
-      // Rate-limit hits all language attempts the same way — stop early
-      if (err instanceof YoutubeTranscriptTooManyRequestError) break;
-      // Wrong-language errors are expected; keep trying other codes
-      if (!(err instanceof YoutubeTranscriptNotAvailableLanguageError)) break;
+      if (!res.ok) return null;
+      const data = await res.json() as {
+        captions?: { playerCaptionsTracklistRenderer?: { captionTracks?: CaptionTrack[] } };
+      };
+      const tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+      return Array.isArray(tracks) && tracks.length > 0 ? tracks : null;
+    } catch {
+      return null;
     }
   }
 
-  if (segments.length === 0) {
-    console.error("Transcript fetch failed:", lastError);
-    const isRateLimited = lastError instanceof YoutubeTranscriptTooManyRequestError;
-    const isDisabled    = lastError instanceof YoutubeTranscriptDisabledError;
-    return NextResponse.json(
-      {
-        error: {
-          code: isRateLimited ? "RATE_LIMITED" : "NO_TRANSCRIPT",
-          message: isRateLimited
-            ? "YouTube is temporarily rate-limiting this server. Please try again in a few minutes."
-            : isDisabled
-            ? "Captions are disabled on this video. Try a video that has auto-generated subtitles enabled."
-            : "Could not read captions for this video. Make sure the video has captions turned on, then try again.",
-        },
-      },
-      { status: 422 }
-    );
+  async function fetchTranscriptFromTrack(track: CaptionTrack): Promise<string | null> {
+    try {
+      // Prefer JSON3 format; fall back to the raw XML format
+      const res = await fetch(`${track.baseUrl}&fmt=json3`, { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json() as {
+          events?: Array<{ segs?: Array<{ utf8: string }> }>;
+        };
+        const text = (data.events ?? [])
+          .flatMap((e) => e.segs ?? [])
+          .map((s) => s.utf8)
+          .filter((t): t is string => !!t && t !== "\n")
+          .join(" ")
+          .trim();
+        if (text.length > 0) return text;
+      }
+      // JSON3 failed — try raw XML
+      const xmlRes = await fetch(track.baseUrl, { cache: "no-store" });
+      if (!xmlRes.ok) return null;
+      const xml = await xmlRes.text();
+      const text = xml
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+        .replace(/\s+/g, " ").trim();
+      return text.length > 0 ? text : null;
+    } catch {
+      return null;
+    }
   }
 
-  const transcriptText = segments.map((s) => s.text).join(" ");
+  // Client contexts to try in order. TVHTML5 (smart TV) and
+  // WEB_EMBEDDED_PLAYER (iframe embeds) are less aggressively filtered
+  // by YouTube for server/datacenter IPs than the Android client.
+  const CLIENT_CONFIGS = [
+    {
+      clientName: "TVHTML5",
+      clientVersion: "7.20241201.16.00",
+      userAgent: "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.0) AppleWebKit/538.1 (KHTML, like Gecko) Version/6.0 TV Safari/538.1",
+      clientNameId: "7",
+    },
+    {
+      clientName: "WEB_EMBEDDED_PLAYER",
+      clientVersion: "2.20241201.01.00",
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      clientNameId: "56",
+    },
+    {
+      clientName: "WEB",
+      clientVersion: "2.20241201.01.00",
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      clientNameId: "1",
+    },
+  ] as const;
 
-  if (transcriptText.trim().length < 50) {
+  let transcriptText: string | null = null;
+
+  // 1. Try each custom InnerTube client context
+  for (const cfg of CLIENT_CONFIGS) {
+    const tracks = await fetchCaptionTracksViaClient(
+      cfg.clientName, cfg.clientVersion, cfg.userAgent, cfg.clientNameId,
+    );
+    if (!tracks) continue;
+
+    // Prefer English ASR/auto track; then any English; then first available
+    const preferred =
+      tracks.find((t) => t.languageCode.startsWith("en") && t.kind === "asr") ??
+      tracks.find((t) => t.languageCode.startsWith("en")) ??
+      tracks[0];
+
+    transcriptText = await fetchTranscriptFromTrack(preferred);
+    if (transcriptText) break;
+  }
+
+  // 2. Library fallback (handles HTML scraping path)
+  if (!transcriptText) {
+    const noStoreFetch: typeof fetch = (u, init) => fetch(u, { ...init, cache: "no-store" });
+    for (const lang of [undefined, "en", "en-US"] as const) {
+      try {
+        const segs = await YoutubeTranscript.fetchTranscript(videoId, {
+          fetch: noStoreFetch,
+          ...(lang ? { lang } : {}),
+        });
+        if (segs.length > 0) {
+          transcriptText = segs.map((s) => s.text).join(" ");
+          break;
+        }
+      } catch (err) {
+        if (err instanceof YoutubeTranscriptTooManyRequestError) break;
+      }
+    }
+  }
+
+  if (!transcriptText || transcriptText.trim().length < 50) {
     return NextResponse.json(
       {
         error: {
-          code: "TRANSCRIPT_TOO_SHORT",
-          message: "The transcript for this video is too short to extract a recipe from.",
+          code: "NO_TRANSCRIPT",
+          message: !transcriptText
+            ? "Could not read captions for this video. Make sure captions are enabled, then try again."
+            : "The transcript for this video is too short to extract a recipe from.",
         },
       },
       { status: 422 }
