@@ -97,20 +97,37 @@ async function runSync(body: AlexaRequest): Promise<NextResponse> {
   const { userId, listName } = skillLink;
   const { apiEndpoint, apiAccessToken } = body.context.System;
 
+  // Guard: these should always be present but can be missing in test environments
+  if (!apiEndpoint || !apiAccessToken) {
+    console.error("[alexa/skill] Missing apiEndpoint or apiAccessToken", {
+      hasEndpoint: !!apiEndpoint,
+      hasToken: !!apiAccessToken,
+    });
+    return buildResponse(
+      "Maui's Kitchen is missing the Alexa API credentials. Please make sure the Lists permissions are enabled in the Alexa Developer Console."
+    );
+  }
+
   // ── Fetch the user's Alexa lists ───────────────────────────────────────────
-  const listsRes = await fetch(`${apiEndpoint}/v2/householdlists/`, {
+  const baseUrl = apiEndpoint.replace(/\/$/, ""); // trim any trailing slash
+  const listsRes = await fetch(`${baseUrl}/v2/householdlists/`, {
     headers: { Authorization: `Bearer ${apiAccessToken}` },
   });
 
-  if (listsRes.status === 403) {
-    // User hasn't granted list permissions → send a permissions card
+  // 401 = token lacks the required scope (skill permissions not enabled in console)
+  // 403 = user hasn't granted consent to this skill
+  // Both need the permissions card
+  if (listsRes.status === 401 || listsRes.status === 403) {
+    const body403 = await listsRes.text();
+    console.error("[alexa/skill] Lists permission denied:", listsRes.status, body403);
     return buildPermissionsCard();
   }
 
   if (!listsRes.ok) {
-    console.error("[alexa/skill] Lists API error:", listsRes.status, await listsRes.text());
+    const errBody = await listsRes.text();
+    console.error("[alexa/skill] Lists API error:", listsRes.status, errBody);
     return buildResponse(
-      "I had trouble connecting to your Alexa lists. Please try again in a moment."
+      `I had trouble reading your Alexa lists — Amazon returned error ${listsRes.status}. Please try again in a moment.`
     );
   }
 
@@ -131,15 +148,15 @@ async function runSync(body: AlexaRequest): Promise<NextResponse> {
 
   // ── Fetch list items ───────────────────────────────────────────────────────
   const itemsRes = await fetch(
-    `${apiEndpoint}/v2/householdlists/${targetList.listId}/active/items`,
+    `${baseUrl}/v2/householdlists/${targetList.listId}/active/items`,
     { headers: { Authorization: `Bearer ${apiAccessToken}` } }
   );
 
-  if (itemsRes.status === 403) return buildPermissionsCard();
+  if (itemsRes.status === 401 || itemsRes.status === 403) return buildPermissionsCard();
 
   if (!itemsRes.ok) {
     console.error("[alexa/skill] Items API error:", itemsRes.status, await itemsRes.text());
-    return buildResponse(`I had trouble reading your ${targetList.name} list. Please try again.`);
+    return buildResponse(`I had trouble reading your ${targetList.name} list — error ${itemsRes.status}. Please try again.`);
   }
 
   const itemsData = (await itemsRes.json()) as {
