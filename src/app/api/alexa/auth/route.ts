@@ -13,7 +13,7 @@ export async function GET() {
   if (!clientId) {
     // Redirect back to grocery list with a friendly error instead of raw JSON
     return NextResponse.redirect(
-      new URL("/grocery-list?alexa_error=not_configured", process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000")
+      new URL("/settings?alexa_error=not_configured", process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000")
     );
   }
 

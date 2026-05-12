@@ -14,12 +14,12 @@ export async function GET(req: NextRequest) {
 
   if (error) {
     return NextResponse.redirect(
-      new URL(`/grocery-list?alexa_error=${encodeURIComponent(error)}`, req.url)
+      new URL(`/settings?alexa_error=${encodeURIComponent(error)}`, req.url)
     );
   }
 
   if (!code || !state) {
-    return NextResponse.redirect(new URL("/grocery-list?alexa_error=missing_params", req.url));
+    return NextResponse.redirect(new URL("/settings?alexa_error=missing_params", req.url));
   }
 
   // Verify CSRF state
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
   cookieStore.delete("alexa_oauth_state");
 
   if (!savedState || savedState !== state) {
-    return NextResponse.redirect(new URL("/grocery-list?alexa_error=invalid_state", req.url));
+    return NextResponse.redirect(new URL("/settings?alexa_error=invalid_state", req.url));
   }
 
   const clientId = process.env.AMAZON_CLIENT_ID!;
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
 
   if (!tokenRes.ok) {
     console.error("Amazon token exchange failed:", await tokenRes.text());
-    return NextResponse.redirect(new URL("/grocery-list?alexa_error=token_exchange", req.url));
+    return NextResponse.redirect(new URL("/settings?alexa_error=token_exchange", req.url));
   }
 
   const tokens = await tokenRes.json();
@@ -72,5 +72,5 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  return NextResponse.redirect(new URL("/grocery-list?alexa_connected=1", req.url));
+  return NextResponse.redirect(new URL("/settings?alexa_connected=1", req.url));
 }
