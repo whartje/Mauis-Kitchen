@@ -109,9 +109,14 @@ async function runSync(body: AlexaRequest): Promise<NextResponse> {
   }
 
   // ── Fetch the user's Alexa lists ───────────────────────────────────────────
-  const baseUrl = apiEndpoint.replace(/\/$/, ""); // trim any trailing slash
+  // The apiEndpoint from the request body can sometimes be wrong (account linking
+  // redirects, etc). Always use the known-good Alexa runtime API base URL and
+  // log what we received for diagnostics.
+  const ALEXA_API_BASE = "https://api.amazonalexa.com";
+  const baseUrl = ALEXA_API_BASE;
+  console.error("[alexa/skill] apiEndpoint in request:", apiEndpoint, "| using:", baseUrl);
   const listsUrl = `${baseUrl}/v2/householdlists/`;
-  console.info("[alexa/skill] GET", listsUrl);
+  console.error("[alexa/skill] GET", listsUrl);
 
   const listsRes = await fetch(listsUrl, {
     headers: { Authorization: `Bearer ${apiAccessToken}` },
@@ -129,7 +134,7 @@ async function runSync(body: AlexaRequest): Promise<NextResponse> {
     const errBody = await listsRes.text();
     console.error("[alexa/skill] Lists API error:", listsRes.status, errBody, "url:", listsUrl);
     return buildResponse(
-      `Step 1 failed — error ${listsRes.status} fetching lists. Check Vercel logs for details.`
+      `Lists API returned ${listsRes.status}. The endpoint used was api dot amazonalexa dot com. Check Vercel logs for full details.`
     );
   }
 
