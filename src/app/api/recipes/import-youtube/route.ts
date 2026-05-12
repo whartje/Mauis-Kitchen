@@ -111,7 +111,7 @@ export async function POST(request: Request) {
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
   const ytThisMonth = await prisma.recipe.count({
-    where: { userId, sourceName: "YouTube", createdAt: { gte: startOfMonth } },
+    where: { userId, sourceName: "YouTube", importedAt: { gte: startOfMonth } },
   });
   if (ytThisMonth >= YT_MONTHLY_LIMIT) {
     return NextResponse.json(
