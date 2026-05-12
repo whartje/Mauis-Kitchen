@@ -147,8 +147,9 @@ async function runSync(body: AlexaRequest): Promise<NextResponse> {
     activeLists[0];
 
   // ── Fetch list items ───────────────────────────────────────────────────────
+  // Correct path: /v2/householdlists/{listId}/active  (items are in the response body)
   const itemsRes = await fetch(
-    `${baseUrl}/v2/householdlists/${targetList.listId}/active/items`,
+    `${baseUrl}/v2/householdlists/${targetList.listId}/active`,
     { headers: { Authorization: `Bearer ${apiAccessToken}` } }
   );
 

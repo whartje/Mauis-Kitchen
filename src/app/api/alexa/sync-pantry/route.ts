@@ -86,7 +86,8 @@ export async function POST() {
   }
 
   // Fetch active (unchecked) Alexa shopping list items
-  const itemsRes = await fetch(`${ALEXA_API}/v2/householdlists/${listId}/active/items`, {
+  // Correct path: /v2/householdlists/{listId}/active  (items embedded in response body)
+  const itemsRes = await fetch(`${ALEXA_API}/v2/householdlists/${listId}/active`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (!itemsRes.ok) {
