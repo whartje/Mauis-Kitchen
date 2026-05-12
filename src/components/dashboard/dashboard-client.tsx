@@ -133,10 +133,10 @@ export function DashboardClient({ recentRecipes, recipeCount, weekStart, mealPla
               ? `${recipeCount} recipe${recipeCount !== 1 ? "s" : ""} in your kitchen`
               : "Your kitchen is empty — import a recipe to get started"}
           </p>
-          {/* App guide link */}
+          {/* App guide button */}
           <button
             onClick={() => setGuideOpen(true)}
-            className="flex items-center gap-1 text-xs text-muted-foreground/60 hover:text-brand-orange transition-colors mt-1.5"
+            className="flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full border border-border bg-secondary hover:bg-brand-orange/10 hover:border-brand-orange/40 hover:text-brand-orange text-xs font-medium text-muted-foreground transition-colors"
           >
             <HelpCircle className="w-3.5 h-3.5" />
             App guide
