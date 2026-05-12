@@ -105,6 +105,26 @@ export async function POST(request: Request) {
     );
   }
 
+  // ── YouTube monthly import cap (20 / month for Pro) ──────────────────────
+  const YT_MONTHLY_LIMIT = 20;
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+  const ytThisMonth = await prisma.recipe.count({
+    where: { userId, sourceName: "YouTube", createdAt: { gte: startOfMonth } },
+  });
+  if (ytThisMonth >= YT_MONTHLY_LIMIT) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "YT_LIMIT_REACHED",
+          message: `You've used all ${YT_MONTHLY_LIMIT} YouTube imports for this month. Your limit resets on the 1st.`,
+        },
+      },
+      { status: 429 }
+    );
+  }
+
   // ── Recipe limit check ────────────────────────────────────────────────────
   const limit = await checkRecipeLimit(userId);
   if (!limit.allowed) {

@@ -17,7 +17,7 @@ const FREE_FEATURES = [
 const PRO_FEATURES = [
   "Unlimited recipes",
   "URL & text import",
-  "YouTube recipe import ✦",
+  "YouTube import · 20/month ✦",
   "30 photo scans / month",
   "Meal planning",
   "Pantry & grocery list",

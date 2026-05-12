@@ -12,7 +12,7 @@ interface Props {
 
 const PRO_FEATURES = [
   "Unlimited recipes",
-  "YouTube recipe import",
+  "YouTube import · 20/month",
   "30 photo scans / month",
   "Average nutrition per serving",
   "Priority support",
