@@ -6,7 +6,7 @@ import { useClerk, useUser } from "@clerk/nextjs";
 import {
   Sun, Moon, LogOut, Settings2, Users,
   Check, ChevronRight, CreditCard, Zap, Loader2,
-  Smartphone, CheckCircle2, Calendar, MessageSquarePlus, Send,
+  Smartphone, CheckCircle2, Calendar, MessageSquarePlus, Send, List,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
@@ -73,6 +73,13 @@ export function SettingsClient() {
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackDone, setFeedbackDone] = useState(false);
+
+  // Alexa
+  const [alexaLists, setAlexaLists] = useState<Array<{ listId: string; name: string }> | null>(null);
+  const [alexaSelectedId, setAlexaSelectedId] = useState<string | null>(null);
+  const [alexaListsLoading, setAlexaListsLoading] = useState(false);
+  const [alexaListsSaving, setAlexaListsSaving] = useState(false);
+  const [alexaListsError, setAlexaListsError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/billing/status")
@@ -145,6 +152,38 @@ export function SettingsClient() {
       }, 2500);
     } finally {
       setFeedbackLoading(false);
+    }
+  }
+
+  async function loadAlexaLists() {
+    if (alexaLists !== null || alexaListsLoading) return;
+    setAlexaListsLoading(true);
+    setAlexaListsError(null);
+    try {
+      const res = await fetch("/api/alexa/lists");
+      if (res.status === 403) { setAlexaLists([]); return; } // not connected
+      if (!res.ok) throw new Error("Failed to load lists");
+      const data = await res.json();
+      setAlexaLists(data.lists ?? []);
+      setAlexaSelectedId(data.selectedListId ?? null);
+    } catch {
+      setAlexaListsError("Could not load your Alexa lists. Please try again.");
+    } finally {
+      setAlexaListsLoading(false);
+    }
+  }
+
+  async function saveAlexaList(listId: string) {
+    setAlexaSelectedId(listId);
+    setAlexaListsSaving(true);
+    try {
+      await fetch("/api/alexa/select-list", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listId }),
+      });
+    } finally {
+      setAlexaListsSaving(false);
     }
   }
 
@@ -530,6 +569,80 @@ export function SettingsClient() {
                 <p className="text-xs text-muted-foreground mt-0.5">We read every suggestion.</p>
               </div>
             </div>
+          )}
+        </Card>
+      </section>
+
+      {/* ── Alexa ───────────────────────────────────────────────────────────── */}
+      <section className="space-y-2">
+        <SectionLabel icon={<List className="w-3.5 h-3.5" />} title="Amazon Alexa" />
+        <Card>
+          <Row>
+            <div>
+              <p className="text-sm font-medium text-foreground">Active shopping list</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Which Alexa list receives your grocery items and syncs with your pantry
+              </p>
+            </div>
+            <button
+              onClick={loadAlexaLists}
+              disabled={alexaListsLoading}
+              className={cn(
+                "shrink-0 flex items-center gap-1 text-xs border rounded-lg px-3 py-1.5 transition-colors",
+                alexaLists === null
+                  ? "border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
+                  : "border-transparent text-muted-foreground"
+              )}
+            >
+              {alexaListsLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+              {alexaLists === null && !alexaListsLoading && "Load lists"}
+            </button>
+          </Row>
+
+          {alexaListsError && (
+            <>
+              <Divider />
+              <div className="px-5 py-3">
+                <p className="text-xs text-red-400">{alexaListsError}</p>
+              </div>
+            </>
+          )}
+
+          {alexaLists !== null && alexaLists.length === 0 && (
+            <>
+              <Divider />
+              <div className="px-5 py-3">
+                <p className="text-xs text-muted-foreground">
+                  Alexa is not connected. Connect it from the Grocery List page.
+                </p>
+              </div>
+            </>
+          )}
+
+          {alexaLists !== null && alexaLists.length > 0 && (
+            <>
+              <Divider />
+              <div className="px-5 py-4 space-y-2">
+                <div className="flex items-center gap-3">
+                  <select
+                    value={alexaSelectedId ?? ""}
+                    onChange={(e) => saveAlexaList(e.target.value)}
+                    disabled={alexaListsSaving}
+                    className="flex-1 text-sm border border-border rounded-lg px-3 py-2 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/30 cursor-pointer disabled:opacity-60"
+                  >
+                    <option value="" disabled>Choose a list…</option>
+                    {alexaLists.map((l) => (
+                      <option key={l.listId} value={l.listId}>{l.name}</option>
+                    ))}
+                  </select>
+                  {alexaListsSaving && <Loader2 className="w-4 h-4 animate-spin text-brand-orange shrink-0" />}
+                  {!alexaListsSaving && alexaSelectedId && <Check className="w-4 h-4 text-green-500 shrink-0" />}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  This list is used when pushing your grocery list to Alexa and when syncing with your pantry.
+                </p>
+              </div>
+            </>
           )}
         </Card>
       </section>
