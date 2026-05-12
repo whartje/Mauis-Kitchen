@@ -279,7 +279,27 @@ export async function POST(request: Request) {
   let transcriptText: string | null = null;
   let videoDescription: string | null = null;
 
-  // 1. Try each custom InnerTube client context
+  // 1. Supadata — routes through residential proxies so datacenter IP blocks don't apply
+  if (process.env.SUPADATA_API_KEY) {
+    try {
+      const sdRes = await fetch(
+        `https://api.supadata.ai/v1/youtube/transcript?videoId=${videoId}&text=true`,
+        {
+          headers: { "x-api-key": process.env.SUPADATA_API_KEY },
+          cache: "no-store",
+        }
+      );
+      if (sdRes.ok) {
+        const sdData = await sdRes.json() as { content?: string; transcript?: string };
+        const sdText = sdData.content ?? sdData.transcript ?? null;
+        if (sdText && sdText.trim().length > 50) transcriptText = sdText;
+      }
+    } catch {
+      /* Supadata unavailable — fall through to InnerTube */
+    }
+  }
+
+  // 2. Try each custom InnerTube client context
   for (const cfg of CLIENT_CONFIGS) {
     const { tracks, description } = await fetchPlayerData(
       cfg.clientName, cfg.clientVersion, cfg.userAgent, cfg.clientNameId,
@@ -299,7 +319,7 @@ export async function POST(request: Request) {
     if (transcriptText) break;
   }
 
-  // 2. Library fallback (handles HTML scraping path)
+  // 3. Library fallback (handles HTML scraping path)
   if (!transcriptText) {
     const noStoreFetch: typeof fetch = (u, init) => fetch(u, { ...init, cache: "no-store" });
     for (const lang of [undefined, "en", "en-US"] as const) {
@@ -318,7 +338,7 @@ export async function POST(request: Request) {
     }
   }
 
-  // 3. Description fallback — many channels post full recipes in their video description
+  // 4. Description fallback — many channels post full recipes in their video description
   if (!transcriptText && videoDescription && videoDescription.trim().length >= 100) {
     transcriptText = `[No captions available — extracted from video description]\n\n${videoDescription}`;
   }
