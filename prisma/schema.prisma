@@ -258,3 +258,25 @@ model AlexaCredential {
   listId       String?
   updatedAt    DateTime @updatedAt
 }
+
+// Alexa Skill account-linking flow (replaces LWA OAuth)
+// Auth codes are short-lived and single-use
+model AlexaAuthCode {
+  code      String   @id
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Token issued to Alexa after account linking completes
+model AlexaSkillLink {
+  userId      String   @unique
+  accessToken String   @unique   // Token Alexa sends back on every skill invocation
+  listName    String   @default("Grocery List")  // Which list name to sync
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+
+  @@index([accessToken])
+}

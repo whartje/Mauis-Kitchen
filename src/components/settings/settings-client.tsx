@@ -74,13 +74,11 @@ export function SettingsClient() {
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackDone, setFeedbackDone] = useState(false);
 
-  // Alexa
-  const [alexaLists, setAlexaLists] = useState<Array<{ listId: string; name: string }> | null>(null);
-  const [alexaSelectedId, setAlexaSelectedId] = useState<string | null>(null);
-  const [alexaListsLoading, setAlexaListsLoading] = useState(false);
-  const [alexaListsSaving, setAlexaListsSaving] = useState(false);
-  const [alexaListsError, setAlexaListsError] = useState<string | null>(null);
-  const [alexaConnected, setAlexaConnected] = useState<boolean | null>(null);
+  // Alexa Skill
+  const [alexaLinked, setAlexaLinked] = useState<boolean | null>(null);
+  const [alexaListName, setAlexaListName] = useState("Grocery List");
+  const [alexaListNameSaving, setAlexaListNameSaving] = useState(false);
+  const [alexaListNameSaved, setAlexaListNameSaved] = useState(false);
 
   useEffect(() => {
     fetch("/api/billing/status")
@@ -89,21 +87,9 @@ export function SettingsClient() {
       .catch(() => {});
   }, []);
 
-  // Auto-load Alexa lists when returning from OAuth, or show error
+  // Load Alexa skill link status on mount
   useEffect(() => {
-    if (searchParams.get("alexa_connected") === "1") {
-      loadAlexaLists();
-    } else if (searchParams.get("alexa_error")) {
-      const code = searchParams.get("alexa_error");
-      const msg =
-        code === "not_configured" ? "Alexa integration is not configured yet." :
-        code === "token_exchange" ? "Amazon authorization failed. Please try again." :
-        code === "invalid_state"  ? "Security check failed. Please try again." :
-        "Amazon connection failed. Please try again.";
-      setAlexaListsError(msg);
-      setAlexaConnected(false);
-      setAlexaLists([]);
-    }
+    loadAlexaStatus();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -174,40 +160,29 @@ export function SettingsClient() {
     }
   }
 
-  async function loadAlexaLists() {
-    if (alexaListsLoading) return;
-    setAlexaListsLoading(true);
-    setAlexaListsError(null);
+  async function loadAlexaStatus() {
     try {
-      const res = await fetch("/api/alexa/lists");
-      if (res.status === 403) {
-        setAlexaConnected(false);
-        setAlexaLists([]);
-        return;
-      }
-      if (!res.ok) throw new Error("Failed to load lists");
+      const res = await fetch("/api/alexa/skill-status");
+      if (!res.ok) return;
       const data = await res.json();
-      setAlexaConnected(true);
-      setAlexaLists(data.lists ?? []);
-      setAlexaSelectedId(data.selectedListId ?? null);
-    } catch {
-      setAlexaListsError("Could not load your Alexa lists. Please try again.");
-    } finally {
-      setAlexaListsLoading(false);
-    }
+      setAlexaLinked(data.linked ?? false);
+      if (data.listName) setAlexaListName(data.listName);
+    } catch { /* silent */ }
   }
 
-  async function saveAlexaList(listId: string) {
-    setAlexaSelectedId(listId);
-    setAlexaListsSaving(true);
+  async function saveAlexaListName() {
+    if (!alexaListName.trim()) return;
+    setAlexaListNameSaving(true);
     try {
-      await fetch("/api/alexa/select-list", {
-        method: "POST",
+      await fetch("/api/alexa/skill-status", {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ listId }),
+        body: JSON.stringify({ listName: alexaListName.trim() }),
       });
+      setAlexaListNameSaved(true);
+      setTimeout(() => setAlexaListNameSaved(false), 2000);
     } finally {
-      setAlexaListsSaving(false);
+      setAlexaListNameSaving(false);
     }
   }
 
@@ -601,94 +576,81 @@ export function SettingsClient() {
       <section className="space-y-2">
         <SectionLabel icon={<List className="w-3.5 h-3.5" />} title="Amazon Alexa" />
         <Card>
+          {/* Link status row */}
           <Row>
-            <div>
-              <p className="text-sm font-medium text-foreground">Active shopping list</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Which Alexa list syncs with your pantry
-              </p>
-            </div>
-            {/* Show Load button only when not yet fetched and not already loading */}
-            {alexaLists === null && (
-              <button
-                onClick={loadAlexaLists}
-                disabled={alexaListsLoading}
-                className="shrink-0 flex items-center gap-1.5 text-xs border border-border rounded-lg px-3 py-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-60"
-              >
-                {alexaListsLoading
-                  ? <Loader2 className="w-3 h-3 animate-spin" />
-                  : "Load lists"}
-              </button>
-            )}
-            {alexaLists !== null && alexaListsLoading && (
-              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground shrink-0" />
-            )}
-          </Row>
-
-          {alexaListsError && (
-            <>
-              <Divider />
-              <div className="px-5 py-3">
-                <p className="text-xs text-red-400">{alexaListsError}</p>
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "w-9 h-9 rounded-full flex items-center justify-center shrink-0",
+                alexaLinked ? "bg-green-500/15" : "bg-secondary",
+              )}>
+                {alexaLinked
+                  ? <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  : <List className="w-4 h-4 text-muted-foreground" />}
               </div>
-            </>
-          )}
-
-          {/* Not connected → show Connect button */}
-          {alexaConnected === false && (
-            <>
-              <Divider />
-              <div className="px-5 py-4 flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-foreground">Connect Amazon account</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Authorize Maui&apos;s Kitchen to read your Alexa lists
-                  </p>
-                </div>
-                <a
-                  href="/api/alexa/auth"
-                  className="shrink-0 flex items-center gap-1 text-xs font-semibold text-brand-orange border border-brand-orange/30 bg-brand-orange/8 rounded-lg px-3 py-1.5 hover:bg-brand-orange/15 transition-colors"
-                >
-                  Connect →
-                </a>
-              </div>
-            </>
-          )}
-
-          {/* Connected but no lists */}
-          {alexaConnected === true && alexaLists !== null && alexaLists.length === 0 && (
-            <>
-              <Divider />
-              <div className="px-5 py-3">
-                <p className="text-xs text-muted-foreground">
-                  No active Alexa lists found on your account.
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {alexaLinked === null ? "Checking…" : alexaLinked ? "Skill linked" : "Skill not linked"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {alexaLinked
+                    ? <>&ldquo;Alexa, ask Maui&apos;s Kitchen to sync my pantry&rdquo;</>
+                    : "Enable the Maui’s Kitchen skill in the Alexa app to connect"}
                 </p>
               </div>
-            </>
-          )}
+            </div>
+          </Row>
 
-          {/* Connected with lists → dropdown */}
-          {alexaConnected === true && alexaLists !== null && alexaLists.length > 0 && (
+          {/* List name — only shown when linked */}
+          {alexaLinked && (
             <>
               <Divider />
               <div className="px-5 py-4 space-y-2">
-                <div className="flex items-center gap-3">
-                  <select
-                    value={alexaSelectedId ?? ""}
-                    onChange={(e) => saveAlexaList(e.target.value)}
-                    disabled={alexaListsSaving}
-                    className="flex-1 text-sm border border-border rounded-lg px-3 py-2 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/30 cursor-pointer disabled:opacity-60"
-                  >
-                    <option value="" disabled>Choose a list…</option>
-                    {alexaLists.map((l) => (
-                      <option key={l.listId} value={l.listId}>{l.name}</option>
-                    ))}
-                  </select>
-                  {alexaListsSaving && <Loader2 className="w-4 h-4 animate-spin text-brand-orange shrink-0" />}
-                  {!alexaListsSaving && alexaSelectedId && <Check className="w-4 h-4 text-green-500 shrink-0" />}
-                </div>
+                <p className="text-sm font-medium text-foreground">Alexa list name</p>
                 <p className="text-xs text-muted-foreground">
-                  This list is used when syncing your Alexa shopping list with your pantry.
+                  The exact name of your Alexa list (e.g. &ldquo;Grocery List&rdquo;)
+                </p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={alexaListName}
+                    onChange={(e) => setAlexaListName(e.target.value)}
+                    onBlur={saveAlexaListName}
+                    onKeyDown={(e) => e.key === "Enter" && saveAlexaListName()}
+                    className="flex-1 text-sm border border-border rounded-lg px-3 py-2 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/30"
+                    placeholder="Grocery List"
+                  />
+                  {alexaListNameSaving && <Loader2 className="w-4 h-4 animate-spin text-brand-orange shrink-0" />}
+                  {!alexaListNameSaving && alexaListNameSaved && <Check className="w-4 h-4 text-green-500 shrink-0" />}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Setup instructions — only shown when not yet linked */}
+          {alexaLinked === false && (
+            <>
+              <Divider />
+              <div className="px-5 py-4 space-y-3">
+                <p className="text-xs font-medium text-foreground">How to connect</p>
+                <ol className="space-y-2">
+                  {[
+                    "Open the Alexa app on your phone",
+                    <>Go to <strong className="text-foreground">More → Skills &amp; Games</strong></>,
+                    <>Search for <strong className="text-foreground">Maui&apos;s Kitchen</strong> and tap Enable</>,
+                    <>Tap <strong className="text-foreground">Link Account</strong> and sign in to Maui&apos;s Kitchen</>,
+                  ].map((step, i) => (
+                    <li key={i} className="flex items-start gap-3">
+                      <span className="w-5 h-5 rounded-full bg-brand-orange/15 text-brand-orange text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                        {i + 1}
+                      </span>
+                      <span className="text-xs text-muted-foreground leading-snug">{step}</span>
+                    </li>
+                  ))}
+                </ol>
+                <p className="text-xs text-muted-foreground pt-1">
+                  Once linked, say{" "}
+                  <span className="font-medium text-foreground italic">"Alexa, ask Maui's Kitchen to sync my pantry"</span>
+                  {" "}to remove grocery list items from your pantry.
                 </p>
               </div>
             </>
