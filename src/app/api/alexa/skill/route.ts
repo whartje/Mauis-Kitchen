@@ -119,33 +119,43 @@ async function runSync(body: AlexaRequest): Promise<NextResponse> {
   console.error("[alexa/skill] GET", listsUrl);
 
   const listsRes = await fetch(listsUrl, {
-    headers: { Authorization: `Bearer ${apiAccessToken}` },
+    headers: {
+      Authorization: `Bearer ${apiAccessToken}`,
+      Accept: "application/json",
+    },
   });
 
-  // 401 = token lacks the required scope (Lists permission not enabled in Alexa console)
-  // 403 = user hasn't granted consent to this skill
-  if (listsRes.status === 401 || listsRes.status === 403) {
-    const errBody = await listsRes.text();
-    console.error("[alexa/skill] Lists permission denied:", listsRes.status, errBody);
+  // 401 = token lacks required scope (Lists permission not enabled in Developer Console)
+  // 403 = user hasn't granted consent
+  // 404 with HTML = Amazon's silent "no permission" response (returns 404 instead of 403
+  //   when the token scope is missing — confirmed by HTML body containing Amazon error page)
+  const listsBody = await listsRes.text();
+  const isAmazonPermissionError =
+    !listsRes.ok &&
+    (listsRes.status === 401 ||
+      listsRes.status === 403 ||
+      (listsRes.status === 404 && listsBody.includes("amazon")));
+
+  if (isAmazonPermissionError) {
+    console.error("[alexa/skill] Permission error:", listsRes.status, listsBody.slice(0, 200));
     return buildPermissionsCard();
   }
 
   if (!listsRes.ok) {
-    const errBody = await listsRes.text();
-    console.error("[alexa/skill] Lists API error:", listsRes.status, errBody, "url:", listsUrl);
+    console.error("[alexa/skill] Lists API error:", listsRes.status, listsBody, "url:", listsUrl);
     return buildResponse(
-      `Lists API returned ${listsRes.status}. The endpoint used was api dot amazonalexa dot com. Check Vercel logs for full details.`
+      `Lists API returned error ${listsRes.status}. Check Vercel logs for details.`
     );
   }
 
-  const listsData = (await listsRes.json()) as {
-    lists?: Array<{
-      listId: string;
-      name: string;
-      state: string;
-      statusMap?: Array<{ status: string; href: string }>;
-    }>;
-  };
+  let listsData: { lists?: Array<{ listId: string; name: string; state: string; statusMap?: Array<{ status: string; href: string }> }> };
+  try {
+    listsData = JSON.parse(listsBody);
+  } catch {
+    console.error("[alexa/skill] Failed to parse lists JSON:", listsBody.slice(0, 200));
+    return buildResponse("Received an unexpected response from Amazon. Please try again.");
+  }
+
   const activeLists = (listsData.lists ?? []).filter((l) => l.state === "active");
   console.info("[alexa/skill] active lists:", activeLists.map((l) => l.name));
 
@@ -168,7 +178,10 @@ async function runSync(body: AlexaRequest): Promise<NextResponse> {
 
   // ── Fetch list items ───────────────────────────────────────────────────────
   const itemsRes = await fetch(activeHref, {
-    headers: { Authorization: `Bearer ${apiAccessToken}` },
+    headers: {
+      Authorization: `Bearer ${apiAccessToken}`,
+      Accept: "application/json",
+    },
   });
 
   if (itemsRes.status === 401 || itemsRes.status === 403) return buildPermissionsCard();
