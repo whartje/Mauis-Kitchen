@@ -110,31 +110,39 @@ async function runSync(body: AlexaRequest): Promise<NextResponse> {
 
   // ── Fetch the user's Alexa lists ───────────────────────────────────────────
   const baseUrl = apiEndpoint.replace(/\/$/, ""); // trim any trailing slash
-  const listsRes = await fetch(`${baseUrl}/v2/householdlists/`, {
+  const listsUrl = `${baseUrl}/v2/householdlists/`;
+  console.info("[alexa/skill] GET", listsUrl);
+
+  const listsRes = await fetch(listsUrl, {
     headers: { Authorization: `Bearer ${apiAccessToken}` },
   });
 
-  // 401 = token lacks the required scope (skill permissions not enabled in console)
+  // 401 = token lacks the required scope (Lists permission not enabled in Alexa console)
   // 403 = user hasn't granted consent to this skill
-  // Both need the permissions card
   if (listsRes.status === 401 || listsRes.status === 403) {
-    const body403 = await listsRes.text();
-    console.error("[alexa/skill] Lists permission denied:", listsRes.status, body403);
+    const errBody = await listsRes.text();
+    console.error("[alexa/skill] Lists permission denied:", listsRes.status, errBody);
     return buildPermissionsCard();
   }
 
   if (!listsRes.ok) {
     const errBody = await listsRes.text();
-    console.error("[alexa/skill] Lists API error:", listsRes.status, errBody);
+    console.error("[alexa/skill] Lists API error:", listsRes.status, errBody, "url:", listsUrl);
     return buildResponse(
-      `I had trouble reading your Alexa lists — Amazon returned error ${listsRes.status}. Please try again in a moment.`
+      `Step 1 failed — error ${listsRes.status} fetching lists. Check Vercel logs for details.`
     );
   }
 
   const listsData = (await listsRes.json()) as {
-    lists?: Array<{ listId: string; name: string; state: string }>;
+    lists?: Array<{
+      listId: string;
+      name: string;
+      state: string;
+      statusMap?: Array<{ status: string; href: string }>;
+    }>;
   };
   const activeLists = (listsData.lists ?? []).filter((l) => l.state === "active");
+  console.info("[alexa/skill] active lists:", activeLists.map((l) => l.name));
 
   if (activeLists.length === 0) {
     return buildResponse("I couldn't find any active lists on your Alexa account.");
@@ -146,24 +154,33 @@ async function runSync(body: AlexaRequest): Promise<NextResponse> {
     activeLists.find((l) => /grocery|shopping/i.test(l.name)) ??
     activeLists[0];
 
+  // Use Amazon's own href from statusMap — avoids any URL construction issues
+  // Fall back to constructing it ourselves if statusMap is missing
+  const activeHref =
+    targetList.statusMap?.find((m) => m.status === "active")?.href ??
+    `${baseUrl}/v2/householdlists/${encodeURIComponent(targetList.listId)}/active`;
+  console.info("[alexa/skill] GET items", activeHref);
+
   // ── Fetch list items ───────────────────────────────────────────────────────
-  // Correct path: /v2/householdlists/{listId}/active  (items are in the response body)
-  const itemsRes = await fetch(
-    `${baseUrl}/v2/householdlists/${targetList.listId}/active`,
-    { headers: { Authorization: `Bearer ${apiAccessToken}` } }
-  );
+  const itemsRes = await fetch(activeHref, {
+    headers: { Authorization: `Bearer ${apiAccessToken}` },
+  });
 
   if (itemsRes.status === 401 || itemsRes.status === 403) return buildPermissionsCard();
 
   if (!itemsRes.ok) {
-    console.error("[alexa/skill] Items API error:", itemsRes.status, await itemsRes.text());
-    return buildResponse(`I had trouble reading your ${targetList.name} list — error ${itemsRes.status}. Please try again.`);
+    const errBody = await itemsRes.text();
+    console.error("[alexa/skill] Items API error:", itemsRes.status, errBody, "url:", activeHref);
+    return buildResponse(
+      `Step 2 failed — error ${itemsRes.status} fetching ${targetList.name} items. Check Vercel logs.`
+    );
   }
 
   const itemsData = (await itemsRes.json()) as {
     items?: Array<{ id: string; value: string }>;
   };
   const alexaItems = itemsData.items ?? [];
+  console.info("[alexa/skill] list items count:", alexaItems.length);
 
   if (alexaItems.length === 0) {
     return buildResponse(`Your ${targetList.name} list is empty — nothing to sync.`);
