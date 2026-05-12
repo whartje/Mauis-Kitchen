@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { X, Plus, Package, Camera, Loader2, ScanLine, Check, ChevronRight, Trash2, CalendarDays } from "lucide-react";
+import { X, Plus, Package, Camera, Loader2, ScanLine, Check, ChevronRight, Trash2, CalendarDays, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type IngredientCategory = "PRODUCE" | "FRUIT" | "PROTEIN" | "DAIRY" | "GRAINS" | "PANTRY" | "SPICES" | "FROZEN" | "BEVERAGES" | "CONDIMENTS" | "OTHER";
@@ -106,6 +106,8 @@ export function PantryClient({ initialItems }: Props) {
   const [scanned, setScanned] = useState<ScannedIngredient[]>([]);
   const [addingScanned, setAddingScanned] = useState(false);
   const scanInputRef = useRef<HTMLInputElement>(null);
+  const receiptInputRef = useRef<HTMLInputElement>(null);
+  const [scanLabel, setScanLabel] = useState("Scanning for ingredients…");
 
   // Cleanup preview URL on unmount
   useEffect(() => {
@@ -155,23 +157,19 @@ export function PantryClient({ initialItems }: Props) {
     }
   }
 
-  // ── Photo scan ────────────────────────────────────────────────────────────
-  async function handleScanFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = "";
-
+  // ── Shared scan handler ───────────────────────────────────────────────────
+  async function runScan(file: File, endpoint: string, label: string) {
     setScanError(null);
+    setScanLabel(label);
     setScanPhase("scanning");
 
-    // Show preview immediately
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(URL.createObjectURL(file));
 
     try {
       const form = new FormData();
       form.append("file", file);
-      const res = await fetch("/api/pantry/scan", { method: "POST", body: form });
+      const res = await fetch(endpoint, { method: "POST", body: form });
       const data = await res.json();
 
       if (!res.ok) {
@@ -182,18 +180,35 @@ export function PantryClient({ initialItems }: Props) {
 
       const ingredients: Array<{ name: string; confidence: number }> = data.ingredients ?? [];
       if (ingredients.length === 0) {
-        setScanError("No food items detected. Try a clearer photo with better lighting.");
+        setScanError(endpoint.includes("receipt")
+          ? "No grocery items found on the receipt. Make sure the receipt is fully visible."
+          : "No food items detected. Try a clearer photo with better lighting.");
         setScanPhase("idle");
         return;
       }
 
-      // Pre-select items with confidence ≥ 0.75
       setScanned(ingredients.map((i) => ({ ...i, selected: i.confidence >= 0.75 })));
       setScanPhase("review");
     } catch {
       setScanError("Something went wrong. Please try again.");
       setScanPhase("idle");
     }
+  }
+
+  // ── Photo scan ────────────────────────────────────────────────────────────
+  async function handleScanFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    await runScan(file, "/api/pantry/scan", "Scanning for ingredients…");
+  }
+
+  // ── Receipt scan ──────────────────────────────────────────────────────────
+  async function handleReceiptFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    await runScan(file, "/api/pantry/scan-receipt", "Reading receipt…");
   }
 
   function toggleScannedItem(name: string) {
@@ -413,7 +428,7 @@ export function PantryClient({ initialItems }: Props) {
           )}
           <div className="flex items-center gap-3 text-muted-foreground">
             <Loader2 className="w-5 h-5 animate-spin text-brand-orange" />
-            <span className="text-sm">Scanning for ingredients…</span>
+            <span className="text-sm">{scanLabel}</span>
           </div>
         </div>
       )}
@@ -433,26 +448,45 @@ export function PantryClient({ initialItems }: Props) {
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Add Item
           </p>
-          {/* Scan button */}
-          <button
-            onClick={() => scanInputRef.current?.click()}
-            disabled={scanPhase === "scanning"}
-            className={cn(
-              "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors",
-              scanPhase === "scanning"
-                ? "border-brand-orange/40 text-brand-orange bg-brand-orange/5"
-                : "border-border text-muted-foreground hover:text-foreground hover:border-brand-orange/40 hover:bg-brand-orange/5"
-            )}
-          >
-            {scanPhase === "scanning"
-              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              : <Camera className="w-3.5 h-3.5" />
-            }
-            Scan pantry / fridge
-            <ChevronRight className="w-3 h-3 opacity-40" />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Scan pantry/fridge button */}
+            <button
+              onClick={() => scanInputRef.current?.click()}
+              disabled={scanPhase === "scanning"}
+              className={cn(
+                "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors",
+                scanPhase === "scanning"
+                  ? "border-brand-orange/40 text-brand-orange bg-brand-orange/5"
+                  : "border-border text-muted-foreground hover:text-foreground hover:border-brand-orange/40 hover:bg-brand-orange/5"
+              )}
+            >
+              {scanPhase === "scanning" && scanLabel !== "Reading receipt…"
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <Camera className="w-3.5 h-3.5" />
+              }
+              Scan fridge
+            </button>
 
-          {/* Hidden file input — capture="environment" opens rear camera on mobile */}
+            {/* Scan receipt button */}
+            <button
+              onClick={() => receiptInputRef.current?.click()}
+              disabled={scanPhase === "scanning"}
+              className={cn(
+                "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors",
+                scanPhase === "scanning" && scanLabel === "Reading receipt…"
+                  ? "border-brand-orange/40 text-brand-orange bg-brand-orange/5"
+                  : "border-border text-muted-foreground hover:text-foreground hover:border-brand-orange/40 hover:bg-brand-orange/5"
+              )}
+            >
+              {scanPhase === "scanning" && scanLabel === "Reading receipt…"
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <Receipt className="w-3.5 h-3.5" />
+              }
+              Scan receipt
+            </button>
+          </div>
+
+          {/* Hidden inputs */}
           <input
             ref={scanInputRef}
             type="file"
@@ -460,6 +494,13 @@ export function PantryClient({ initialItems }: Props) {
             capture="environment"
             className="hidden"
             onChange={handleScanFile}
+          />
+          <input
+            ref={receiptInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={handleReceiptFile}
           />
         </div>
 

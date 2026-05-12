@@ -407,6 +407,58 @@ For each item output:
 Output ONLY a valid JSON array, no markdown, no explanation:
 [{"name": "...", "confidence": 0.0}, ...]`;
 
+// ─────────────────────────────────────────────
+// Receipt scan prompt + function
+// ─────────────────────────────────────────────
+
+const RECEIPT_SCAN_PROMPT = `You are reading a photo of a grocery store receipt to extract purchased food and grocery items.
+
+Look at every line item on the receipt. Include an item if it is:
+- Food or drink (produce, meat, dairy, packaged food, beverages, snacks, condiments)
+- Kitchen staples (oil, flour, sugar, spices, canned goods, sauces)
+
+Skip non-food items: cleaning supplies, toiletries, paper goods, magazines, batteries, fees, taxes, subtotals, totals, coupons, store name, date, cashier info, bag charges.
+
+For each food item:
+- "name": clean common English name, lowercase, singular form
+  - Remove brand names and store-brand prefixes (e.g. "KRFT MAC&CHEESE" → "mac and cheese", "O ORGANICS SPINACH" → "spinach")
+  - Remove weight/size codes (e.g. "BEEF GRND 80/20 1.52LB" → "ground beef")
+  - Simplify abbreviations (e.g. "CHKN BRST" → "chicken breast", "WHL MLK" → "whole milk")
+- "confidence": 0.0–1.0
+  - 0.9+: clearly a food item with an obvious name
+  - 0.7–0.9: recognisably food but name needed interpretation
+  - 0.5–0.7: likely food but ambiguous — include it
+  - below 0.5: omit
+
+Output ONLY a valid JSON array, no markdown, no explanation:
+[{"name": "...", "confidence": 0.0}, ...]`;
+
+export async function scanReceiptFromBuffer(
+  buffer: Buffer,
+  mediaType: "image/jpeg" | "image/png" | "image/webp"
+): Promise<Array<{ name: string; confidence: number }>> {
+  const base64 = buffer.toString("base64");
+
+  const message = await anthropic.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 2048,
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+          { type: "text", text: RECEIPT_SCAN_PROMPT },
+        ],
+      },
+    ],
+  });
+
+  const content = message.content[0];
+  if (content.type !== "text") throw new Error("Unexpected Claude response type");
+  const jsonText = content.text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
+  return safeParseJson(jsonText);
+}
+
 export async function identifyPantryIngredientsFromBuffer(
   buffer: Buffer,
   mediaType: "image/jpeg" | "image/png" | "image/webp"
