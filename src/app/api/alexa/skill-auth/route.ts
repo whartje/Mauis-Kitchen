@@ -1,67 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/prisma";
-import crypto from "crypto";
 
-// Alexa account-linking redirects to this endpoint.
-// The user must be logged in to Maui's Kitchen; we generate an auth code
-// and send it back to Alexa's redirect_uri.
-
-const AMAZON_REDIRECT_HOSTS = [
-  "layla.amazon.com",
-  "pitangui.amazon.com",
-  "alexa.amazon.co.jp",
-  "alexa.amazon.com",
-];
+// This API route is the Authorization URI registered in the Alexa Developer Console.
+// It immediately redirects to the /alexa/link page which is a proper Clerk-protected
+// Next.js page — Clerk middleware handles sign-in and redirects the user back here
+// with the full URL including all OAuth params intact.
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const redirectUri = sp.get("redirect_uri");
   const state = sp.get("state");
-  const responseType = sp.get("response_type");
 
-  if (!redirectUri || !state || responseType !== "code") {
-    return NextResponse.json({ error: "Invalid account-linking request" }, { status: 400 });
-  }
-
-  // Only allow Amazon's own redirect URIs
-  let parsedRedirect: URL;
-  try {
-    parsedRedirect = new URL(redirectUri);
-  } catch {
-    return NextResponse.json({ error: "Invalid redirect_uri" }, { status: 400 });
-  }
-
-  if (!AMAZON_REDIRECT_HOSTS.some((h) => parsedRedirect.hostname === h)) {
-    return NextResponse.json({ error: "Disallowed redirect_uri" }, { status: 400 });
-  }
-
-  // Require the user to be signed in
-  const { userId } = await auth();
-  if (!userId) {
-    // Redirect to sign-in; after auth Clerk will send them back here
-    const returnUrl = req.url;
-    return NextResponse.redirect(
-      new URL(
-        `/sign-in?redirect_url=${encodeURIComponent(returnUrl)}`,
-        process.env.NEXT_PUBLIC_APP_URL ?? req.url
-      )
+  if (!redirectUri || !state) {
+    return NextResponse.json(
+      { error: "Missing required OAuth parameters (redirect_uri, state)" },
+      { status: 400 }
     );
   }
 
-  // Generate a short-lived auth code
-  const code = crypto.randomBytes(32).toString("hex");
-  const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? `${req.nextUrl.protocol}//${req.nextUrl.host}`;
+  const pageUrl = new URL("/alexa/link", appUrl);
+  pageUrl.searchParams.set("redirect_uri", redirectUri);
+  pageUrl.searchParams.set("state", state);
+  pageUrl.searchParams.set("response_type", "code");
 
-  // Clean up any previous codes for this user
-  await prisma.alexaAuthCode.deleteMany({ where: { userId } });
-
-  // Store the new code
-  await prisma.alexaAuthCode.create({ data: { code, userId, expiresAt } });
-
-  // Send the user back to Alexa
-  parsedRedirect.searchParams.set("code", code);
-  parsedRedirect.searchParams.set("state", state);
-
-  return NextResponse.redirect(parsedRedirect.toString());
+  return NextResponse.redirect(pageUrl.toString());
 }

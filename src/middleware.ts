@@ -4,6 +4,10 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/alexa/callback(.*)",
+  // Alexa skill endpoints — called by Amazon's servers, not the user's browser
+  "/api/alexa/skill-auth(.*)",   // redirects to /alexa/link; must be public so it isn't 401'd
+  "/api/alexa/skill-token(.*)",  // Alexa server → token exchange
+  "/api/alexa/skill(.*)",        // Alexa server → skill invocation
   "/api/webhooks/(.*)",
   // PWA / SEO assets — must be unauthenticated so iOS and crawlers can fetch them
   "/apple-icon.png",
