@@ -145,7 +145,8 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
   const [titleValue, setTitleValue] = useState(recipe.title);
   const [descriptionValue, setDescriptionValue] = useState(recipe.description ?? "");
   const [collectionValue, setCollectionValue] = useState(recipe.collection ?? "");
-  const [editingField, setEditingField] = useState<"title" | "description" | "collection" | null>(null);
+  const [sourceUrlValue, setSourceUrlValue] = useState(recipe.sourceUrl ?? "");
+  const [editingField, setEditingField] = useState<"title" | "description" | "collection" | "sourceUrl" | null>(null);
   // Track last-saved values so Cancel/Escape reverts to the most recent save, not the original prop
   const savedTitleRef = useRef(recipe.title);
   const savedDescriptionRef = useRef(recipe.description ?? "");
@@ -395,6 +396,17 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
     // Update saved-value refs so subsequent Escape reverts to the latest saved value
     if (field === "title") savedTitleRef.current = trimmed;
     if (field === "description") savedDescriptionRef.current = trimmed;
+  }
+
+  async function saveSourceUrl(value: string) {
+    setEditingField(null);
+    const trimmed = value.trim();
+    setSourceUrlValue(trimmed);
+    await fetch(`/api/recipes/${recipe.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sourceUrl: trimmed || null }),
+    });
   }
 
   async function saveTags(newTags: string[]) {
@@ -926,16 +938,8 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
               {overlapPercent}% ingredient match
             </span>
           )}
-          {recipe.sourceUrl && (
-            <a
-              href={recipe.sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {recipe.sourceName ?? "Source"}
-              <ExternalLink className="w-3 h-3" />
-            </a>
+          {recipe.sourceName && !sourceUrlValue && (
+            <span className="text-muted-foreground text-sm">{recipe.sourceName}</span>
           )}
         </div>
 
@@ -971,6 +975,52 @@ export function RecipeDetailClient({ recipe, overlapPercent, pantryNames }: Prop
                 {collectionValue || "Add to a cookbook…"}
               </span>
               <Pencil className="w-3 h-3 text-muted-foreground/30 group-hover/coll:text-muted-foreground transition-colors" />
+            </button>
+          )}
+        </div>
+
+        {/* Editable source link */}
+        <div className="flex items-center gap-2">
+          <LinkIcon className="w-4 h-4 text-muted-foreground/50 shrink-0" />
+          {editingField === "sourceUrl" ? (
+            <input
+              autoFocus
+              type="url"
+              value={sourceUrlValue}
+              onChange={(e) => setSourceUrlValue(e.target.value)}
+              onBlur={() => saveSourceUrl(sourceUrlValue)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); saveSourceUrl(sourceUrlValue); }
+                if (e.key === "Escape") { setSourceUrlValue(recipe.sourceUrl ?? ""); setEditingField(null); }
+              }}
+              placeholder="https://…"
+              className="text-sm text-foreground bg-transparent border-b border-brand-orange focus:outline-none flex-1"
+            />
+          ) : sourceUrlValue ? (
+            <div className="flex items-center gap-1.5 group/src">
+              <a
+                href={sourceUrlValue}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {recipe.sourceName ?? (() => { try { return new URL(sourceUrlValue).hostname.replace("www.", ""); } catch { return "Source"; } })()}
+                <ExternalLink className="w-3 h-3" />
+              </a>
+              <button
+                onClick={() => { setSourceUrlValue(sourceUrlValue); setEditingField("sourceUrl"); }}
+                className="opacity-0 group-hover/src:opacity-100 transition-opacity"
+                title="Edit link"
+              >
+                <Pencil className="w-3 h-3 text-muted-foreground/50 hover:text-foreground" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => { setSourceUrlValue(""); setEditingField("sourceUrl"); }}
+              className="text-sm text-muted-foreground/40 hover:text-brand-orange italic transition-colors"
+            >
+              Add source link…
             </button>
           )}
         </div>

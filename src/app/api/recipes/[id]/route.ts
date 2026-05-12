@@ -8,6 +8,7 @@ const UpdateSchema = z.object({
   description: z.string().nullable().optional(),
   collection: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
+  sourceUrl: z.string().url().nullable().optional(),
   prepTime: z.number().int().min(0).nullable().optional(),
   cookTime: z.number().int().min(0).nullable().optional(),
   totalTime: z.number().int().min(0).nullable().optional(),
