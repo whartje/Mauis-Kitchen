@@ -6,10 +6,10 @@ export default async function PantryPage() {
   const { userId } = await auth();
   if (!userId) return null;
 
-  const rawItems = await prisma.pantryItem.findMany({
-    where: { userId },
-    orderBy: { addedAt: "asc" },
-  });
+  const [rawItems, alexaCreds] = await Promise.all([
+    prisma.pantryItem.findMany({ where: { userId }, orderBy: { addedAt: "asc" } }),
+    prisma.alexaCredential.findUnique({ where: { userId }, select: { userId: true } }),
+  ]);
 
   // Serialise Date → ISO string so the client component receives a plain object
   const items = rawItems.map((item) => ({
@@ -22,5 +22,5 @@ export default async function PantryPage() {
     expiresAt: item.expiresAt?.toISOString() ?? null,
   }));
 
-  return <PantryClient initialItems={items} />;
+  return <PantryClient initialItems={items} alexaConnected={!!alexaCreds} />;
 }
