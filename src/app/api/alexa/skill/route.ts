@@ -88,7 +88,7 @@ async function runRemove(body: AlexaRequest, rawItems: string): Promise<NextResp
 
   const items = parseItems(rawItems);
   if (items.length === 0) {
-    return buildResponse("I didn't catch any items. Try saying: I bought milk and eggs.");
+    return buildResponse("I didn't catch any items. Try saying: I bought milk and eggs.", false);
   }
 
   const pantryItems = await prisma.pantryItem.findMany({
@@ -102,20 +102,27 @@ async function runRemove(body: AlexaRequest, rawItems: string): Promise<NextResp
 
   const toRemove: string[] = [];
   const removedNames: string[] = [];
+  const unmatched: string[] = [];
 
   for (const item of items) {
+    let matched = false;
     for (const pantryItem of pantryItems) {
       if (toRemove.includes(pantryItem.id)) continue;
       if (fuzzyScore(item, pantryItem.name) >= 0.7) {
         toRemove.push(pantryItem.id);
         removedNames.push(pantryItem.name);
+        matched = true;
+        break;
       }
     }
+    if (!matched) unmatched.push(item);
   }
 
   if (toRemove.length === 0) {
     return buildResponse(
-      `I checked "${items.join(", ")}" against your ${pantryItems.length}-item pantry but found no matches. Make sure the items are spelled the same way as in your pantry.`
+      `I couldn't find ${items.join(" or ")} in your ${pantryItems.length}-item pantry. ` +
+      `Make sure the names match what's in your pantry. What else did you buy, or say stop to finish.`,
+      false
     );
   }
 
@@ -123,9 +130,13 @@ async function runRemove(body: AlexaRequest, rawItems: string): Promise<NextResp
 
   const preview = removedNames.slice(0, 3).join(", ");
   const extra = removedNames.length > 3 ? ` and ${removedNames.length - 3} more` : "";
+  const unmatchedNote = unmatched.length > 0
+    ? ` Couldn't find ${unmatched.join(" or ")} in your pantry.`
+    : "";
 
   return buildResponse(
-    `Done! Removed ${removedNames.length} item${removedNames.length !== 1 ? "s" : ""} from your pantry: ${preview}${extra}.`
+    `Removed ${removedNames.length} item${removedNames.length !== 1 ? "s" : ""}: ${preview}${extra}.${unmatchedNote} What else did you buy, or say stop to finish.`,
+    false  // keep session open for follow-up
   );
 }
 
@@ -155,6 +166,14 @@ export async function POST(req: NextRequest) {
         false
       );
     }
+    const userId = await resolveUserId(body);
+    if (userId) {
+      const count = await prisma.pantryItem.count({ where: { userId } });
+      return buildResponse(
+        `Welcome to Maui's Kitchen. You have ${count} item${count !== 1 ? "s" : ""} in your pantry. What did you buy?`,
+        false
+      );
+    }
     return buildResponse(
       "Welcome to Maui's Kitchen. What did you buy? Say something like: I bought milk and eggs.",
       false
@@ -176,7 +195,10 @@ export async function POST(req: NextRequest) {
 
     if (intentName === "AMAZON.HelpIntent") {
       return buildResponse(
-        "Say what you bought and I'll remove it from your pantry. For example: I bought milk and eggs.",
+        "Tell me what you bought and I'll remove those items from your Maui's Kitchen pantry. " +
+        "You can say things like: I bought milk and eggs, or I picked up butter and cheese. " +
+        "You can also go straight to it by saying: Alexa, tell Maui's Kitchen I bought milk. " +
+        "What did you buy?",
         false
       );
     }
