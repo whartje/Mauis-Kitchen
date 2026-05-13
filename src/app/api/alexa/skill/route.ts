@@ -115,9 +115,8 @@ async function runSync(body: AlexaRequest): Promise<NextResponse> {
       const payload = JSON.parse(
         Buffer.from(parts[1], "base64url").toString("utf8")
       );
-      console.error("[alexa/skill] token scopes:", JSON.stringify(payload.scp ?? payload.scope ?? "none"));
-      console.error("[alexa/skill] token exp:", new Date((payload.exp ?? 0) * 1000).toISOString());
-      console.error("[alexa/skill] token iss:", payload.iss ?? "unknown");
+      // Log full payload so we can see every field Amazon sends
+      console.error("[alexa/skill] token full payload:", JSON.stringify(payload));
     }
   } catch (e) {
     console.error("[alexa/skill] could not decode token:", e);
