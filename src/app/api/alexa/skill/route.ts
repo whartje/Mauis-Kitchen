@@ -13,7 +13,6 @@ interface AlexaRequest {
       apiEndpoint: string;
       apiAccessToken: string;
       application?: { applicationId?: string };
-      // consentToken lives here when the user has granted list permissions
       user?: {
         permissions?: {
           consentToken?: string;
@@ -40,11 +39,26 @@ function buildResponse(speechText: string, endSession = true) {
 }
 
 function buildPermissionsResponse() {
-  return buildResponse(
-    "Maui's Kitchen needs permission to access your Alexa lists. " +
-    "Open the Alexa app, go to More, then Skills and Games, find Maui's Kitchen under Your Skills, " +
-    "tap Settings, then Manage Permissions, and turn on Lists Read and Lists Write."
-  );
+  return NextResponse.json({
+    version: "1.0",
+    response: {
+      outputSpeech: {
+        type: "PlainText",
+        text: "Maui's Kitchen needs permission to access your Alexa lists. " +
+          "Open the Alexa app, go to More, then Skills and Games, find Maui's Kitchen, " +
+          "tap Settings, then Manage Permissions, and turn on Lists Read and Lists Write. " +
+          "Or check your Alexa app home screen for a permission card.",
+      },
+      card: {
+        type: "AskForPermissionsConsent",
+        permissions: [
+          "alexa::household:lists:read",
+          "alexa::household:lists:write",
+        ],
+      },
+      shouldEndSession: true,
+    },
+  });
 }
 
 // ─── Fuzzy matching ───────────────────────────────────────────────────────────
@@ -70,7 +84,55 @@ function fuzzyScore(a: string, b: string): number {
   return 0;
 }
 
-// ─── Core sync logic (shared by LaunchRequest + SyncPantryIntent) ─────────────
+// ─── Resolve the best available Lists API token ───────────────────────────────
+//
+// Amazon embeds the real LWA consent token (Atza|...) inside the apiAccessToken
+// JWT's privateClaims.consentToken. The request-body consentToken
+// (context.System.user.permissions.consentToken) is now also a JWT in newer
+// skill API versions, so we prefer the Atza| token extracted from privateClaims.
+// If that isn't present we fall through to the request-body JWT, then apiAccessToken.
+
+function resolveListsToken(body: AlexaRequest): {
+  token: string;
+  source: string;
+  hasConsent: boolean;
+} {
+  // 1. Try Atza| LWA token from apiAccessToken JWT privateClaims
+  try {
+    const parts = body.context.System.apiAccessToken.split(".");
+    if (parts.length >= 2) {
+      const payload = JSON.parse(
+        Buffer.from(parts[1], "base64url").toString("utf8")
+      ) as { privateClaims?: { consentToken?: string; nonLwaScopes?: string } };
+
+      const lwa = payload?.privateClaims?.consentToken;
+      const scopes = payload?.privateClaims?.nonLwaScopes ?? "";
+      const hasListScope = scopes.includes("alexa::household:lists");
+
+      console.error("[alexa/skill] nonLwaScopes:", scopes || "none");
+      console.error("[alexa/skill] privateClaims.consentToken prefix:", lwa?.slice(0, 8) ?? "absent");
+
+      if (lwa?.startsWith("Atza|")) {
+        return { token: lwa, source: "privateClaims-lwa", hasConsent: hasListScope };
+      }
+    }
+  } catch (e) {
+    console.error("[alexa/skill] JWT decode error:", e);
+  }
+
+  // 2. Request-body consentToken (JWT format in newer API versions)
+  const bodyConsent = body.context.System.user?.permissions?.consentToken;
+  if (bodyConsent) {
+    console.error("[alexa/skill] using request-body consentToken, prefix:", bodyConsent.slice(0, 8));
+    return { token: bodyConsent, source: "body-consentToken", hasConsent: false };
+  }
+
+  // 3. apiAccessToken fallback
+  console.error("[alexa/skill] using apiAccessToken fallback");
+  return { token: body.context.System.apiAccessToken, source: "apiAccessToken", hasConsent: false };
+}
+
+// ─── Core sync logic ──────────────────────────────────────────────────────────
 
 async function runSync(body: AlexaRequest): Promise<NextResponse> {
   const accessToken = body.session?.user?.accessToken;
@@ -89,20 +151,8 @@ async function runSync(body: AlexaRequest): Promise<NextResponse> {
 
   const { userId, listName } = skillLink;
 
-  // The consentToken (Atza|...) is the correct token for the Lists Management API.
-  // apiAccessToken is Alexa's system token and only carries person_id:read scope —
-  // it will always 404 on the Lists API regardless of which permissions are enabled.
-  const consentToken = body.context.System.user?.permissions?.consentToken;
-  const listsApiToken = consentToken ?? body.context.System.apiAccessToken;
-
-  console.error("[alexa/skill] consentToken present:", !!consentToken);
-  console.error("[alexa/skill] listsApiToken prefix:", listsApiToken.slice(0, 8));
-
-  if (!consentToken) {
-    // No consent token means the user hasn't granted list permissions yet
-    console.error("[alexa/skill] No consentToken — user has not granted list permissions");
-    return buildPermissionsResponse();
-  }
+  const { token: listsApiToken, source, hasConsent } = resolveListsToken(body);
+  console.error(`[alexa/skill] listsApiToken source=${source} prefix=${listsApiToken.slice(0, 8)} hasConsent=${hasConsent}`);
 
   // ── Fetch the user's Alexa lists ───────────────────────────────────────────
   const ALEXA_API_BASE = "https://api.amazonalexa.com";
@@ -117,17 +167,15 @@ async function runSync(body: AlexaRequest): Promise<NextResponse> {
   });
 
   const listsBody = await listsRes.text();
+  console.error("[alexa/skill] lists status:", listsRes.status, "body prefix:", listsBody.slice(0, 80));
 
-  if (listsRes.status === 401 || listsRes.status === 403) {
-    console.error("[alexa/skill] Lists auth error:", listsRes.status, listsBody.slice(0, 200));
+  if (listsRes.status === 401 || listsRes.status === 403 ||
+      (listsRes.status === 404 && listsBody.includes("amazon"))) {
     return buildPermissionsResponse();
   }
 
   if (!listsRes.ok) {
-    console.error("[alexa/skill] Lists API error:", listsRes.status, listsBody.slice(0, 200));
-    return buildResponse(
-      `Lists API returned error ${listsRes.status}. Check Vercel logs for details.`
-    );
+    return buildResponse(`Lists API returned error ${listsRes.status}. Check Vercel logs.`);
   }
 
   let listsData: { lists?: Array<{ listId: string; name: string; state: string; statusMap?: Array<{ status: string; href: string }> }> };
@@ -145,19 +193,16 @@ async function runSync(body: AlexaRequest): Promise<NextResponse> {
     return buildResponse("I couldn't find any active lists on your Alexa account.");
   }
 
-  // Prefer the stored list name, then "Grocery"/"Shopping" by name, then first active
   const targetList =
     activeLists.find((l) => l.name.toLowerCase() === listName.toLowerCase()) ??
     activeLists.find((l) => /grocery|shopping/i.test(l.name)) ??
     activeLists[0];
 
-  // Use Amazon's own href from statusMap — avoids any URL construction issues
   const activeHref =
     targetList.statusMap?.find((m) => m.status === "active")?.href ??
     `${ALEXA_API_BASE}/v2/householdlists/${encodeURIComponent(targetList.listId)}/active`;
   console.info("[alexa/skill] GET items", activeHref);
 
-  // ── Fetch list items ───────────────────────────────────────────────────────
   const itemsRes = await fetch(activeHref, {
     headers: {
       Authorization: `Bearer ${listsApiToken}`,
@@ -169,10 +214,8 @@ async function runSync(body: AlexaRequest): Promise<NextResponse> {
 
   if (!itemsRes.ok) {
     const errBody = await itemsRes.text();
-    console.error("[alexa/skill] Items API error:", itemsRes.status, errBody, "url:", activeHref);
-    return buildResponse(
-      `Step 2 failed — error ${itemsRes.status} fetching ${targetList.name} items. Check Vercel logs.`
-    );
+    console.error("[alexa/skill] Items API error:", itemsRes.status, errBody.slice(0, 200));
+    return buildResponse(`Step 2 failed — error ${itemsRes.status} fetching ${targetList.name} items.`);
   }
 
   const itemsData = (await itemsRes.json()) as {
@@ -237,7 +280,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
 
-  // Optional skill ID verification
   const skillId = body.context?.System?.application?.applicationId;
   if (process.env.ALEXA_SKILL_ID && skillId && skillId !== process.env.ALEXA_SKILL_ID) {
     return NextResponse.json({ error: "Skill ID mismatch" }, { status: 403 });
@@ -245,7 +287,6 @@ export async function POST(req: NextRequest) {
 
   const reqType = body.request.type;
 
-  // ── LaunchRequest — auto-sync so "Alexa, open Maui's Kitchen" works too ────
   if (reqType === "LaunchRequest") {
     if (body.session?.user?.accessToken) {
       return runSync(body);
@@ -256,12 +297,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ── SessionEndedRequest ────────────────────────────────────────────────────
   if (reqType === "SessionEndedRequest") {
     return NextResponse.json({ version: "1.0", response: {} });
   }
 
-  // ── IntentRequest ──────────────────────────────────────────────────────────
   if (reqType === "IntentRequest") {
     const intentName = body.request.intent?.name ?? "";
 
@@ -281,6 +320,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Fallback
   return buildResponse("I didn't understand that. Try saying open Maui's Kitchen to sync your pantry.");
 }
