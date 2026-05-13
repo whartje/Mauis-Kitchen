@@ -13,16 +13,14 @@ interface AlexaRequest {
       apiEndpoint: string;
       apiAccessToken: string;
       application?: { applicationId?: string };
-      user?: {
-        permissions?: {
-          consentToken?: string;
-        };
-      };
     };
   };
   request: {
     type: string;
-    intent?: { name: string };
+    intent?: {
+      name: string;
+      slots?: Record<string, { value?: string }>;
+    };
   };
 }
 
@@ -36,14 +34,6 @@ function buildResponse(speechText: string, endSession = true) {
       shouldEndSession: endSession,
     },
   });
-}
-
-function buildPermissionsResponse() {
-  return buildResponse(
-    "Maui's Kitchen needs permission to access your Alexa lists. " +
-    "Open the Alexa app, go to More, then Skills and Games, find Maui's Kitchen under Dev, " +
-    "tap Settings, then Manage Permissions, and turn on Lists Read and Lists Write."
-  );
 }
 
 // ─── Fuzzy matching ───────────────────────────────────────────────────────────
@@ -69,151 +59,38 @@ function fuzzyScore(a: string, b: string): number {
   return 0;
 }
 
-// ─── Resolve the best available Lists API token ───────────────────────────────
-//
-// Amazon embeds the real LWA consent token (Atza|...) inside the apiAccessToken
-// JWT's privateClaims.consentToken. The request-body consentToken
-// (context.System.user.permissions.consentToken) is now also a JWT in newer
-// skill API versions, so we prefer the Atza| token extracted from privateClaims.
-// If that isn't present we fall through to the request-body JWT, then apiAccessToken.
-
-function resolveListsToken(body: AlexaRequest): {
-  token: string;
-  source: string;
-  hasConsent: boolean;
-} {
-  // 1. Try Atza| LWA token from apiAccessToken JWT privateClaims
-  try {
-    const parts = body.context.System.apiAccessToken.split(".");
-    if (parts.length >= 2) {
-      const payload = JSON.parse(
-        Buffer.from(parts[1], "base64url").toString("utf8")
-      ) as { privateClaims?: { consentToken?: string; nonLwaScopes?: string } };
-
-      const lwa = payload?.privateClaims?.consentToken;
-      const scopes = payload?.privateClaims?.nonLwaScopes ?? "";
-      const hasListScope = scopes.includes("alexa::household:lists");
-
-      console.error("[alexa/skill] nonLwaScopes:", scopes || "none");
-      console.error("[alexa/skill] privateClaims.consentToken prefix:", lwa?.slice(0, 8) ?? "absent");
-
-      if (lwa?.startsWith("Atza|")) {
-        return { token: lwa, source: "privateClaims-lwa", hasConsent: hasListScope };
-      }
-    }
-  } catch (e) {
-    console.error("[alexa/skill] JWT decode error:", e);
-  }
-
-  // 2. Request-body consentToken (JWT format in newer API versions)
-  const bodyConsent = body.context.System.user?.permissions?.consentToken;
-  if (bodyConsent) {
-    console.error("[alexa/skill] using request-body consentToken, prefix:", bodyConsent.slice(0, 8));
-    return { token: bodyConsent, source: "body-consentToken", hasConsent: false };
-  }
-
-  // 3. apiAccessToken fallback
-  console.error("[alexa/skill] using apiAccessToken fallback");
-  return { token: body.context.System.apiAccessToken, source: "apiAccessToken", hasConsent: false };
+/** Split "milk, eggs and butter" → ["milk", "eggs", "butter"] */
+function parseItems(raw: string): string[] {
+  return raw
+    .split(/\s+and\s+|,\s*|\s*&\s*/i)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
 }
 
-// ─── Core sync logic ──────────────────────────────────────────────────────────
+// ─── Resolve account ──────────────────────────────────────────────────────────
 
-async function runSync(body: AlexaRequest): Promise<NextResponse> {
+async function resolveUserId(body: AlexaRequest): Promise<string | null> {
   const accessToken = body.session?.user?.accessToken;
-  if (!accessToken) {
+  if (!accessToken) return null;
+  const link = await prisma.alexaSkillLink.findUnique({ where: { accessToken } });
+  return link?.userId ?? null;
+}
+
+// ─── Remove items handler ─────────────────────────────────────────────────────
+
+async function runRemove(body: AlexaRequest, rawItems: string): Promise<NextResponse> {
+  const userId = await resolveUserId(body);
+  if (!userId) {
     return buildResponse(
-      "Your Maui's Kitchen account isn't linked yet. Open the Alexa app, find the Maui's Kitchen skill, and tap Link Account."
+      "Your Maui's Kitchen account isn't linked. Open the Alexa app, find the Maui's Kitchen skill, and tap Link Account."
     );
   }
 
-  const skillLink = await prisma.alexaSkillLink.findUnique({ where: { accessToken } });
-  if (!skillLink) {
-    return buildResponse(
-      "I couldn't find your account. Please re-link Maui's Kitchen in the Alexa app."
-    );
+  const items = parseItems(rawItems);
+  if (items.length === 0) {
+    return buildResponse("I didn't catch any items. Try saying: I bought milk and eggs.");
   }
 
-  const { userId, listName } = skillLink;
-
-  const { token: listsApiToken, source, hasConsent } = resolveListsToken(body);
-  console.error(`[alexa/skill] listsApiToken source=${source} prefix=${listsApiToken.slice(0, 8)} hasConsent=${hasConsent}`);
-
-  // ── Fetch the user's Alexa lists ───────────────────────────────────────────
-  const ALEXA_API_BASE = "https://api.amazonalexa.com";
-  const listsUrl = `${ALEXA_API_BASE}/v2/householdlists/`;
-  console.error("[alexa/skill] GET", listsUrl);
-
-  const listsRes = await fetch(listsUrl, {
-    headers: {
-      Authorization: `Bearer ${listsApiToken}`,
-      Accept: "application/json",
-    },
-  });
-
-  const listsBody = await listsRes.text();
-  console.error("[alexa/skill] lists status:", listsRes.status, "body prefix:", listsBody.slice(0, 80));
-
-  if (listsRes.status === 401 || listsRes.status === 403 ||
-      (listsRes.status === 404 && listsBody.includes("amazon"))) {
-    return buildPermissionsResponse();
-  }
-
-  if (!listsRes.ok) {
-    return buildResponse(`Lists API returned error ${listsRes.status}. Check Vercel logs.`);
-  }
-
-  let listsData: { lists?: Array<{ listId: string; name: string; state: string; statusMap?: Array<{ status: string; href: string }> }> };
-  try {
-    listsData = JSON.parse(listsBody);
-  } catch {
-    console.error("[alexa/skill] Failed to parse lists JSON:", listsBody.slice(0, 200));
-    return buildResponse("Received an unexpected response from Amazon. Please try again.");
-  }
-
-  const activeLists = (listsData.lists ?? []).filter((l) => l.state === "active");
-  console.info("[alexa/skill] active lists:", activeLists.map((l) => l.name));
-
-  if (activeLists.length === 0) {
-    return buildResponse("I couldn't find any active lists on your Alexa account.");
-  }
-
-  const targetList =
-    activeLists.find((l) => l.name.toLowerCase() === listName.toLowerCase()) ??
-    activeLists.find((l) => /grocery|shopping/i.test(l.name)) ??
-    activeLists[0];
-
-  const activeHref =
-    targetList.statusMap?.find((m) => m.status === "active")?.href ??
-    `${ALEXA_API_BASE}/v2/householdlists/${encodeURIComponent(targetList.listId)}/active`;
-  console.info("[alexa/skill] GET items", activeHref);
-
-  const itemsRes = await fetch(activeHref, {
-    headers: {
-      Authorization: `Bearer ${listsApiToken}`,
-      Accept: "application/json",
-    },
-  });
-
-  if (itemsRes.status === 401 || itemsRes.status === 403) return buildPermissionsResponse();
-
-  if (!itemsRes.ok) {
-    const errBody = await itemsRes.text();
-    console.error("[alexa/skill] Items API error:", itemsRes.status, errBody.slice(0, 200));
-    return buildResponse(`Step 2 failed — error ${itemsRes.status} fetching ${targetList.name} items.`);
-  }
-
-  const itemsData = (await itemsRes.json()) as {
-    items?: Array<{ id: string; value: string }>;
-  };
-  const alexaItems = itemsData.items ?? [];
-  console.info("[alexa/skill] list items count:", alexaItems.length);
-
-  if (alexaItems.length === 0) {
-    return buildResponse(`Your ${targetList.name} list is empty — nothing to sync.`);
-  }
-
-  // ── Fetch pantry ───────────────────────────────────────────────────────────
   const pantryItems = await prisma.pantryItem.findMany({
     where: { userId },
     select: { id: true, name: true },
@@ -223,15 +100,13 @@ async function runSync(body: AlexaRequest): Promise<NextResponse> {
     return buildResponse("Your Maui's Kitchen pantry is empty.");
   }
 
-  // ── Fuzzy match ────────────────────────────────────────────────────────────
   const toRemove: string[] = [];
   const removedNames: string[] = [];
 
-  for (const alexaItem of alexaItems) {
+  for (const item of items) {
     for (const pantryItem of pantryItems) {
       if (toRemove.includes(pantryItem.id)) continue;
-      const score = fuzzyScore(alexaItem.value, pantryItem.name);
-      if (score >= 0.7) {
+      if (fuzzyScore(item, pantryItem.name) >= 0.7) {
         toRemove.push(pantryItem.id);
         removedNames.push(pantryItem.name);
       }
@@ -240,11 +115,10 @@ async function runSync(body: AlexaRequest): Promise<NextResponse> {
 
   if (toRemove.length === 0) {
     return buildResponse(
-      `I checked your ${targetList.name} list against your ${pantryItems.length}-item pantry but found no matching items.`
+      `I checked "${items.join(", ")}" against your ${pantryItems.length}-item pantry but found no matches. Make sure the items are spelled the same way as in your pantry.`
     );
   }
 
-  // ── Remove matched pantry items ────────────────────────────────────────────
   await prisma.pantryItem.deleteMany({ where: { id: { in: toRemove }, userId } });
 
   const preview = removedNames.slice(0, 3).join(", ");
@@ -272,20 +146,27 @@ export async function POST(req: NextRequest) {
 
   const reqType = body.request.type;
 
+  // ── LaunchRequest ─────────────────────────────────────────────────────────
   if (reqType === "LaunchRequest") {
-    if (body.session?.user?.accessToken) {
-      return runSync(body);
+    const linked = !!body.session?.user?.accessToken;
+    if (!linked) {
+      return buildResponse(
+        "Welcome to Maui's Kitchen. To get started, open the Alexa app, find the Maui's Kitchen skill, and tap Link Account.",
+        false
+      );
     }
     return buildResponse(
-      "Welcome to Maui's Kitchen. To get started, open the Alexa app, find the Maui's Kitchen skill, and tap Link Account.",
+      "Welcome to Maui's Kitchen. What did you buy? Say something like: I bought milk and eggs.",
       false
     );
   }
 
+  // ── SessionEndedRequest ───────────────────────────────────────────────────
   if (reqType === "SessionEndedRequest") {
     return NextResponse.json({ version: "1.0", response: {} });
   }
 
+  // ── IntentRequest ─────────────────────────────────────────────────────────
   if (reqType === "IntentRequest") {
     const intentName = body.request.intent?.name ?? "";
 
@@ -295,15 +176,24 @@ export async function POST(req: NextRequest) {
 
     if (intentName === "AMAZON.HelpIntent") {
       return buildResponse(
-        "Just say open Maui's Kitchen and I'll sync your Alexa grocery list with your pantry automatically.",
+        "Say what you bought and I'll remove it from your pantry. For example: I bought milk and eggs.",
         false
       );
     }
 
-    if (intentName === "SyncPantryIntent") {
-      return runSync(body);
+    if (intentName === "RemoveItemsIntent") {
+      const rawItems = body.request.intent?.slots?.items?.value ?? "";
+      if (!rawItems) {
+        return buildResponse(
+          "I didn't catch what you bought. Try saying: I bought milk and eggs.",
+          false
+        );
+      }
+      return runRemove(body, rawItems);
     }
   }
 
-  return buildResponse("I didn't understand that. Try saying open Maui's Kitchen to sync your pantry.");
+  return buildResponse(
+    "Try saying what you bought — for example: I bought milk and eggs."
+  );
 }
