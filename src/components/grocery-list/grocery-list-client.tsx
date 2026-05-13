@@ -532,7 +532,12 @@ export default function GroceryListClient({
 
   const buildListText = useCallback(() => {
     if (!list) return "";
-    const lines: string[] = [`🛒 ${list.name || "Grocery List"}`, ""];
+    let prefix = "Add these to the grocery list:";
+    try {
+      const stored = localStorage.getItem("mauisKitchen_sharePrefix");
+      if (stored !== null) prefix = stored;
+    } catch { /* ignore */ }
+    const lines: string[] = [prefix, ""];
     for (const cat of CATEGORY_ORDER) {
       const items = (list.items ?? []).filter((it) => it.category === cat && !it.isChecked);
       if (items.length === 0) continue;

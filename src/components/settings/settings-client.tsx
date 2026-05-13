@@ -22,9 +22,11 @@ interface PlanStatus {
 }
 
 // ── Local-storage keys ────────────────────────────────────────────────────────
-const LS_DIETARY    = "mauisKitchen_dietaryDefault";
-const LS_SERVINGS   = "mauisKitchen_defaultServings";
-const LS_WEEK_START = "mauisKitchen_weekStartDay";
+const LS_DIETARY       = "mauisKitchen_dietaryDefault";
+const LS_SERVINGS      = "mauisKitchen_defaultServings";
+const LS_WEEK_START    = "mauisKitchen_weekStartDay";
+const LS_SHARE_PREFIX  = "mauisKitchen_sharePrefix";
+const DEFAULT_SHARE_PREFIX = "Add these to the grocery list:";
 
 type WeekStartDay = "monday" | "sunday" | "saturday";
 const WEEK_START_OPTIONS: { value: WeekStartDay; label: string }[] = [
@@ -56,6 +58,7 @@ export function SettingsClient() {
   const [dietaryDefault, setDietaryDefault] = useState("");
   const [defaultServings, setDefaultServings] = useState(2);
   const [weekStartDay, setWeekStartDay] = useState<WeekStartDay>("monday");
+  const [sharePrefix, setSharePrefix] = useState(DEFAULT_SHARE_PREFIX);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
 
   // Install-app detection (runs client-side only)
@@ -114,9 +117,11 @@ export function SettingsClient() {
       const dietary  = localStorage.getItem(LS_DIETARY)  ?? "";
       const servings = localStorage.getItem(LS_SERVINGS);
       const weekDay  = localStorage.getItem(LS_WEEK_START) as WeekStartDay | null;
+      const prefix   = localStorage.getItem(LS_SHARE_PREFIX);
       setDietaryDefault(dietary);
       setDefaultServings(servings ? Math.max(1, Math.min(12, parseInt(servings, 10))) : 2);
       if (weekDay && ["monday","sunday","saturday"].includes(weekDay)) setWeekStartDay(weekDay);
+      if (prefix !== null) setSharePrefix(prefix);
     } catch {}
     setPrefsLoaded(true);
   }, []);
@@ -181,6 +186,12 @@ export function SettingsClient() {
   function saveWeekStart(value: WeekStartDay) {
     setWeekStartDay(value);
     try { localStorage.setItem(LS_WEEK_START, value); } catch {}
+  }
+
+  function saveSharePrefix(value: string) {
+    const trimmed = value.trim() || DEFAULT_SHARE_PREFIX;
+    setSharePrefix(trimmed);
+    try { localStorage.setItem(LS_SHARE_PREFIX, trimmed); } catch {}
   }
 
   return (
@@ -406,6 +417,31 @@ export function SettingsClient() {
               </div>
             ) : (
               <div className="h-9 w-48 bg-secondary rounded-lg animate-pulse" />
+            )}
+          </div>
+
+          <Divider />
+
+          {/* Share list prefix */}
+          <div className="px-5 py-4 space-y-2">
+            <div>
+              <p className="text-sm font-medium text-foreground">Share list prefix</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                The opening line when you copy or share your grocery list
+              </p>
+            </div>
+            {prefsLoaded ? (
+              <input
+                type="text"
+                value={sharePrefix}
+                onChange={(e) => setSharePrefix(e.target.value)}
+                onBlur={(e) => saveSharePrefix(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && saveSharePrefix((e.target as HTMLInputElement).value)}
+                className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/30"
+                placeholder={DEFAULT_SHARE_PREFIX}
+              />
+            ) : (
+              <div className="h-9 w-full bg-secondary rounded-lg animate-pulse" />
             )}
           </div>
         </Card>
