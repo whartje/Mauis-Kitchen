@@ -108,13 +108,24 @@ async function runSync(body: AlexaRequest): Promise<NextResponse> {
     );
   }
 
+  // ── Decode token to check scopes (diagnostic) ─────────────────────────────
+  try {
+    const parts = apiAccessToken.split(".");
+    if (parts.length >= 2) {
+      const payload = JSON.parse(
+        Buffer.from(parts[1], "base64url").toString("utf8")
+      );
+      console.error("[alexa/skill] token scopes:", JSON.stringify(payload.scp ?? payload.scope ?? "none"));
+      console.error("[alexa/skill] token exp:", new Date((payload.exp ?? 0) * 1000).toISOString());
+      console.error("[alexa/skill] token iss:", payload.iss ?? "unknown");
+    }
+  } catch (e) {
+    console.error("[alexa/skill] could not decode token:", e);
+  }
+
   // ── Fetch the user's Alexa lists ───────────────────────────────────────────
-  // The apiEndpoint from the request body can sometimes be wrong (account linking
-  // redirects, etc). Always use the known-good Alexa runtime API base URL and
-  // log what we received for diagnostics.
   const ALEXA_API_BASE = "https://api.amazonalexa.com";
   const baseUrl = ALEXA_API_BASE;
-  console.error("[alexa/skill] apiEndpoint in request:", apiEndpoint, "| using:", baseUrl);
   const listsUrl = `${baseUrl}/v2/householdlists/`;
   console.error("[alexa/skill] GET", listsUrl);
 
