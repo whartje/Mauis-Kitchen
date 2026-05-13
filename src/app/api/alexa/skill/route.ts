@@ -13,6 +13,12 @@ interface AlexaRequest {
       apiEndpoint: string;
       apiAccessToken: string;
       application?: { applicationId?: string };
+      // consentToken lives here when the user has granted list permissions
+      user?: {
+        permissions?: {
+          consentToken?: string;
+        };
+      };
     };
   };
   request: {
@@ -33,8 +39,7 @@ function buildResponse(speechText: string, endSession = true) {
   });
 }
 
-/** Tells the user to grant list permissions via plain voice (no card — card causes "not supported" on some devices) */
-function buildPermissionsCard() {
+function buildPermissionsResponse() {
   return buildResponse(
     "Maui's Kitchen needs permission to access your Alexa lists. " +
     "Open the Alexa app, go to More, then Skills and Games, find Maui's Kitchen under Your Skills, " +
@@ -83,64 +88,43 @@ async function runSync(body: AlexaRequest): Promise<NextResponse> {
   }
 
   const { userId, listName } = skillLink;
-  const { apiEndpoint, apiAccessToken } = body.context.System;
 
-  // Guard: these should always be present but can be missing in test environments
-  if (!apiEndpoint || !apiAccessToken) {
-    console.error("[alexa/skill] Missing apiEndpoint or apiAccessToken", {
-      hasEndpoint: !!apiEndpoint,
-      hasToken: !!apiAccessToken,
-    });
-    return buildResponse(
-      "Maui's Kitchen is missing the Alexa API credentials. Please make sure the Lists permissions are enabled in the Alexa Developer Console."
-    );
-  }
+  // The consentToken (Atza|...) is the correct token for the Lists Management API.
+  // apiAccessToken is Alexa's system token and only carries person_id:read scope —
+  // it will always 404 on the Lists API regardless of which permissions are enabled.
+  const consentToken = body.context.System.user?.permissions?.consentToken;
+  const listsApiToken = consentToken ?? body.context.System.apiAccessToken;
 
-  // ── Decode token to check scopes (diagnostic) ─────────────────────────────
-  try {
-    const parts = apiAccessToken.split(".");
-    if (parts.length >= 2) {
-      const payload = JSON.parse(
-        Buffer.from(parts[1], "base64url").toString("utf8")
-      );
-      // Log full payload so we can see every field Amazon sends
-      console.error("[alexa/skill] token full payload:", JSON.stringify(payload));
-    }
-  } catch (e) {
-    console.error("[alexa/skill] could not decode token:", e);
+  console.error("[alexa/skill] consentToken present:", !!consentToken);
+  console.error("[alexa/skill] listsApiToken prefix:", listsApiToken.slice(0, 8));
+
+  if (!consentToken) {
+    // No consent token means the user hasn't granted list permissions yet
+    console.error("[alexa/skill] No consentToken — user has not granted list permissions");
+    return buildPermissionsResponse();
   }
 
   // ── Fetch the user's Alexa lists ───────────────────────────────────────────
   const ALEXA_API_BASE = "https://api.amazonalexa.com";
-  const baseUrl = ALEXA_API_BASE;
-  const listsUrl = `${baseUrl}/v2/householdlists/`;
+  const listsUrl = `${ALEXA_API_BASE}/v2/householdlists/`;
   console.error("[alexa/skill] GET", listsUrl);
 
   const listsRes = await fetch(listsUrl, {
     headers: {
-      Authorization: `Bearer ${apiAccessToken}`,
+      Authorization: `Bearer ${listsApiToken}`,
       Accept: "application/json",
     },
   });
 
-  // 401 = token lacks required scope (Lists permission not enabled in Developer Console)
-  // 403 = user hasn't granted consent
-  // 404 with HTML = Amazon's silent "no permission" response (returns 404 instead of 403
-  //   when the token scope is missing — confirmed by HTML body containing Amazon error page)
   const listsBody = await listsRes.text();
-  const isAmazonPermissionError =
-    !listsRes.ok &&
-    (listsRes.status === 401 ||
-      listsRes.status === 403 ||
-      (listsRes.status === 404 && listsBody.includes("amazon")));
 
-  if (isAmazonPermissionError) {
-    console.error("[alexa/skill] Permission error:", listsRes.status, listsBody.slice(0, 200));
-    return buildPermissionsCard();
+  if (listsRes.status === 401 || listsRes.status === 403) {
+    console.error("[alexa/skill] Lists auth error:", listsRes.status, listsBody.slice(0, 200));
+    return buildPermissionsResponse();
   }
 
   if (!listsRes.ok) {
-    console.error("[alexa/skill] Lists API error:", listsRes.status, listsBody, "url:", listsUrl);
+    console.error("[alexa/skill] Lists API error:", listsRes.status, listsBody.slice(0, 200));
     return buildResponse(
       `Lists API returned error ${listsRes.status}. Check Vercel logs for details.`
     );
@@ -168,21 +152,20 @@ async function runSync(body: AlexaRequest): Promise<NextResponse> {
     activeLists[0];
 
   // Use Amazon's own href from statusMap — avoids any URL construction issues
-  // Fall back to constructing it ourselves if statusMap is missing
   const activeHref =
     targetList.statusMap?.find((m) => m.status === "active")?.href ??
-    `${baseUrl}/v2/householdlists/${encodeURIComponent(targetList.listId)}/active`;
+    `${ALEXA_API_BASE}/v2/householdlists/${encodeURIComponent(targetList.listId)}/active`;
   console.info("[alexa/skill] GET items", activeHref);
 
   // ── Fetch list items ───────────────────────────────────────────────────────
   const itemsRes = await fetch(activeHref, {
     headers: {
-      Authorization: `Bearer ${apiAccessToken}`,
+      Authorization: `Bearer ${listsApiToken}`,
       Accept: "application/json",
     },
   });
 
-  if (itemsRes.status === 401 || itemsRes.status === 403) return buildPermissionsCard();
+  if (itemsRes.status === 401 || itemsRes.status === 403) return buildPermissionsResponse();
 
   if (!itemsRes.ok) {
     const errBody = await itemsRes.text();
@@ -264,11 +247,9 @@ export async function POST(req: NextRequest) {
 
   // ── LaunchRequest — auto-sync so "Alexa, open Maui's Kitchen" works too ────
   if (reqType === "LaunchRequest") {
-    // If the account is linked, skip the welcome and go straight to syncing
     if (body.session?.user?.accessToken) {
       return runSync(body);
     }
-    // Not linked yet → guide them
     return buildResponse(
       "Welcome to Maui's Kitchen. To get started, open the Alexa app, find the Maui's Kitchen skill, and tap Link Account.",
       false
