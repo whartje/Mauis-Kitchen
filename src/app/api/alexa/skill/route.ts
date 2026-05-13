@@ -39,26 +39,11 @@ function buildResponse(speechText: string, endSession = true) {
 }
 
 function buildPermissionsResponse() {
-  return NextResponse.json({
-    version: "1.0",
-    response: {
-      outputSpeech: {
-        type: "PlainText",
-        text: "Maui's Kitchen needs permission to access your Alexa lists. " +
-          "Open the Alexa app, go to More, then Skills and Games, find Maui's Kitchen, " +
-          "tap Settings, then Manage Permissions, and turn on Lists Read and Lists Write. " +
-          "Or check your Alexa app home screen for a permission card.",
-      },
-      card: {
-        type: "AskForPermissionsConsent",
-        permissions: [
-          "alexa::household:lists:read",
-          "alexa::household:lists:write",
-        ],
-      },
-      shouldEndSession: true,
-    },
-  });
+  return buildResponse(
+    "Maui's Kitchen needs permission to access your Alexa lists. " +
+    "Open the Alexa app, go to More, then Skills and Games, find Maui's Kitchen under Dev, " +
+    "tap Settings, then Manage Permissions, and turn on Lists Read and Lists Write."
+  );
 }
 
 // ─── Fuzzy matching ───────────────────────────────────────────────────────────
