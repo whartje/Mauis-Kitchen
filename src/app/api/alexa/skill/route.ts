@@ -76,6 +76,57 @@ async function resolveUserId(body: AlexaRequest): Promise<string | null> {
   return link?.userId ?? null;
 }
 
+// ─── Add items handler ───────────────────────────────────────────────────────
+
+async function runAdd(body: AlexaRequest, rawItems: string): Promise<NextResponse> {
+  const userId = await resolveUserId(body);
+  if (!userId) {
+    return buildResponse(
+      "Your Maui's Kitchen account isn't linked. Open the Alexa app, find the Maui's Kitchen skill, and tap Link Account."
+    );
+  }
+
+  const items = parseItems(rawItems);
+  if (items.length === 0) {
+    return buildResponse("I didn't catch any items. Try saying: I have milk and eggs.", false);
+  }
+
+  const existingItems = await prisma.pantryItem.findMany({
+    where: { userId },
+    select: { name: true },
+  });
+
+  const addedNames: string[] = [];
+  const alreadyHave: string[] = [];
+
+  for (const item of items) {
+    const exists = existingItems.some((p) => fuzzyScore(item, p.name) >= 0.85);
+    if (exists) {
+      alreadyHave.push(item);
+    } else {
+      await prisma.pantryItem.create({
+        data: { userId, name: item, raw: item },
+      });
+      addedNames.push(item);
+    }
+  }
+
+  const addedMsg = addedNames.length > 0
+    ? `Added ${addedNames.length} item${addedNames.length !== 1 ? "s" : ""} to your pantry: ${addedNames.join(", ")}.`
+    : "";
+  const dupeMsg = alreadyHave.length > 0
+    ? ` ${alreadyHave.join(" and ")} ${alreadyHave.length === 1 ? "is" : "are"} already in your pantry.`
+    : "";
+  const nothingMsg = addedNames.length === 0 && alreadyHave.length > 0
+    ? "Nothing new to add. "
+    : "";
+
+  return buildResponse(
+    `${nothingMsg}${addedMsg}${dupeMsg} What else, or say stop to finish.`,
+    false
+  );
+}
+
 // ─── Remove items handler ─────────────────────────────────────────────────────
 
 async function runRemove(body: AlexaRequest, rawItems: string): Promise<NextResponse> {
@@ -170,7 +221,8 @@ export async function POST(req: NextRequest) {
     if (userId) {
       const count = await prisma.pantryItem.count({ where: { userId } });
       return buildResponse(
-        `Welcome to Maui's Kitchen. You have ${count} item${count !== 1 ? "s" : ""} in your pantry. What did you buy?`,
+        `Welcome to Maui's Kitchen. You have ${count} item${count !== 1 ? "s" : ""} in your pantry. ` +
+        `Say what you bought to remove items, or say I have to add items.`,
         false
       );
     }
@@ -195,12 +247,21 @@ export async function POST(req: NextRequest) {
 
     if (intentName === "AMAZON.HelpIntent") {
       return buildResponse(
-        "Tell me what you bought and I'll remove those items from your Maui's Kitchen pantry. " +
-        "You can say things like: I bought milk and eggs, or I picked up butter and cheese. " +
-        "You can also go straight to it by saying: Alexa, tell Maui's Kitchen I bought milk. " +
-        "What did you buy?",
+        "You can remove items from your pantry by saying what you bought — for example: I bought milk and eggs. " +
+        "You can add items by saying what you have — for example: I have butter and cheese. " +
+        "You can also go straight to it without opening the skill first — " +
+        "say: Alexa, tell Maui's Kitchen I bought milk, or Alexa, tell Maui's Kitchen I have eggs. " +
+        "What would you like to do?",
         false
       );
+    }
+
+    if (intentName === "AddItemsIntent") {
+      const rawItems = body.request.intent?.slots?.items?.value ?? "";
+      if (!rawItems) {
+        return buildResponse("I didn't catch what you have. Try saying: I have milk and eggs.", false);
+      }
+      return runAdd(body, rawItems);
     }
 
     if (intentName === "RemoveItemsIntent") {
