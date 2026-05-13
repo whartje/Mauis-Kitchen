@@ -33,25 +33,13 @@ function buildResponse(speechText: string, endSession = true) {
   });
 }
 
-/** Sends an Alexa app card asking the user to grant list permissions */
+/** Tells the user to grant list permissions via plain voice (no card — card causes "not supported" on some devices) */
 function buildPermissionsCard() {
-  return NextResponse.json({
-    version: "1.0",
-    response: {
-      outputSpeech: {
-        type: "PlainText",
-        text: "Maui's Kitchen needs permission to access your Alexa lists. I've sent a card to your Alexa app — please tap it to grant access, then try again.",
-      },
-      card: {
-        type: "AskForPermissionsConsent",
-        permissions: [
-          "alexa::household:lists:read",
-          "alexa::household:lists:write",
-        ],
-      },
-      shouldEndSession: true,
-    },
-  });
+  return buildResponse(
+    "Maui's Kitchen needs permission to access your Alexa lists. " +
+    "Open the Alexa app, go to More, then Skills and Games, find Maui's Kitchen under Your Skills, " +
+    "tap Settings, then Manage Permissions, and turn on Lists Read and Lists Write."
+  );
 }
 
 // ─── Fuzzy matching ───────────────────────────────────────────────────────────
