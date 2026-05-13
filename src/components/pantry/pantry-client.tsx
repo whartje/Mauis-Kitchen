@@ -302,7 +302,7 @@ export function PantryClient({ initialItems, alexaSkillLinked }: Props) {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-foreground">Pantry</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">What you already have on hand</p>
+            <p className="text-sm text-muted-foreground mt-0.5 whitespace-nowrap">What you already have on hand</p>
           </div>
           {items.length > 0 && (
             <div className="flex items-center gap-3 shrink-0 mt-1">
@@ -324,20 +324,13 @@ export function PantryClient({ initialItems, alexaSkillLinked }: Props) {
           <Package className="w-3.5 h-3.5 text-brand-orange shrink-0" />
           Items here are flagged on your grocery list so you don&apos;t re-buy what you already have
         </p>
+        {alexaSkillLinked && (
+          <p className="text-xs text-muted-foreground/60 flex items-center gap-1.5">
+            <Mic className="w-3.5 h-3.5 text-brand-orange shrink-0" />
+            &ldquo;Alexa, tell Maui&apos;s Kitchen I bought milk&rdquo; &mdash; or &mdash; &ldquo;I have eggs&rdquo;
+          </p>
+        )}
       </div>
-
-      {/* ── Alexa voice tip ── */}
-      {alexaSkillLinked && (
-        <div className="flex items-center gap-3 px-4 py-3 bg-card border border-border rounded-xl text-sm">
-          <Mic className="w-4 h-4 text-brand-orange shrink-0" />
-          <div>
-            <span className="font-medium text-foreground">Alexa voice control</span>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              &ldquo;Alexa, tell Maui&apos;s Kitchen I bought milk&rdquo; &mdash; or &mdash; &ldquo;I have eggs&rdquo;
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* ── Scan review panel ── */}
       {scanPhase === "review" && (
