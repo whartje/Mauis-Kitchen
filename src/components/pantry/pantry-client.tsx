@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { X, Plus, Package, Camera, Loader2, ScanLine, Check, ChevronRight, Trash2, CalendarDays, Receipt, RefreshCw } from "lucide-react";
+import { X, Plus, Package, Camera, Loader2, ScanLine, Check, Trash2, CalendarDays, Receipt, Mic } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type IngredientCategory = "PRODUCE" | "FRUIT" | "PROTEIN" | "DAIRY" | "GRAINS" | "PANTRY" | "SPICES" | "FROZEN" | "BEVERAGES" | "CONDIMENTS" | "OTHER";
@@ -88,14 +88,12 @@ interface ScannedIngredient {
   selected: boolean;
 }
 
-type SyncMatch = { pantryId: string; pantryName: string; alexaItem: string };
-
 interface Props {
   initialItems: PantryItem[];
-  alexaConnected?: boolean;
+  alexaSkillLinked?: boolean;
 }
 
-export function PantryClient({ initialItems, alexaConnected }: Props) {
+export function PantryClient({ initialItems, alexaSkillLinked }: Props) {
   const [items, setItems] = useState<PantryItem[]>(initialItems);
   const [newText, setNewText] = useState("");
   const [addCategory, setAddCategory] = useState<IngredientCategory>("OTHER");
@@ -111,13 +109,6 @@ export function PantryClient({ initialItems, alexaConnected }: Props) {
   const scanInputRef = useRef<HTMLInputElement>(null);
   const receiptInputRef = useRef<HTMLInputElement>(null);
   const [scanLabel, setScanLabel] = useState("Scanning for ingredients…");
-
-  // ── Alexa sync state ──────────────────────────────────────────────────────
-  const [syncPhase, setSyncPhase] = useState<"idle" | "syncing" | "review" | "none">("idle");
-  const [syncMatches, setSyncMatches] = useState<SyncMatch[]>([]);
-  const [syncSelected, setSyncSelected] = useState<Set<string>>(new Set());
-  const [syncError, setSyncError] = useState<string | null>(null);
-  const [removingSync, setRemovingSync] = useState(false);
 
   // Cleanup preview URL on unmount
   useEffect(() => {
@@ -261,43 +252,6 @@ export function PantryClient({ initialItems, alexaConnected }: Props) {
     if (previewUrl) { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }
   }
 
-  // ── Alexa sync ────────────────────────────────────────────────────────────
-  async function syncWithAlexa() {
-    setSyncPhase("syncing");
-    setSyncError(null);
-    try {
-      const res = await fetch("/api/alexa/sync-pantry", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) {
-        setSyncError(data.error ?? "Could not sync with Alexa.");
-        setSyncPhase("idle");
-        return;
-      }
-      if (data.matches.length === 0) {
-        setSyncPhase("none");
-        setTimeout(() => setSyncPhase("idle"), 3000);
-        return;
-      }
-      setSyncMatches(data.matches);
-      setSyncSelected(new Set((data.matches as SyncMatch[]).map((m) => m.pantryId)));
-      setSyncPhase("review");
-    } catch {
-      setSyncError("Something went wrong. Please try again.");
-      setSyncPhase("idle");
-    }
-  }
-
-  async function removeSelectedSyncItems() {
-    setRemovingSync(true);
-    const ids = [...syncSelected];
-    await Promise.all(ids.map((id) => fetch(`/api/pantry/${id}`, { method: "DELETE" })));
-    setItems((prev) => prev.filter((i) => !syncSelected.has(i.id)));
-    setSyncPhase("idle");
-    setSyncMatches([]);
-    setSyncSelected(new Set());
-    setRemovingSync(false);
-  }
-
   // ── Delete / update ───────────────────────────────────────────────────────
   async function deleteItem(id: string) {
     setItems((prev) => prev.filter((i) => i.id !== id));
@@ -372,106 +326,15 @@ export function PantryClient({ initialItems, alexaConnected }: Props) {
         </p>
       </div>
 
-      {/* ── Alexa sync button ── */}
-      {alexaConnected && syncPhase === "idle" && (
-        <button
-          onClick={syncWithAlexa}
-          className="flex items-center gap-2 text-sm px-4 py-2 rounded-lg border border-border hover:border-brand-orange/40 hover:bg-brand-orange/5 hover:text-brand-orange text-muted-foreground transition-colors w-fit"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Sync with Alexa shopping list
-        </button>
-      )}
-
-      {alexaConnected && syncPhase === "syncing" && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="w-4 h-4 animate-spin text-brand-orange" />
-          Checking your Alexa shopping list…
-        </div>
-      )}
-
-      {alexaConnected && syncPhase === "none" && (
-        <div className="flex items-center gap-2 text-sm text-green-400">
-          <Check className="w-4 h-4" />
-          No pantry items found on your Alexa shopping list — you&apos;re all stocked up!
-        </div>
-      )}
-
-      {syncError && (
-        <div className="flex items-center gap-2 text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">
-          <X className="w-4 h-4 shrink-0" />
-          {syncError}
-          <button onClick={() => setSyncError(null)} className="ml-auto text-xs underline hover:no-underline">Dismiss</button>
-        </div>
-      )}
-
-      {/* ── Alexa sync review panel ── */}
-      {syncPhase === "review" && (
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <RefreshCw className="w-4 h-4 text-brand-orange" />
-              <div>
-                <span className="font-semibold text-sm text-foreground">
-                  {syncMatches.length} item{syncMatches.length !== 1 ? "s" : ""} on your Alexa shopping list
-                </span>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  These are in your shopping list — meaning you&apos;re likely out. Remove from pantry?
-                </p>
-              </div>
-            </div>
-            <button onClick={() => setSyncPhase("idle")} className="p-1 rounded hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground shrink-0">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="divide-y divide-border max-h-72 overflow-y-auto">
-            {syncMatches.map((m) => (
-              <button
-                key={m.pantryId}
-                onClick={() => setSyncSelected((prev) => {
-                  const next = new Set(prev);
-                  next.has(m.pantryId) ? next.delete(m.pantryId) : next.add(m.pantryId);
-                  return next;
-                })}
-                className={cn(
-                  "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-secondary/50",
-                  syncSelected.has(m.pantryId) ? "bg-red-500/5" : ""
-                )}
-              >
-                <span className={cn(
-                  "shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors",
-                  syncSelected.has(m.pantryId) ? "bg-red-400 border-red-400" : "border-border"
-                )}>
-                  {syncSelected.has(m.pantryId) && <Check className="w-2.5 h-2.5 text-white" />}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground capitalize">{m.pantryName}</p>
-                  <p className="text-xs text-muted-foreground truncate">on Alexa list as: &ldquo;{m.alexaItem}&rdquo;</p>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          <div className="px-4 py-3 border-t border-border flex items-center justify-between gap-3 flex-wrap">
-            <button
-              onClick={() => setSyncSelected(
-                syncSelected.size === syncMatches.length
-                  ? new Set()
-                  : new Set(syncMatches.map((m) => m.pantryId))
-              )}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {syncSelected.size === syncMatches.length ? "Deselect all" : "Select all"}
-            </button>
-            <button
-              onClick={removeSelectedSyncItems}
-              disabled={removingSync || syncSelected.size === 0}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500 hover:bg-red-500/90 text-white text-sm font-medium transition-colors disabled:opacity-50"
-            >
-              {removingSync ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-              Remove {syncSelected.size > 0 ? `${syncSelected.size} ` : ""}item{syncSelected.size !== 1 ? "s" : ""} from pantry
-            </button>
+      {/* ── Alexa voice tip ── */}
+      {alexaSkillLinked && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-card border border-border rounded-xl text-sm">
+          <Mic className="w-4 h-4 text-brand-orange shrink-0" />
+          <div>
+            <span className="font-medium text-foreground">Alexa voice control</span>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              &ldquo;Alexa, tell Maui&apos;s Kitchen I bought milk&rdquo; &mdash; or &mdash; &ldquo;I have eggs&rdquo;
+            </p>
           </div>
         </div>
       )}

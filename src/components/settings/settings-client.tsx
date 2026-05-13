@@ -76,9 +76,7 @@ export function SettingsClient() {
 
   // Alexa Skill
   const [alexaLinked, setAlexaLinked] = useState<boolean | null>(null);
-  const [alexaListName, setAlexaListName] = useState("Grocery List");
-  const [alexaListNameSaving, setAlexaListNameSaving] = useState(false);
-  const [alexaListNameSaved, setAlexaListNameSaved] = useState(false);
+
 
   useEffect(() => {
     fetch("/api/billing/status")
@@ -166,24 +164,7 @@ export function SettingsClient() {
       if (!res.ok) return;
       const data = await res.json();
       setAlexaLinked(data.linked ?? false);
-      if (data.listName) setAlexaListName(data.listName);
     } catch { /* silent */ }
-  }
-
-  async function saveAlexaListName() {
-    if (!alexaListName.trim()) return;
-    setAlexaListNameSaving(true);
-    try {
-      await fetch("/api/alexa/skill-status", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ listName: alexaListName.trim() }),
-      });
-      setAlexaListNameSaved(true);
-      setTimeout(() => setAlexaListNameSaved(false), 2000);
-    } finally {
-      setAlexaListNameSaving(false);
-    }
   }
 
   function saveDietary(value: string) {
@@ -593,34 +574,30 @@ export function SettingsClient() {
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {alexaLinked
-                    ? <>&ldquo;Alexa, ask Maui&apos;s Kitchen to sync my pantry&rdquo;</>
+                    ? "Voice-control your pantry hands-free"
                     : "Enable the Maui’s Kitchen skill in the Alexa app to connect"}
                 </p>
               </div>
             </div>
           </Row>
 
-          {/* List name — only shown when linked */}
+          {/* Voice commands — only shown when linked */}
           {alexaLinked && (
             <>
               <Divider />
-              <div className="px-5 py-4 space-y-2">
-                <p className="text-sm font-medium text-foreground">Alexa list name</p>
-                <p className="text-xs text-muted-foreground">
-                  The exact name of your Alexa list (e.g. &ldquo;Grocery List&rdquo;)
-                </p>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={alexaListName}
-                    onChange={(e) => setAlexaListName(e.target.value)}
-                    onBlur={saveAlexaListName}
-                    onKeyDown={(e) => e.key === "Enter" && saveAlexaListName()}
-                    className="flex-1 text-sm border border-border rounded-lg px-3 py-2 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/30"
-                    placeholder="Grocery List"
-                  />
-                  {alexaListNameSaving && <Loader2 className="w-4 h-4 animate-spin text-brand-orange shrink-0" />}
-                  {!alexaListNameSaving && alexaListNameSaved && <Check className="w-4 h-4 text-green-500 shrink-0" />}
+              <div className="px-5 py-4 space-y-3">
+                <p className="text-xs font-medium text-foreground">Voice commands</p>
+                <div className="space-y-2">
+                  {[
+                    { label: "Remove items from pantry", example: "\"Alexa, tell Maui’s Kitchen I bought milk and eggs\"" },
+                    { label: "Add items to pantry",      example: "\"Alexa, tell Maui’s Kitchen I have butter and cheese\"" },
+                    { label: "One-shot (no wake phrase)", example: "\"Alexa, ask Maui’s Kitchen I bought salmon\"" },
+                  ].map(({ label, example }) => (
+                    <div key={label}>
+                      <p className="text-xs text-muted-foreground">{label}</p>
+                      <p className="text-xs text-foreground italic mt-0.5">{example}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             </>
@@ -649,8 +626,8 @@ export function SettingsClient() {
                 </ol>
                 <p className="text-xs text-muted-foreground pt-1">
                   Once linked, say{" "}
-                  <span className="font-medium text-foreground italic">"Alexa, ask Maui's Kitchen to sync my pantry"</span>
-                  {" "}to remove grocery list items from your pantry.
+                  <span className="font-medium text-foreground italic">&ldquo;Alexa, tell Maui&apos;s Kitchen I bought milk&rdquo;</span>
+                  {" "}to remove items from your pantry by voice.
                 </p>
               </div>
             </>
