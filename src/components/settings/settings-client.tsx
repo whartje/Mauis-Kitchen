@@ -80,6 +80,10 @@ export function SettingsClient() {
   // Alexa Skill
   const [alexaLinked, setAlexaLinked] = useState<boolean | null>(null);
 
+  // Google Tasks
+  const [googleConnected, setGoogleConnected] = useState<boolean | null>(null);
+  const [googleDisconnecting, setGoogleDisconnecting] = useState(false);
+
 
   useEffect(() => {
     fetch("/api/billing/status")
@@ -88,9 +92,13 @@ export function SettingsClient() {
       .catch(() => {});
   }, []);
 
-  // Load Alexa skill link status on mount
+  // Load Alexa + Google status on mount; also detect Google OAuth callback result
   useEffect(() => {
     loadAlexaStatus();
+    loadGoogleStatus();
+    // If returning from Google OAuth, refresh status
+    const googleParam = new URLSearchParams(window.location.search).get("google");
+    if (googleParam === "connected") loadGoogleStatus();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -170,6 +178,25 @@ export function SettingsClient() {
       const data = await res.json();
       setAlexaLinked(data.linked ?? false);
     } catch { /* silent */ }
+  }
+
+  async function loadGoogleStatus() {
+    try {
+      const res = await fetch("/api/google/status");
+      if (!res.ok) return;
+      const data = await res.json();
+      setGoogleConnected(data.connected ?? false);
+    } catch { /* silent */ }
+  }
+
+  async function disconnectGoogle() {
+    setGoogleDisconnecting(true);
+    try {
+      await fetch("/api/google/disconnect", { method: "DELETE" });
+      setGoogleConnected(false);
+    } finally {
+      setGoogleDisconnecting(false);
+    }
   }
 
   function saveDietary(value: string) {
@@ -668,6 +695,134 @@ export function SettingsClient() {
               </div>
             </>
           )}
+        </Card>
+      </section>
+
+      {/* ── Google Tasks ────────────────────────────────────────────────────── */}
+      <section className="space-y-2">
+        <SectionLabel icon={<Settings2 className="w-3.5 h-3.5" />} title="Google Tasks" />
+        <Card>
+          <Row>
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "w-9 h-9 rounded-full flex items-center justify-center shrink-0",
+                googleConnected ? "bg-green-500/15" : "bg-secondary",
+              )}>
+                {googleConnected
+                  ? <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  : <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.47 2.09 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    </svg>}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {googleConnected === null ? "Checking…" : googleConnected ? "Google connected" : "Google not connected"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {googleConnected
+                    ? "Sync your grocery list to Google Tasks"
+                    : "Connect to push your grocery list as individual tasks"}
+                </p>
+              </div>
+            </div>
+            {googleConnected === false && (
+              <a
+                href="/api/google/auth"
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg px-3 py-1.5 hover:bg-secondary transition-colors shrink-0 whitespace-nowrap"
+              >
+                Connect
+                <ChevronRight className="w-3 h-3" />
+              </a>
+            )}
+          </Row>
+
+          {googleConnected && (
+            <>
+              <Divider />
+              <div className="px-5 py-4 space-y-3">
+                <p className="text-xs font-medium text-foreground">How it works</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Tap <span className="font-medium text-foreground">Share List → Sync to Google Tasks</span> on the Grocery List page.
+                  Items are added to a <span className="font-medium text-foreground">&ldquo;Maui&apos;s Kitchen&rdquo;</span> task list in your Google account.
+                  Then say: <span className="font-medium text-foreground italic">&ldquo;Hey Google, show my Maui&apos;s Kitchen tasks&rdquo;</span>
+                </p>
+                <button
+                  onClick={disconnectGoogle}
+                  disabled={googleDisconnecting}
+                  className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 border border-red-400/20 hover:border-red-400/40 bg-red-400/5 hover:bg-red-400/10 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {googleDisconnecting ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                  Disconnect Google
+                </button>
+              </div>
+            </>
+          )}
+
+          {googleConnected === false && (
+            <>
+              <Divider />
+              <div className="px-5 py-4 space-y-3">
+                <p className="text-xs font-medium text-foreground">How to connect</p>
+                <ol className="space-y-2">
+                  {[
+                    <>Tap <strong className="text-foreground">Connect</strong> above and sign in with Google</>,
+                    <>Approve access to <strong className="text-foreground">Google Tasks</strong></>,
+                    <>On the Grocery List page, tap <strong className="text-foreground">Share List → Sync to Google Tasks</strong></>,
+                    <>Say: <span className="italic text-foreground">&ldquo;Hey Google, show my Maui&apos;s Kitchen tasks&rdquo;</span></>,
+                  ].map((step, i) => (
+                    <li key={i} className="flex items-start gap-3">
+                      <span className="w-5 h-5 rounded-full bg-brand-orange/15 text-brand-orange text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                        {i + 1}
+                      </span>
+                      <span className="text-xs text-muted-foreground leading-snug">{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </>
+          )}
+        </Card>
+      </section>
+
+      {/* ── Apple Reminders ──────────────────────────────────────────────────── */}
+      <section className="space-y-2">
+        <SectionLabel icon={<Settings2 className="w-3.5 h-3.5" />} title="Apple Reminders" />
+        <Card>
+          <Row>
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-[#FF3B30]/10 flex items-center justify-center shrink-0">
+                <span className="text-lg">🔔</span>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Siri &amp; Apple Reminders</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Share your grocery list directly to the Reminders app</p>
+              </div>
+            </div>
+          </Row>
+          <Divider />
+          <div className="px-5 py-4 space-y-3">
+            <p className="text-xs font-medium text-foreground">How to use on iPhone / iPad</p>
+            <ol className="space-y-2">
+              {[
+                <>Open the <strong className="text-foreground">Grocery List</strong> page</>,
+                <>Tap <strong className="text-foreground">Share List</strong> → <strong className="text-foreground">Add to Reminders</strong></>,
+                <>Your list is added as a reminder — say <span className="italic text-foreground">&ldquo;Hey Siri, show my reminders&rdquo;</span></>,
+              ].map((step, i) => (
+                <li key={i} className="flex items-start gap-3">
+                  <span className="w-5 h-5 rounded-full bg-brand-orange/15 text-brand-orange text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                    {i + 1}
+                  </span>
+                  <span className="text-xs text-muted-foreground leading-snug">{step}</span>
+                </li>
+              ))}
+            </ol>
+            <p className="text-xs text-muted-foreground pt-1 border-t border-border">
+              Apple does not offer a direct API for Reminders from web apps — the native iOS share sheet is the only supported method.
+            </p>
+          </div>
         </Card>
       </section>
 

@@ -246,6 +246,20 @@ model Feedback {
 }
 
 // ─────────────────────────────────────────────
+// GOOGLE INTEGRATION
+// ─────────────────────────────────────────────
+
+model GoogleCredential {
+  userId       String   @id
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+  tasksListId  String?  // cached "Maui's Kitchen" task list ID
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
 // ALEXA INTEGRATION
 // ─────────────────────────────────────────────
 

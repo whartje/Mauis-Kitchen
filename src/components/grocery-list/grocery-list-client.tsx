@@ -18,6 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
+  Bell,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -203,6 +204,25 @@ export default function GroceryListClient({
   const [showSharePanel, setShowSharePanel] = useState(false);
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied">("idle");
   const sharePanelRef = useRef<HTMLDivElement>(null);
+
+  // Google Tasks sync state
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const [googleSyncing, setGoogleSyncing] = useState(false);
+  const [googleSyncResult, setGoogleSyncResult] = useState<"idle" | "ok" | "error">("idle");
+
+  // Detect iOS for Reminders tip
+  const [isIOS, setIsIOS] = useState(false);
+  useEffect(() => {
+    setIsIOS(/iPhone|iPad|iPod/.test(navigator.userAgent));
+  }, []);
+
+  // Load Google connection status on mount
+  useEffect(() => {
+    fetch("/api/google/status")
+      .then((r) => r.json())
+      .then((d) => setGoogleConnected(d.connected ?? false))
+      .catch(() => {});
+  }, []);
 
   // Per-item delete
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
@@ -552,20 +572,31 @@ export default function GroceryListClient({
     return lines.join("\n").trim();
   }, [list]);
 
-  const handleShareClick = useCallback(async () => {
-    // On mobile, use native share sheet (includes Alexa app, Messages, etc.)
-    const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-    if (isMobile && navigator.share) {
-      try {
-        await navigator.share({ title: "Grocery List", text: buildListText() });
-        return;
-      } catch {
-        // cancelled — fall through
-      }
-    }
-    // On desktop, show our custom panel
+  const handleShareClick = useCallback(() => {
+    // Always show the panel so Google Tasks / Reminders options are visible
     setShowSharePanel((p) => !p);
+    setGoogleSyncResult("idle");
+  }, []);
+
+  const shareViaNative = useCallback(async () => {
+    if (navigator.share) {
+      try { await navigator.share({ title: "Grocery List", text: buildListText() }); } catch { /* cancelled */ }
+    }
   }, [buildListText]);
+
+  const syncToGoogleTasks = useCallback(async () => {
+    setGoogleSyncing(true);
+    setGoogleSyncResult("idle");
+    try {
+      const res = await fetch("/api/google/sync-tasks", { method: "POST" });
+      setGoogleSyncResult(res.ok ? "ok" : "error");
+    } catch {
+      setGoogleSyncResult("error");
+    } finally {
+      setGoogleSyncing(false);
+      setTimeout(() => setGoogleSyncResult("idle"), 4000);
+    }
+  }, []);
 
   const copyToClipboard = useCallback(async () => {
     await navigator.clipboard.writeText(buildListText());
@@ -663,21 +694,19 @@ export default function GroceryListClient({
                   Share List
                 </button>
 
-            {/* Desktop share panel */}
+            {/* Share panel */}
             {showSharePanel && (
-              <div className="absolute top-full left-0 mt-2 z-50 bg-card border border-border rounded-xl shadow-xl w-72 p-4 space-y-3">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Share options</p>
+              <div className="absolute top-full left-0 mt-2 z-50 bg-card border border-border rounded-xl shadow-xl w-76 p-4 space-y-1.5">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pb-1">Share options</p>
 
                 {/* Copy to clipboard */}
                 <button
                   onClick={copyToClipboard}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-secondary transition-colors text-sm text-left"
                 >
-                  {copyStatus === "copied" ? (
-                    <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
-                  ) : (
-                    <Copy className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                  )}
+                  {copyStatus === "copied"
+                    ? <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
+                    : <Copy className="w-4 h-4 text-muted-foreground flex-shrink-0" />}
                   <span className={copyStatus === "copied" ? "text-green-400" : "text-foreground"}>
                     {copyStatus === "copied" ? "Copied!" : "Copy to clipboard"}
                   </span>
@@ -692,33 +721,91 @@ export default function GroceryListClient({
                   <span className="text-foreground">Email list</span>
                 </button>
 
-                {/* Alexa web */}
+                {/* Native share (mobile) */}
+                {typeof navigator !== "undefined" && "share" in navigator && (
+                  <button
+                    onClick={shareViaNative}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-secondary transition-colors text-sm text-left"
+                  >
+                    <Share2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    <span className="text-foreground">Share via…</span>
+                  </button>
+                )}
+
+                <div className="border-t border-border my-1" />
+
+                {/* Google Tasks */}
+                <button
+                  onClick={googleConnected ? syncToGoogleTasks : () => { window.location.href = "/api/google/auth"; }}
+                  disabled={googleSyncing}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-secondary transition-colors text-sm text-left disabled:opacity-60"
+                >
+                  {googleSyncing ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-[#4285F4] flex-shrink-0" />
+                  ) : googleSyncResult === "ok" ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
+                  ) : (
+                    <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    </svg>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className={googleSyncResult === "ok" ? "text-green-400" : googleSyncResult === "error" ? "text-red-400" : "text-foreground"}>
+                      {googleSyncResult === "ok"
+                        ? "Synced to Google Tasks!"
+                        : googleSyncResult === "error"
+                        ? "Sync failed — try again"
+                        : googleConnected
+                        ? "Sync to Google Tasks"
+                        : "Connect Google Tasks"}
+                    </p>
+                    {!googleConnected && googleSyncResult === "idle" && (
+                      <p className="text-xs text-muted-foreground">Say &quot;Hey Google, show my tasks&quot;</p>
+                    )}
+                  </div>
+                </button>
+
+                {/* Apple Reminders */}
+                {isIOS ? (
+                  <button
+                    onClick={shareViaNative}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-secondary transition-colors text-sm text-left"
+                  >
+                    <Bell className="w-4 h-4 text-[#FF3B30] flex-shrink-0" />
+                    <div>
+                      <p className="text-foreground">Add to Reminders</p>
+                      <p className="text-xs text-muted-foreground">Tap Share → Reminders</p>
+                    </div>
+                  </button>
+                ) : (
+                  <div className="flex items-start gap-3 px-3 py-2.5 text-sm">
+                    <Bell className="w-4 h-4 text-muted-foreground/50 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-muted-foreground">
+                      Apple Reminders — open on iPhone and tap <span className="font-medium text-foreground">Share → Reminders</span>
+                    </p>
+                  </div>
+                )}
+
+                {/* Alexa */}
+                <div className="border-t border-border my-1" />
                 <div className="w-full px-3 py-2.5 rounded-lg bg-secondary/50 space-y-2">
                   <div className="flex items-center gap-3">
                     <span className="text-base leading-none flex-shrink-0">🔵</span>
-                    <div>
-                      <p className="text-foreground text-sm font-medium">Add to Alexa Shopping List</p>
-                      <p className="text-xs text-muted-foreground">Copy list, then paste into Alexa web</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-foreground text-sm font-medium">Alexa Shopping List</p>
+                      <p className="text-xs text-muted-foreground">Copy &amp; paste into alexa.amazon.com</p>
                     </div>
                     <button
                       onClick={copyToClipboard}
-                      className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-card border border-border text-xs text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+                      className="flex items-center gap-1 px-2 py-1 rounded-md bg-card border border-border text-xs text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
                     >
-                      {copyStatus === "copied" ? (
-                        <><CheckCircle2 className="w-3 h-3 text-green-400" /><span className="text-green-400">Copied!</span></>
-                      ) : (
-                        <><Copy className="w-3 h-3" />Copy list</>
-                      )}
+                      {copyStatus === "copied"
+                        ? <><CheckCircle2 className="w-3 h-3 text-green-400" /><span className="text-green-400">Copied</span></>
+                        : <><Copy className="w-3 h-3" />Copy</>}
                     </button>
-                  </div>
-                  <div className="flex items-center gap-2 pl-7">
-                    <p className="text-xs text-muted-foreground">Then go to:</p>
-                    <code
-                      className="text-xs text-brand-orange select-all cursor-text bg-background px-2 py-0.5 rounded border border-border"
-                      title="Select all and copy this URL, then paste into your browser"
-                    >
-                      alexa.amazon.com
-                    </code>
                   </div>
                 </div>
               </div>
