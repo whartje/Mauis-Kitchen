@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+function getAppUrl(): string {
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
+  if (process.env.VERCEL_URL)          return `https://${process.env.VERCEL_URL}`;
+  return "http://localhost:3000";
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const code    = searchParams.get("code");
-  const userId  = searchParams.get("state");  // passed through from /auth
-  const error   = searchParams.get("error");
+  const code   = searchParams.get("code");
+  const userId = searchParams.get("state"); // passed through from /auth
+  const error  = searchParams.get("error");
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ??
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+  const appUrl = getAppUrl();
 
   if (error || !code || !userId) {
     return NextResponse.redirect(`${appUrl}/settings?tab=integrations&google=error`);
@@ -41,7 +46,6 @@ export async function GET(req: NextRequest) {
   };
 
   if (!tokens.refresh_token) {
-    // This can happen if the user already granted access; revoke and retry
     return NextResponse.redirect(
       `${appUrl}/settings?tab=integrations&google=no_refresh_token`
     );
