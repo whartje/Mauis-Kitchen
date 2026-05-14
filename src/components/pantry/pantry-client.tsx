@@ -713,8 +713,8 @@ function PantryRow({
           )}
         />
 
-        {/* Calendar icon — sits right of name with a small gap; fades in on hover */}
-        <div className="relative shrink-0 ml-1" title={fmtExpiry ? `Expires ${fmtExpiry} — click to change` : "Set expiration date"}>
+        {/* Calendar icon — pinned to far right edge */}
+        <div className="relative shrink-0 ml-auto" title={fmtExpiry ? `Expires ${fmtExpiry} — click to change` : "Set expiration date"}>
           <span className={cn(
             "block transition-opacity",
             fmtExpiry
