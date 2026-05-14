@@ -31,9 +31,10 @@ export const metadata: Metadata = {
     title: "Maui's Kitchen",
     statusBarStyle: "black-translucent", // status bar blends into the app
   },
-  // Explicit apple-touch-icon — points to an API route rather than the
-  // metadata-image convention (apple-icon.tsx) which fails on Vercel.
+  // Both icons use API routes rather than the metadata-image convention
+  // (icon.tsx / apple-icon.tsx) which fails silently on Vercel.
   icons: {
+    icon: [{ url: "/api/favicon", sizes: "32x32", type: "image/png" }],
     apple: [{ url: "/api/pwa-icon", sizes: "180x180", type: "image/png" }],
   },
 };

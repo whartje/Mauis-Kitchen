@@ -1,15 +1,22 @@
+/**
+ * GET /api/favicon
+ *
+ * Returns the 32×32 browser tab favicon: orange background + white cat.
+ * Using a plain API route because Vercel's metadata-route build step
+ * (icon.tsx) fails silently with dynamic images, generating a 404 at runtime.
+ */
 import { ImageResponse } from "next/og";
-import fs from "fs";
-import path from "path";
 
-export const runtime = "nodejs";
-export const size = { width: 32, height: 32 };
-export const contentType = "image/png";
+export const dynamic = "force-dynamic";
 
-export default async function Icon() {
-  const catPath = path.join(process.cwd(), "public", "maui-cat.png.png");
-  const catData = fs.readFileSync(catPath);
-  const catSrc = `data:image/png;base64,${catData.toString("base64")}`;
+export async function GET() {
+  const base =
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://www.mauis-kitchen.com";
+
+  const catData = await fetch(`${base}/maui-cat.png.png`).then((r) =>
+    r.arrayBuffer()
+  );
+  const catSrc = `data:image/png;base64,${Buffer.from(catData).toString("base64")}`;
 
   return new ImageResponse(
     (
