@@ -299,19 +299,17 @@ export function PantryClient({ initialItems, alexaSkillLinked }: Props) {
 
       {/* Header */}
       <div className="space-y-1.5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold text-foreground">Pantry</h1>
-            <p className="text-sm text-muted-foreground mt-0.5 whitespace-nowrap">What you already have on hand</p>
-          </div>
+        {/* Title row — only h1 + count/button so neither gets squeezed on mobile */}
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="text-2xl font-semibold text-foreground">Pantry</h1>
           {items.length > 0 && (
-            <div className="flex items-center gap-3 shrink-0 mt-1">
-              <span className="text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
                 {items.length} item{items.length !== 1 ? "s" : ""}
               </span>
               <button
                 onClick={deleteAll}
-                className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 border border-red-400/20 hover:border-red-400/40 bg-red-400/5 hover:bg-red-400/10 px-2.5 py-1 rounded-lg transition-colors"
+                className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 border border-red-400/20 hover:border-red-400/40 bg-red-400/5 hover:bg-red-400/10 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap"
               >
                 <Trash2 className="w-3 h-3" />
                 Remove all
@@ -319,6 +317,7 @@ export function PantryClient({ initialItems, alexaSkillLinked }: Props) {
             </div>
           )}
         </div>
+        <p className="text-sm text-muted-foreground">What you already have on hand</p>
         {/* Note spans full width so it never wraps too tightly on mobile */}
         <p className="text-xs text-muted-foreground/60 flex items-center gap-1.5">
           <Package className="w-3.5 h-3.5 text-brand-orange shrink-0" />
@@ -652,10 +651,6 @@ function PantryRow({
     if (value !== item.name) onUpdate({ name: value });
   }
 
-  function changeCategory(cat: IngredientCategory) {
-    onUpdate({ category: cat });
-  }
-
   function commitExpiry(val: string) {
     // val is "YYYY-MM-DD" from the date input, or "" to clear
     const expiresAt = val ? new Date(val + "T23:59:59.999Z").toISOString() : null;
@@ -676,24 +671,8 @@ function PantryRow({
       )}
     >
       {/* ── Main row: emoji / qty / unit / name / calendar trigger / delete ── */}
-      <div className="flex items-center gap-2 pt-2.5" style={{ paddingBottom: fmtExpiry ? "0.25rem" : "0.625rem" }}>
-        {/* Category emoji — clickable select */}
-        <div className="shrink-0 relative">
-          <select
-            value={item.category}
-            onChange={(e) => changeCategory(e.target.value as IngredientCategory)}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            aria-label="Category"
-          >
-            {CATEGORY_ORDER.map((cat) => (
-              <option key={cat} value={cat}>{CATEGORY_META[cat].icon} {CATEGORY_META[cat].label}</option>
-            ))}
-          </select>
-          <span className="text-base leading-none select-none" title={CATEGORY_META[item.category].label}>
-            {CATEGORY_META[item.category].icon}
-          </span>
-        </div>
-
+      {/* ── Main row: qty / unit / name / calendar / delete ── */}
+      <div className="flex items-center gap-1.5 pt-2.5" style={{ paddingBottom: fmtExpiry ? "0.25rem" : "0.625rem" }}>
         {/* Quantity */}
         <input
           type="text"
@@ -704,8 +683,8 @@ function PantryRow({
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           placeholder="qty"
           className={cn(
-            "w-12 shrink-0 bg-transparent border-b border-transparent hover:border-border focus:border-brand-orange",
-            "px-1 py-0.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none text-center transition-colors"
+            "w-9 shrink-0 bg-transparent border-b border-transparent hover:border-border focus:border-brand-orange",
+            "px-0.5 py-0.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none text-center transition-colors"
           )}
         />
         {/* Unit */}
@@ -717,8 +696,8 @@ function PantryRow({
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           placeholder="unit"
           className={cn(
-            "w-12 sm:w-16 shrink-0 bg-transparent border-b border-transparent hover:border-border focus:border-brand-orange",
-            "px-1 py-0.5 text-sm text-muted-foreground placeholder:text-muted-foreground/40 focus:outline-none transition-colors"
+            "w-11 shrink-0 bg-transparent border-b border-transparent hover:border-border focus:border-brand-orange",
+            "px-0.5 py-0.5 text-sm text-muted-foreground placeholder:text-muted-foreground/40 focus:outline-none transition-colors"
           )}
         />
         {/* Name */}
@@ -734,13 +713,13 @@ function PantryRow({
           )}
         />
 
-        {/* Calendar icon — hover-only trigger to open date picker; no space cost when expiry is shown on sub-row */}
-        <div className="relative shrink-0" title={fmtExpiry ? `Expires ${fmtExpiry} — click to change` : "Set expiration date"}>
+        {/* Calendar icon — sits right of name with a small gap; fades in on hover */}
+        <div className="relative shrink-0 ml-1" title={fmtExpiry ? `Expires ${fmtExpiry} — click to change` : "Set expiration date"}>
           <span className={cn(
             "block transition-opacity",
             fmtExpiry
-              ? "opacity-0 group-hover/row:opacity-50"   // date set → icon fades in on hover (badge is on sub-row)
-              : "opacity-20 group-hover/row:opacity-50"  // no date → icon fades in on hover
+              ? "opacity-0 group-hover/row:opacity-50"
+              : "opacity-20 group-hover/row:opacity-50"
           )}>
             <CalendarDays className="w-3.5 h-3.5 text-muted-foreground" />
           </span>
@@ -765,7 +744,7 @@ function PantryRow({
 
       {/* ── Expiry sub-row — only rendered when a date is set ── */}
       {fmtExpiry && (
-        <div className="flex items-center gap-1.5 pb-2 pl-7">
+        <div className="flex items-center gap-1.5 pb-2 pl-3">
           <span className={cn(
             "text-[10px] px-1.5 py-0.5 rounded border font-medium select-none whitespace-nowrap",
             expiryBadgeStyle
