@@ -66,10 +66,14 @@ export default function SignInPage() {
           </ul>
         </div>
 
-        {/* Bottom tagline */}
-        <p className="relative text-xs text-muted-foreground/50">
-          Free to use · No credit card required
-        </p>
+        {/* Bottom tagline + privacy */}
+        <div className="relative flex items-center gap-3 text-xs text-muted-foreground/50">
+          <span>Free to use · No credit card required</span>
+          <span>·</span>
+          <a href="/privacy" className="underline hover:text-muted-foreground transition-colors">
+            Privacy Policy
+          </a>
+        </div>
       </div>
 
       {/* ── Right column — Clerk form + mobile features ── */}
@@ -105,7 +109,10 @@ export default function SignInPage() {
             ))}
           </div>
           <p className="text-xs text-muted-foreground/50 text-center mt-6">
-            Free to use · No credit card required
+            Free to use · No credit card required ·{" "}
+            <a href="/privacy" className="underline hover:text-muted-foreground transition-colors">
+              Privacy Policy
+            </a>
           </p>
         </div>
       </div>

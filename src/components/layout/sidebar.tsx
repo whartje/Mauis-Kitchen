@@ -146,6 +146,12 @@ export function Sidebar() {
           <LogOut className="w-4 h-4" />
           Log out
         </button>
+        <Link
+          href="/privacy"
+          className="block px-3 pt-1 text-[11px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
+        >
+          Privacy Policy
+        </Link>
       </div>
     </aside>
   );
