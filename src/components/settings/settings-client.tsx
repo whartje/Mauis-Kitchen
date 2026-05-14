@@ -183,10 +183,11 @@ export function SettingsClient() {
   async function loadGoogleStatus() {
     try {
       const res = await fetch("/api/google/status");
-      if (!res.ok) return;
-      const data = await res.json();
+      const data = res.ok ? await res.json() : {};
       setGoogleConnected(data.connected ?? false);
-    } catch { /* silent */ }
+    } catch {
+      setGoogleConnected(false);
+    }
   }
 
   async function disconnectGoogle() {
