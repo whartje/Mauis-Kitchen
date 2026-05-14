@@ -14,6 +14,7 @@ export default function PrivacyPage() {
         <li>Your account credentials (managed by Clerk — we never see your password).</li>
         <li>Recipes, pantry items, meal plans, and grocery lists you create in the app.</li>
         <li>An Alexa account-linking token if you choose to connect the Alexa skill, used solely to sync your pantry with your Alexa grocery list.</li>
+        <li>A Google OAuth token if you choose to connect Google Tasks, used solely to sync your grocery list to a Google Tasks list.</li>
       </ul>
 
       <h2 className="text-lg font-semibold mt-8 mb-2">How we use it</h2>
@@ -27,6 +28,16 @@ export default function PrivacyPage() {
         When you link the Maui&apos;s Kitchen Alexa skill, we store a secure token that identifies
         your account. We use your Alexa household list (with your permission) only to sync items
         against your pantry. We do not retain the contents of your Alexa lists.
+      </p>
+
+      <h2 className="text-lg font-semibold mt-8 mb-2">Google Tasks integration</h2>
+      <p>
+        When you connect Google Tasks, we store an OAuth access token and refresh token to sync
+        your grocery list on your behalf. We access only your Google Tasks data — specifically, we
+        create and update a single task list named &quot;Maui&apos;s Kitchen&quot; containing your
+        grocery items. We do not read, modify, or store any other data from your Google account.
+        You can disconnect Google Tasks at any time from the Settings page, which immediately
+        removes your tokens from our system.
       </p>
 
       <h2 className="text-lg font-semibold mt-8 mb-2">Data retention & deletion</h2>
