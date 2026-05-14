@@ -671,94 +671,79 @@ function PantryRow({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 px-4 py-2.5 group/row transition-colors",
+        "px-4 group/row transition-colors",
         isExpired && "bg-red-500/10"
       )}
     >
-      {/* Category emoji — clickable select */}
-      <div className="shrink-0 relative">
-        <select
-          value={item.category}
-          onChange={(e) => changeCategory(e.target.value as IngredientCategory)}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-          aria-label="Category"
-        >
-          {CATEGORY_ORDER.map((cat) => (
-            <option key={cat} value={cat}>{CATEGORY_META[cat].icon} {CATEGORY_META[cat].label}</option>
-          ))}
-        </select>
-        <span className="text-base leading-none select-none" title={CATEGORY_META[item.category].label}>
-          {CATEGORY_META[item.category].icon}
-        </span>
-      </div>
+      {/* ── Main row: emoji / qty / unit / name / calendar trigger / delete ── */}
+      <div className="flex items-center gap-2 pt-2.5" style={{ paddingBottom: fmtExpiry ? "0.25rem" : "0.625rem" }}>
+        {/* Category emoji — clickable select */}
+        <div className="shrink-0 relative">
+          <select
+            value={item.category}
+            onChange={(e) => changeCategory(e.target.value as IngredientCategory)}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            aria-label="Category"
+          >
+            {CATEGORY_ORDER.map((cat) => (
+              <option key={cat} value={cat}>{CATEGORY_META[cat].icon} {CATEGORY_META[cat].label}</option>
+            ))}
+          </select>
+          <span className="text-base leading-none select-none" title={CATEGORY_META[item.category].label}>
+            {CATEGORY_META[item.category].icon}
+          </span>
+        </div>
 
-      {/* Quantity */}
-      <input
-        type="text"
-        inputMode="decimal"
-        value={qty}
-        onChange={(e) => setQty(e.target.value)}
-        onBlur={commitQty}
-        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-        placeholder="qty"
-        className={cn(
-          "w-12 shrink-0 bg-transparent border-b border-transparent hover:border-border focus:border-brand-orange",
-          "px-1 py-0.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none text-center transition-colors"
-        )}
-      />
-      {/* Unit */}
-      <input
-        type="text"
-        value={unit}
-        onChange={(e) => setUnit(e.target.value)}
-        onBlur={commitUnit}
-        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-        placeholder="unit"
-        className={cn(
-          "w-12 sm:w-16 shrink-0 bg-transparent border-b border-transparent hover:border-border focus:border-brand-orange",
-          "px-1 py-0.5 text-sm text-muted-foreground placeholder:text-muted-foreground/40 focus:outline-none transition-colors"
-        )}
-      />
-      {/* Name */}
-      <input
-        type="text"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        onBlur={commitName}
-        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-        className={cn(
-          "flex-1 min-w-0 bg-transparent border-b border-transparent hover:border-border focus:border-brand-orange",
-          "px-1 py-0.5 text-sm text-foreground focus:outline-none transition-colors"
-        )}
-      />
-
-      {/* ── Expiration date ────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-0.5 shrink-0">
-        {/* Trigger: badge when date set, subtle icon otherwise.
-            A transparent <input type="date"> sits on top to open the native picker. */}
-        <div
-          className="relative"
-          title={
-            fmtExpiry
-              ? isExpired
-                ? `Expired ${fmtExpiry} — click to change`
-                : `Expires ${fmtExpiry} — click to change`
-              : "Set expiration date"
-          }
-        >
-          {fmtExpiry ? (
-            <span className={cn(
-              "block text-[10px] px-1.5 py-0.5 rounded border font-medium select-none whitespace-nowrap",
-              expiryBadgeStyle
-            )}>
-              {isExpired ? "Exp " : ""}{fmtExpiry}
-            </span>
-          ) : (
-            <span className="block opacity-30 group-hover/row:opacity-60 transition-opacity">
-              <CalendarDays className="w-3.5 h-3.5 text-muted-foreground" />
-            </span>
+        {/* Quantity */}
+        <input
+          type="text"
+          inputMode="decimal"
+          value={qty}
+          onChange={(e) => setQty(e.target.value)}
+          onBlur={commitQty}
+          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+          placeholder="qty"
+          className={cn(
+            "w-12 shrink-0 bg-transparent border-b border-transparent hover:border-border focus:border-brand-orange",
+            "px-1 py-0.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none text-center transition-colors"
           )}
-          {/* Transparent date input — overlaid so clicking the badge/icon opens the native picker */}
+        />
+        {/* Unit */}
+        <input
+          type="text"
+          value={unit}
+          onChange={(e) => setUnit(e.target.value)}
+          onBlur={commitUnit}
+          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+          placeholder="unit"
+          className={cn(
+            "w-12 sm:w-16 shrink-0 bg-transparent border-b border-transparent hover:border-border focus:border-brand-orange",
+            "px-1 py-0.5 text-sm text-muted-foreground placeholder:text-muted-foreground/40 focus:outline-none transition-colors"
+          )}
+        />
+        {/* Name */}
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={commitName}
+          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+          className={cn(
+            "flex-1 min-w-0 bg-transparent border-b border-transparent hover:border-border focus:border-brand-orange",
+            "px-1 py-0.5 text-sm text-foreground focus:outline-none transition-colors"
+          )}
+        />
+
+        {/* Calendar icon — hover-only trigger to open date picker; no space cost when expiry is shown on sub-row */}
+        <div className="relative shrink-0" title={fmtExpiry ? `Expires ${fmtExpiry} — click to change` : "Set expiration date"}>
+          <span className={cn(
+            "block transition-opacity",
+            fmtExpiry
+              ? "opacity-0 group-hover/row:opacity-50"   // date set → icon fades in on hover (badge is on sub-row)
+              : "opacity-20 group-hover/row:opacity-50"  // no date → icon fades in on hover
+          )}>
+            <CalendarDays className="w-3.5 h-3.5 text-muted-foreground" />
+          </span>
           <input
             type="date"
             value={expiryDateValue}
@@ -768,27 +753,35 @@ function PantryRow({
           />
         </div>
 
-        {/* Clear button — visible on hover when a date is set */}
-        {item.expiresAt && (
+        {/* Delete item */}
+        <button
+          onClick={onDelete}
+          className="p-1 rounded text-muted-foreground/0 group-hover/row:text-muted-foreground/40 hover:!text-red-400 hover:bg-red-400/10 transition-colors shrink-0"
+          aria-label="Remove"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* ── Expiry sub-row — only rendered when a date is set ── */}
+      {fmtExpiry && (
+        <div className="flex items-center gap-1.5 pb-2 pl-7">
+          <span className={cn(
+            "text-[10px] px-1.5 py-0.5 rounded border font-medium select-none whitespace-nowrap",
+            expiryBadgeStyle
+          )}>
+            {isExpired ? "Exp " : ""}{fmtExpiry}
+          </span>
           <button
             onClick={() => onUpdate({ expiresAt: null })}
-            className="opacity-0 group-hover/row:opacity-40 hover:!opacity-100 text-muted-foreground hover:text-red-400 transition-opacity p-0.5 rounded shrink-0"
+            className="opacity-0 group-hover/row:opacity-50 hover:!opacity-100 text-muted-foreground hover:text-red-400 transition-opacity p-0.5 rounded"
             title="Clear expiration date"
             aria-label="Clear expiration date"
           >
             <X className="w-3 h-3" />
           </button>
-        )}
-      </div>
-
-      {/* Delete item */}
-      <button
-        onClick={onDelete}
-        className="p-1 rounded text-muted-foreground/0 group-hover/row:text-muted-foreground/40 hover:!text-red-400 hover:bg-red-400/10 transition-colors shrink-0"
-        aria-label="Remove"
-      >
-        <X className="w-3.5 h-3.5" />
-      </button>
+        </div>
+      )}
     </div>
   );
 }
