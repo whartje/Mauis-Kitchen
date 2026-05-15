@@ -5,7 +5,7 @@ const FEATURES = [
   {
     icon: "🔗",
     title: "Import from anywhere",
-    desc: "Paste a URL, scan a photo, type a recipe, or drop in a YouTube link — we extract everything automatically.",
+    desc: "Paste a URL, scan a photo, or drop in a YouTube, Instagram, or TikTok link — we extract everything automatically.",
   },
   {
     icon: "📅",

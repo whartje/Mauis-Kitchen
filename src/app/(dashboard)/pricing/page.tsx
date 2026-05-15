@@ -7,8 +7,10 @@ import { cn } from "@/lib/utils";
 
 const FREE_FEATURES = [
   "Up to 30 recipes",
-  "URL & text import",
+  "URL import · 10/month",
   "5 photo scans / month",
+  "5 YouTube imports / month",
+  "5 Instagram & TikTok imports / month",
   "Meal planning",
   "Pantry & grocery list",
   "Discovery page",
@@ -16,9 +18,10 @@ const FREE_FEATURES = [
 
 const PRO_FEATURES = [
   "Unlimited recipes",
-  "URL & text import",
-  "YouTube import · 20/month ✦",
-  "30 photo scans / month",
+  "URL import · Unlimited ✦",
+  "30 photo scans / month ✦",
+  "30 YouTube imports / month ✦",
+  "50 Instagram & TikTok imports / month ✦",
   "Meal planning",
   "Pantry & grocery list",
   "Discovery page",

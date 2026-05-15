@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Link as LinkIcon, Camera, X, Loader2, AlertCircle,
   Upload, CheckCircle2, Clipboard, Plus, FileImage, FileText,
-  GripVertical, ChevronUp, ChevronDown, Youtube, Sparkles,
+  GripVertical, ChevronUp, ChevronDown, Youtube, Share2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
@@ -16,7 +16,7 @@ interface Props {
   initialTab?: Tab;
 }
 
-type Tab = "url" | "photo" | "text" | "youtube";
+type Tab = "url" | "photo" | "text" | "youtube" | "social";
 
 interface PageFile {
   file: File;
@@ -123,6 +123,12 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
   const [ytLoadingMsg, setYtLoadingMsg] = useState("");
   const [ytError, setYtError] = useState<string | null>(null);
 
+  // ── Social tab (Instagram / TikTok) ───────────────────────────────────────
+  const [socialUrl, setSocialUrl] = useState("");
+  const [socialLoading, setSocialLoading] = useState(false);
+  const [socialLoadingMsg, setSocialLoadingMsg] = useState("");
+  const [socialError, setSocialError] = useState<string | null>(null);
+
   // ── Cookbook / collection ─────────────────────────────────────────────────
   const [collection, setCollection] = useState("");
   const [cookbooks, setCookbooks] = useState<string[]>([]);
@@ -190,6 +196,8 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
     setTextError(null);
     setYtUrl("");
     setYtError(null);
+    setSocialUrl("");
+    setSocialError(null);
     onClose();
   }
 
@@ -418,9 +426,7 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
       const data = await res.json();
       if (!res.ok) {
         setYtError(
-          res.status === 403 && data.error?.code === "PRO_REQUIRED"
-            ? "YouTube importing is a Pro feature. Upgrade to unlock it."
-            : res.status === 409
+          res.status === 409
             ? "You already have this video saved."
             : data.error?.message ?? "Could not import a recipe from this video."
         );
@@ -436,6 +442,60 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
       clearTimeout(t2);
       setYtLoading(false);
       setYtLoadingMsg("");
+    }
+  }
+
+  // ── Social import (Instagram / TikTok) ───────────────────────────────────
+  function detectSocialPlatform(url: string): "instagram" | "tiktok" | null {
+    try {
+      const u = new URL(url);
+      if (u.hostname.includes("instagram.com")) return "instagram";
+      if (u.hostname.includes("tiktok.com")) return "tiktok";
+    } catch { /* invalid */ }
+    return null;
+  }
+
+  async function handleSocialSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!collection.trim()) {
+      setSocialError("Please choose or enter a cookbook/collection.");
+      return;
+    }
+    const platform = detectSocialPlatform(socialUrl);
+    if (!platform) {
+      setSocialError("Please enter a valid Instagram or TikTok URL.");
+      return;
+    }
+    setSocialError(null);
+    setSocialLoading(true);
+    setSocialLoadingMsg("Fetching post…");
+    const t1 = setTimeout(() => setSocialLoadingMsg("Reading recipe…"), 5000);
+    const t2 = setTimeout(() => setSocialLoadingMsg("Saving to library…"), 12000);
+    try {
+      const res = await fetch("/api/recipes/import-social", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: socialUrl, collection: collection.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSocialError(
+          res.status === 409
+            ? "You already have this post saved."
+            : data.error?.message ?? "Could not import a recipe from this post."
+        );
+        return;
+      }
+      router.push(`/recipes/${data.id}`);
+      router.refresh();
+      handleClose();
+    } catch {
+      setSocialError("Something went wrong. Please try again.");
+    } finally {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      setSocialLoading(false);
+      setSocialLoadingMsg("");
     }
   }
 
@@ -486,6 +546,7 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
     urlLoading ||
     textLoading ||
     ytLoading ||
+    socialLoading ||
     photoStep.kind === "loading" ||
     photoStep.kind === "selecting" ||
     photoStep.kind === "done";
@@ -529,11 +590,12 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
         {/* Tabs */}
         <div className="flex border-b border-border shrink-0 overflow-x-auto">
           {([
-            { id: "url"     as Tab, icon: LinkIcon, label: "From URL"    },
-            { id: "photo"   as Tab, icon: Camera,   label: "Scan Photo"  },
-            { id: "text"    as Tab, icon: FileText,  label: "Paste Text" },
-            { id: "youtube" as Tab, icon: Youtube,  label: "YouTube", pro: true },
-          ]).map(({ id, icon: Icon, label, pro }) => (
+            { id: "url"     as Tab, icon: LinkIcon, label: "From URL"   },
+            { id: "photo"   as Tab, icon: Camera,   label: "Scan Photo" },
+            { id: "text"    as Tab, icon: FileText,  label: "Paste Text"},
+            { id: "youtube" as Tab, icon: Youtube,  label: "YouTube"    },
+            { id: "social"  as Tab, icon: Share2,   label: "IG / TikTok"},
+          ]).map(({ id, icon: Icon, label }) => (
             <button
               key={id}
               onClick={() => { if (!isBusy) setTab(id); }}
@@ -542,17 +604,14 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
                 tab === id
                   ? id === "youtube"
                     ? "border-red-500 text-red-500"
+                    : id === "social"
+                    ? "border-pink-500 text-pink-500"
                     : "border-brand-orange text-brand-orange"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
               <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
               <span className="truncate">{label}</span>
-              {pro && (
-                <span className="hidden sm:inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-400/15 text-amber-500 leading-none ml-0.5">
-                  <Sparkles className="w-2 h-2" />PRO
-                </span>
-              )}
             </button>
           ))}
         </div>
@@ -859,6 +918,68 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
             )
           )}
 
+          {/* ── Social tab (Instagram / TikTok) ── */}
+          {tab === "social" && (
+            socialLoading ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-4">
+                <Loader2 className="w-8 h-8 text-pink-500 animate-spin" />
+                <p className="text-sm text-muted-foreground">{socialLoadingMsg}</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSocialSubmit} className="space-y-4">
+                <div>
+                  <label className="text-sm text-muted-foreground block mb-2">
+                    Instagram or TikTok post URL
+                  </label>
+                  <input
+                    type="url"
+                    value={socialUrl}
+                    onChange={(e) => setSocialUrl(e.target.value)}
+                    placeholder="https://www.instagram.com/p/... or https://www.tiktok.com/..."
+                    required
+                    autoFocus
+                    className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-pink-500/40 focus:border-pink-500 transition"
+                  />
+                  {socialUrl && (
+                    <p className={cn(
+                      "text-xs mt-1.5 font-medium",
+                      detectSocialPlatform(socialUrl) === "instagram" ? "text-pink-500" :
+                      detectSocialPlatform(socialUrl) === "tiktok" ? "text-teal-500" :
+                      "text-red-400"
+                    )}>
+                      {detectSocialPlatform(socialUrl) === "instagram" ? "📸 Instagram post detected" :
+                       detectSocialPlatform(socialUrl) === "tiktok" ? "🎵 TikTok video detected" :
+                       "⚠️ Must be an Instagram or TikTok URL"}
+                    </p>
+                  )}
+                </div>
+                {cookbookField}
+                {socialError && (
+                  <div className="flex items-start gap-2 text-sm text-red-400">
+                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                    <span>{socialError}</span>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Works best with posts where the creator shared the full recipe in their caption.
+                  For TikTok, look for posts tagged{" "}
+                  <span className="font-mono">#recipeincaption</span>.
+                </p>
+                <button
+                  type="submit"
+                  disabled={!socialUrl || !detectSocialPlatform(socialUrl)}
+                  className="w-full bg-pink-500 hover:bg-pink-600 text-white font-semibold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <Share2 className="w-4 h-4" />
+                  Import from{" "}
+                  {detectSocialPlatform(socialUrl) === "tiktok" ? "TikTok" :
+                   detectSocialPlatform(socialUrl) === "instagram" ? "Instagram" :
+                   "Social"}
+                </button>
+              </form>
+            )
+          )}
+
           {/* ── YouTube tab ── */}
           {tab === "youtube" && (
             ytLoading ? (
@@ -868,14 +989,6 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
               </div>
             ) : (
               <form onSubmit={handleYouTubeSubmit} className="space-y-4">
-                {/* Pro badge */}
-                <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-amber-400/10 border border-amber-400/20">
-                  <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
-                  <p className="text-xs text-amber-600 dark:text-amber-400">
-                    <span className="font-semibold">Pro feature.</span> Claude reads the video&apos;s captions and extracts the full recipe for you.
-                  </p>
-                </div>
-
                 <div>
                   <label className="text-sm text-muted-foreground block mb-2">YouTube video URL</label>
                   <input

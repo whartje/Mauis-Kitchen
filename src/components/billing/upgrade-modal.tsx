@@ -12,16 +12,17 @@ interface Props {
 
 const PRO_FEATURES = [
   "Unlimited recipes",
-  "YouTube import · 20/month",
-  "30 photo scans / month",
-  "Average nutrition per serving",
+  "URL import · Unlimited",
+  "30 photo · 30 YouTube / month",
+  "50 Instagram & TikTok / month",
+  "Nutrition per serving",
   "Priority support",
 ];
 
 const FREE_FEATURES = [
   "30 recipes",
-  "5 photo scans / month",
-  "URL & text import",
+  "URL import · 10/month",
+  "5 photo · YouTube · social / month",
   "Pantry, grocery & meal plan",
 ];
 

@@ -71,19 +71,8 @@ export async function POST(request: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 });
 
-  // ── Pro gate ─────────────────────────────────────────────────────────────
+  // ── Plan check (for monthly limit) ───────────────────────────────────────
   const sub = await getSubSummary(userId);
-  if (!sub.isPro) {
-    return NextResponse.json(
-      {
-        error: {
-          code: "PRO_REQUIRED",
-          message: "YouTube importing is a Pro feature. Upgrade to unlock it.",
-        },
-      },
-      { status: 403 }
-    );
-  }
 
   const body = await request.json();
   const parsed = Schema.safeParse(body);
@@ -105,8 +94,8 @@ export async function POST(request: Request) {
     );
   }
 
-  // ── YouTube monthly import cap (20 / month for Pro) ──────────────────────
-  const YT_MONTHLY_LIMIT = 20;
+  // ── YouTube monthly import cap (5 free / 30 pro) ─────────────────────────
+  const YT_MONTHLY_LIMIT = sub.isPro ? 30 : 5;
   const startOfMonth = new Date();
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
@@ -118,7 +107,7 @@ export async function POST(request: Request) {
       {
         error: {
           code: "YT_LIMIT_REACHED",
-          message: `You've used all ${YT_MONTHLY_LIMIT} YouTube imports for this month. Your limit resets on the 1st.`,
+          message: `You've used all ${YT_MONTHLY_LIMIT} YouTube imports for this month. ${sub.isPro ? "Your limit resets on the 1st." : "Upgrade to Pro for 30/month."}`,
         },
       },
       { status: 429 }
