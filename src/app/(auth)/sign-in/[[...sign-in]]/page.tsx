@@ -67,7 +67,7 @@ export default function SignInPage() {
         </div>
 
         {/* Bottom tagline + privacy */}
-        <div className="relative flex items-center gap-3 text-xs text-muted-foreground/50">
+        <div className="relative flex items-center gap-3 text-xs text-muted-foreground/50 mt-8">
           <span>Free to use · No credit card required</span>
           <span>·</span>
           <a href="/privacy" className="underline hover:text-muted-foreground transition-colors">
