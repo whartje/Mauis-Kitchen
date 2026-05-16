@@ -140,28 +140,50 @@ export async function POST(request: Request) {
   // ── Scrape ────────────────────────────────────────────────────────────────
   if (platform === "instagram") {
     try {
-      const run = await client.actor("apify/instagram-post-scraper").call(
-        { directUrls: [url], resultsType: "posts", resultsLimit: 1 },
-        { waitSecs: 60 }
+      // apify/instagram-scraper is the main actor; instagram-post-scraper uses
+      // a different (less documented) input schema and is less reliable.
+      const run = await client.actor("apify/instagram-scraper").call(
+        {
+          directUrls: [url],
+          resultsType: "posts",
+          resultsLimit: 1,
+          addParentData: false,
+        },
+        { waitSecs: 90 }
       );
       const { items } = await client.dataset(run.defaultDatasetId).listItems();
+      console.log("Instagram scrape result count:", items.length, items[0] ? Object.keys(items[0]) : "no items");
+
       const post = items[0] as {
         caption?: string;
+        alt?: string;                  // some actors use alt for caption
         displayUrl?: string;
+        imageUrl?: string;
         images?: string[];
+        thumbnailUrl?: string;
         ownerUsername?: string;
+        ownerFullName?: string;
       } | undefined;
 
       if (!post) {
         return NextResponse.json(
-          { error: { code: "SCRAPE_FAILED", message: "Could not fetch this Instagram post. Make sure it's a public post." } },
+          {
+            error: {
+              code: "SCRAPE_FAILED",
+              message:
+                "Could not fetch this Instagram post. Make sure the post is public and not from a private account.",
+            },
+          },
           { status: 422 }
         );
       }
 
-      captionText = post.caption ?? null;
-      thumbnailUrl = post.displayUrl ?? (post.images?.[0] ?? null);
-      authorName = post.ownerUsername ? `@${post.ownerUsername}` : null;
+      captionText = post.caption ?? post.alt ?? null;
+      thumbnailUrl =
+        post.displayUrl ?? post.imageUrl ?? post.thumbnailUrl ?? (post.images?.[0] ?? null);
+      authorName = post.ownerUsername
+        ? `@${post.ownerUsername}`
+        : (post.ownerFullName ?? null);
     } catch (err) {
       console.error("Instagram scrape error:", err);
       return NextResponse.json(
