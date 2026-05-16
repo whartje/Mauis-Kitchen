@@ -145,6 +145,11 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overla
        currentFilters.difficulty || currentFilters.ingredient ||
        currentFilters.collection || currentFilters.protein || currentFilters.favorite)
   );
+  // "More filters" sub-panel — auto-expand if any secondary filter is active
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(
+    !!(currentFilters.ingredient || currentFilters.collection ||
+       currentFilters.protein || currentFilters.difficulty || currentFilters.favorite)
+  );
 
   function applyFilter(key: string, value: string | null) {
     const current: Record<string, string> = {};
@@ -191,6 +196,15 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overla
     currentFilters.collection,
     currentFilters.protein,
     currentFilters.ingredient,
+  ].filter(Boolean).length;
+
+  // Count of active filters that live inside the "More filters" section
+  const moreActiveCount = [
+    currentFilters.ingredient,
+    currentFilters.collection,
+    currentFilters.protein,
+    currentFilters.difficulty,
+    currentFilters.favorite,
   ].filter(Boolean).length;
 
   return (
@@ -266,50 +280,7 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overla
       {filtersOpen && (
         <div className="bg-card border border-border rounded-xl p-4 space-y-4">
 
-          {/* Ingredient search */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Search by Ingredient</p>
-            <form onSubmit={handleIngredientSearch} className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-              <input
-                type="text"
-                value={ingredientSearch}
-                onChange={handleIngredientChange}
-                placeholder="e.g. chicken, garlic, lemon…"
-                className="w-full bg-background border border-border rounded-lg pl-9 pr-8 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange transition"
-              />
-              {ingredientSearch && (
-                <button
-                  type="button"
-                  onClick={() => { setIngredientSearch(""); applyFilter("ingredient", null); }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label="Clear ingredient search"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </form>
-          </div>
-
-          {/* Cookbooks */}
-          {cookbooks.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <BookOpen className="w-3.5 h-3.5" />
-                Cookbook
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {cookbooks.map((cb) => (
-                  <FilterChip
-                    key={cb}
-                    label={cb}
-                    active={currentFilters.collection === cb}
-                    onClick={() => toggle("collection", cb)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+          {/* ── Primary filters — always visible ── */}
 
           {/* Meal Type */}
           <div>
@@ -341,7 +312,7 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overla
             </div>
           </div>
 
-          {/* Food Groups */}
+          {/* Food Groups & Diet */}
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Food Groups & Diet</p>
             <div className="flex flex-wrap gap-2">
@@ -356,59 +327,124 @@ export function RecipeLibraryClient({ recipes, currentFilters, cookbooks, overla
             </div>
           </div>
 
-          {/* Protein */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Protein (per serving)</p>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { value: "high",   label: ">10g" },
-                { value: "medium", label: "5–10g" },
-                { value: "low",    label: "<5g" },
-              ].map((p) => (
-                <FilterChip
-                  key={p.value}
-                  label={p.label}
-                  active={currentFilters.protein === p.value}
-                  onClick={() => toggle("protein", p.value)}
-                />
-              ))}
-            </div>
-          </div>
+          {/* ── More filters toggle ── */}
+          <button
+            onClick={() => setMoreFiltersOpen((v) => !v)}
+            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {moreFiltersOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            More filters
+            {moreActiveCount > 0 && (
+              <span className="bg-brand-orange text-black text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center ml-0.5">
+                {moreActiveCount}
+              </span>
+            )}
+          </button>
 
-          {/* Difficulty + Favorites */}
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 pt-1 border-t border-border">
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Difficulty</p>
-              <div className="flex gap-2">
-                {DIFFICULTIES.map((d) => (
-                  <FilterChip
-                    key={d.value}
-                    label={d.label}
-                    active={currentFilters.difficulty === d.value}
-                    onClick={() => toggle("difficulty", d.value)}
+          {/* ── Secondary filters — ingredient, cookbook, protein, difficulty, favorites ── */}
+          {moreFiltersOpen && (
+            <div className="space-y-4 pt-2 border-t border-border">
+
+              {/* Ingredient search */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Search by Ingredient</p>
+                <form onSubmit={handleIngredientSearch} className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                  <input
+                    type="text"
+                    value={ingredientSearch}
+                    onChange={handleIngredientChange}
+                    placeholder="e.g. chicken, garlic, lemon…"
+                    className="w-full bg-background border border-border rounded-lg pl-9 pr-8 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange transition"
                   />
-                ))}
+                  {ingredientSearch && (
+                    <button
+                      type="button"
+                      onClick={() => { setIngredientSearch(""); applyFilter("ingredient", null); }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label="Clear ingredient search"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </form>
+              </div>
+
+              {/* Cookbooks */}
+              {cookbooks.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <BookOpen className="w-3.5 h-3.5" />
+                    Cookbook
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {cookbooks.map((cb) => (
+                      <FilterChip
+                        key={cb}
+                        label={cb}
+                        active={currentFilters.collection === cb}
+                        onClick={() => toggle("collection", cb)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Protein */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Protein (per serving)</p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { value: "high",   label: ">10g" },
+                    { value: "medium", label: "5–10g" },
+                    { value: "low",    label: "<5g" },
+                  ].map((p) => (
+                    <FilterChip
+                      key={p.value}
+                      label={p.label}
+                      active={currentFilters.protein === p.value}
+                      onClick={() => toggle("protein", p.value)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Difficulty + Favorites */}
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Difficulty</p>
+                  <div className="flex gap-2">
+                    {DIFFICULTIES.map((d) => (
+                      <FilterChip
+                        key={d.value}
+                        label={d.label}
+                        active={currentFilters.difficulty === d.value}
+                        onClick={() => toggle("difficulty", d.value)}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Favorites</p>
+                  <FilterChip
+                    label="♥ Favorites only"
+                    active={currentFilters.favorite === "true"}
+                    onClick={() => toggle("favorite", "true")}
+                  />
+                </div>
               </div>
             </div>
+          )}
 
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Favorites</p>
-              <FilterChip
-                label="♥ Favorites only"
-                active={currentFilters.favorite === "true"}
-                onClick={() => toggle("favorite", "true")}
-              />
-            </div>
-
-            {activeFilterCount > 0 && (
-              <button
-                onClick={() => router.push("/recipes")}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors ml-auto"
-              >
-                Clear all filters
-              </button>
-            )}
-          </div>
+          {/* Clear all — always visible at bottom when filters are active */}
+          {activeFilterCount > 0 && (
+            <button
+              onClick={() => router.push("/recipes")}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Clear all filters
+            </button>
+          )}
         </div>
       )}
 

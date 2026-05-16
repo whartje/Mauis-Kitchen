@@ -119,11 +119,14 @@ export function RecipeCard({ recipe, onFavoriteToggle, onPhotoUpload, overlapPer
             onChange={handlePhotoChange}
           />
 
-          {/* Favorite button */}
+          {/* Favorite button — always visible when favorited, hover-only when not */}
           <button
             onClick={handleFavorite}
             disabled={favoriteLoading}
-            className="absolute top-2 right-2 p-1.5 rounded-full bg-black/40 backdrop-blur-sm hover:bg-black/60 transition-colors"
+            className={cn(
+              "absolute top-2 right-2 p-1.5 rounded-full bg-black/40 backdrop-blur-sm hover:bg-black/60 transition-all duration-200",
+              isFavorite ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            )}
             aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
           >
             <Heart
@@ -146,8 +149,8 @@ export function RecipeCard({ recipe, onFavoriteToggle, onPhotoUpload, overlapPer
             </span>
           </div>
 
-          {/* Meal plan overlap badge */}
-          {overlapPercent != null && (
+          {/* Meal plan overlap badge — only shown when meaningfully high (≥50%) */}
+          {overlapPercent != null && overlapPercent >= 50 && (
             <div className="absolute bottom-2 right-2">
               <span
                 className={cn(

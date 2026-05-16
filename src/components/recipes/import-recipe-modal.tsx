@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Link as LinkIcon, Camera, X, Loader2, AlertCircle,
   Upload, CheckCircle2, Clipboard, Plus, FileImage, FileText,
-  GripVertical, ChevronUp, ChevronDown, Youtube, Share2,
+  GripVertical, Youtube, Share2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
@@ -752,26 +752,6 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
                           <p className="text-xs text-muted-foreground truncate">{p.file.name || "screenshot"}</p>
                         </div>
 
-                        {/* Up / down — mobile-friendly reorder */}
-                        <div className="flex flex-col gap-0 shrink-0">
-                          <button
-                            onClick={() => movePage(i, -1)}
-                            disabled={i === 0}
-                            aria-label="Move up"
-                            className="p-0.5 text-muted-foreground/40 hover:text-foreground transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
-                          >
-                            <ChevronUp className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => movePage(i, 1)}
-                            disabled={i === arr.length - 1}
-                            aria-label="Move down"
-                            className="p-0.5 text-muted-foreground/40 hover:text-foreground transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
-                          >
-                            <ChevronDown className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-
                         {/* Remove */}
                         <button
                           onClick={() => removePage(i)}
@@ -1030,24 +1010,22 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
 
         {/* Sticky action footer — always visible when pages are collected */}
         {isPages && (
-          <div className="px-6 pb-5 pt-4 shrink-0 border-t border-border bg-card">
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  (photoStep as { kind: "pages"; pages: PageFile[] }).pages.forEach((p) => URL.revokeObjectURL(p.objectUrl));
-                  setPhotoStep({ kind: "idle" });
-                }}
-                className="flex-1 py-2.5 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-              >
-                Start over
-              </button>
-              <button
-                onClick={handlePhotoUpload}
-                className="flex-1 py-2.5 rounded-lg bg-brand-orange hover:bg-brand-orange-dark text-black text-sm font-semibold transition-colors"
-              >
-                Scan Recipe
-              </button>
-            </div>
+          <div className="px-6 pb-5 pt-4 shrink-0 border-t border-border bg-card space-y-2">
+            <button
+              onClick={handlePhotoUpload}
+              className="w-full py-2.5 rounded-lg bg-brand-orange hover:bg-brand-orange-dark text-black text-sm font-semibold transition-colors"
+            >
+              Scan Recipe
+            </button>
+            <button
+              onClick={() => {
+                (photoStep as { kind: "pages"; pages: PageFile[] }).pages.forEach((p) => URL.revokeObjectURL(p.objectUrl));
+                setPhotoStep({ kind: "idle" });
+              }}
+              className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+            >
+              Clear and start over
+            </button>
           </div>
         )}
       </div>
