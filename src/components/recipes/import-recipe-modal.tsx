@@ -590,11 +590,11 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
         {/* Tabs */}
         <div className="flex border-b border-border shrink-0 overflow-x-auto">
           {([
-            { id: "url"     as Tab, icon: LinkIcon, label: "From URL"   },
-            { id: "photo"   as Tab, icon: Camera,   label: "Scan Photo" },
-            { id: "text"    as Tab, icon: FileText,  label: "Paste Text"},
-            { id: "youtube" as Tab, icon: Youtube,  label: "YouTube"    },
-            { id: "social"  as Tab, icon: Share2,   label: "IG / TikTok"},
+            { id: "url"     as Tab, icon: LinkIcon, label: "URL"     },
+            { id: "photo"   as Tab, icon: Camera,   label: "Photo"   },
+            { id: "text"    as Tab, icon: FileText,  label: "Text"    },
+            { id: "youtube" as Tab, icon: Youtube,  label: "YouTube" },
+            { id: "social"  as Tab, icon: Share2,   label: "Social"  },
           ]).map(({ id, icon: Icon, label }) => (
             <button
               key={id}
@@ -607,7 +607,7 @@ export function ImportRecipeModal({ open, onClose, initialTab = "url" }: Props) 
                     : id === "social"
                     ? "border-pink-500 text-pink-500"
                     : "border-brand-orange text-brand-orange"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
+                  : "border-transparent text-foreground/60 hover:text-foreground"
               )}
             >
               <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
