@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { normalizeSpecificRecipeFromImage } from "@/lib/claude";
+import { checkRecipeLimit } from "@/lib/subscription";
 
 const SelectSchema = z.object({
   imageUrl: z.string().url(),
@@ -13,6 +14,15 @@ const SelectSchema = z.object({
 export async function POST(request: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 });
+
+  // Check recipe limit before processing the image
+  const limit = await checkRecipeLimit(userId);
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: { code: "RECIPE_LIMIT_REACHED", message: `You've reached the ${limit.limit}-recipe limit. Upgrade to Pro for unlimited recipes.` } },
+      { status: 403 }
+    );
+  }
 
   const body = await request.json();
   const parsed = SelectSchema.safeParse(body);

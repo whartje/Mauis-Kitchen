@@ -114,7 +114,10 @@ export async function DELETE(
     const markerIdx = urlToDelete.indexOf(marker);
     if (markerIdx !== -1) {
       const storagePath = urlToDelete.slice(markerIdx + marker.length);
-      await supabase.storage.from("recipe-images").remove([storagePath]);
+      // Validate the path belongs to this user to prevent deleting other users' files
+      if (storagePath.startsWith(`${userId}/`)) {
+        await supabase.storage.from("recipe-images").remove([storagePath]);
+      }
     }
   }
 

@@ -29,8 +29,8 @@ export async function PATCH(
 
   const data = parsed.data;
 
-  // Rebuild raw if any field changed
-  const current = await prisma.ingredient.findUnique({ where: { id: ingredientId } });
+  // Verify the ingredient belongs to this recipe (not just any recipe)
+  const current = await prisma.ingredient.findFirst({ where: { id: ingredientId, recipeId } });
   if (!current) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
 
   const name = data.name ?? current.name;
@@ -57,6 +57,10 @@ export async function DELETE(
 
   const recipe = await prisma.recipe.findFirst({ where: { id: recipeId, userId }, select: { id: true } });
   if (!recipe) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
+
+  // Verify the ingredient belongs to this recipe (not just any recipe)
+  const ingredient = await prisma.ingredient.findFirst({ where: { id: ingredientId, recipeId } });
+  if (!ingredient) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
 
   await prisma.ingredient.delete({ where: { id: ingredientId } });
   return NextResponse.json({ success: true });

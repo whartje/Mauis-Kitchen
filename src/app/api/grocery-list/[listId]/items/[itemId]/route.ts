@@ -31,6 +31,12 @@ export async function PATCH(
     );
   }
 
+  // Scope to listId so an attacker can't modify items belonging to other lists
+  const existingItem = await prisma.groceryListItem.findFirst({ where: { id: itemId, groceryListId: listId } });
+  if (!existingItem) {
+    return NextResponse.json({ error: "Item not found" }, { status: 404 });
+  }
+
   const body = await req.json();
   const { isChecked, name, quantity, unit } = body as {
     isChecked?: boolean;
@@ -84,6 +90,12 @@ export async function DELETE(
       { error: ownershipError.error },
       { status: ownershipError.status }
     );
+  }
+
+  // Scope to listId so an attacker can't delete items belonging to other lists
+  const existingItem = await prisma.groceryListItem.findFirst({ where: { id: itemId, groceryListId: listId } });
+  if (!existingItem) {
+    return NextResponse.json({ error: "Item not found" }, { status: 404 });
   }
 
   await prisma.groceryListItem.delete({

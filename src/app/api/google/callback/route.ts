@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 
 function getAppUrl(): string {
@@ -9,13 +10,22 @@ function getAppUrl(): string {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const code   = searchParams.get("code");
-  const userId = searchParams.get("state"); // passed through from /auth
-  const error  = searchParams.get("error");
+  const code  = searchParams.get("code");
+  const state = searchParams.get("state"); // must match the authenticated user's ID
+  const error = searchParams.get("error");
 
   const appUrl = getAppUrl();
 
-  if (error || !code || !userId) {
+  // Validate the authenticated session — the callback is browser-initiated so
+  // Clerk's session cookie is present. Reject if there is no active session.
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.redirect(`${appUrl}/sign-in`);
+  }
+
+  // Reject if the state param is missing or does not match the session user.
+  // This prevents CSRF / account-takeover via a crafted OAuth callback URL.
+  if (error || !code || !state || state !== userId) {
     return NextResponse.redirect(`${appUrl}/settings?tab=integrations&google=error`);
   }
 

@@ -19,6 +19,10 @@ export async function DELETE(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  // Scope the delete to this plan so an attacker can't delete items in other plans
+  const toDelete = await prisma.mealPlanRecipe.findFirst({ where: { id: itemId, mealPlanId: planId } });
+  if (!toDelete) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
   await prisma.mealPlanRecipe.delete({ where: { id: itemId } });
   return NextResponse.json({ ok: true });
 }
@@ -45,6 +49,10 @@ export async function PATCH(
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
+
+  // Scope the update to this plan so an attacker can't modify items in other plans
+  const toUpdate = await prisma.mealPlanRecipe.findFirst({ where: { id: itemId, mealPlanId: planId } });
+  if (!toUpdate) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const item = await prisma.mealPlanRecipe.update({
     where: { id: itemId },

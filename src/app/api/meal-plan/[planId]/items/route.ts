@@ -17,6 +17,12 @@ export async function POST(
 
   const { recipeId, dayOfWeek, mealType, servings } = await req.json();
 
+  // Verify the recipe belongs to this user so they can't reference other users' recipes
+  const recipe = await prisma.recipe.findFirst({ where: { id: recipeId, userId }, select: { id: true } });
+  if (!recipe) {
+    return NextResponse.json({ error: "Recipe not found" }, { status: 404 });
+  }
+
   // One recipe per slot — remove any existing
   await prisma.mealPlanRecipe.deleteMany({
     where: { mealPlanId: planId, dayOfWeek, mealType },

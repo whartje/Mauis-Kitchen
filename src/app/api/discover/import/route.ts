@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
+import { checkRecipeLimit } from "@/lib/subscription";
+import { z } from "zod";
 
 interface SpoonacularIngredient {
   id: number;
@@ -49,9 +51,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "SPOONACULAR_API_KEY not configured" }, { status: 503 });
   }
 
-  const { spoonacularId } = await req.json();
-  if (!spoonacularId) {
-    return NextResponse.json({ error: "spoonacularId required" }, { status: 400 });
+  const body = await req.json();
+  const ImportSchema = z.object({ spoonacularId: z.number().int().positive() });
+  const parsedBody = ImportSchema.safeParse(body);
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "spoonacularId must be a positive integer" }, { status: 400 });
+  }
+  const { spoonacularId } = parsedBody.data;
+
+  // Check recipe limit before importing
+  const limit = await checkRecipeLimit(userId);
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: `You've reached the ${limit.limit}-recipe limit. Upgrade to Pro for unlimited recipes.` },
+      { status: 403 }
+    );
   }
 
   // Check if already imported (by sourceUrl prefix match isn't reliable, skip dupe check for simplicity)

@@ -86,8 +86,8 @@ export async function POST(request: Request) {
   const sub = await getSubSummary(userId);
   const SOCIAL_LIMIT = sub.isPro ? 50 : 5;
   const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
+  startOfMonth.setUTCDate(1);
+  startOfMonth.setUTCHours(0, 0, 0, 0);
   const socialThisMonth = await prisma.recipe.count({
     where: {
       userId,

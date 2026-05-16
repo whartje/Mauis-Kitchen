@@ -97,8 +97,8 @@ export async function POST(request: Request) {
   // ── YouTube monthly import cap (5 free / 30 pro) ─────────────────────────
   const YT_MONTHLY_LIMIT = sub.isPro ? 30 : 5;
   const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
+  startOfMonth.setUTCDate(1);
+  startOfMonth.setUTCHours(0, 0, 0, 0);
   const ytThisMonth = await prisma.recipe.count({
     where: { userId, sourceName: "YouTube", importedAt: { gte: startOfMonth } },
   });

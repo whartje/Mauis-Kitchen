@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { IngredientCategory } from "@prisma/client";
+import { z } from "zod";
 
 const CATEGORY_ORDER: IngredientCategory[] = [
   "PRODUCE",
@@ -43,7 +44,17 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { weekStart } = body as { weekStart: string };
+  const PostSchema = z.object({
+    weekStart: z.string().refine((v) => !isNaN(Date.parse(v)), { message: "weekStart must be a valid date string" }),
+  });
+  const parsed = PostSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid weekStart: must be a valid ISO date string" },
+      { status: 400 }
+    );
+  }
+  const { weekStart } = parsed.data;
 
   const weekStartDate = new Date(weekStart);
 
