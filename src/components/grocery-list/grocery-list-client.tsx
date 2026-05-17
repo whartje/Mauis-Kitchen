@@ -144,6 +144,45 @@ function shiftWeek(mondayIso: string, weeks: number): string {
   return d.toISOString().split("T")[0];
 }
 
+/**
+ * Returns the ISO date string (YYYY-MM-DD) for the Monday that the DB uses
+ * as the week key, given the user's week-start preference.
+ *
+ * Mirrors the identical function in meal-plan-client.tsx — both must stay in sync.
+ */
+function getCurrentWeekMonday(startDay: string): string {
+  const now = new Date();
+  const utcDay = now.getUTCDay(); // 0=Sun … 6=Sat
+
+  let monday: Date;
+
+  if (startDay === "sunday") {
+    // User's week: Sun–Sat. DB key = Monday after the most-recent Sunday.
+    const daysSinceSunday = utcDay; // 0 if today is Sun
+    const sunday = new Date(now);
+    sunday.setUTCDate(now.getUTCDate() - daysSinceSunday);
+    sunday.setUTCHours(0, 0, 0, 0);
+    monday = new Date(sunday);
+    monday.setUTCDate(sunday.getUTCDate() + 1);
+  } else if (startDay === "saturday") {
+    // User's week: Sat–Fri. DB key = Monday 2 days after the most-recent Saturday.
+    const daysSinceSaturday = (utcDay + 1) % 7; // 0 if today is Sat
+    const saturday = new Date(now);
+    saturday.setUTCDate(now.getUTCDate() - daysSinceSaturday);
+    saturday.setUTCHours(0, 0, 0, 0);
+    monday = new Date(saturday);
+    monday.setUTCDate(saturday.getUTCDate() + 2);
+  } else {
+    // Monday start — standard ISO week Monday
+    const diff = utcDay === 0 ? -6 : 1 - utcDay;
+    monday = new Date(now);
+    monday.setUTCDate(now.getUTCDate() + diff);
+    monday.setUTCHours(0, 0, 0, 0);
+  }
+
+  return monday.toISOString().split("T")[0];
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatQuantity(item: GroceryListItem): string {
@@ -181,8 +220,27 @@ export default function GroceryListClient({
     } catch {}
   }, []);
 
+  // The preference-aware "this week" Monday — may differ from the server's
+  // thisWeekStart (ISO Monday) when weekStartDay is Saturday/Sunday and today
+  // is the boundary day (e.g. Saturday with Saturday-start preference).
+  const clientThisMonday = getCurrentWeekMonday(weekStartDay);
+
   const weekLabel = computeWeekLabel(weekStart, weekStartDay);
-  const isCurrentWeek = weekStart.split("T")[0] === thisWeekStart.split("T")[0];
+  const isCurrentWeek = weekStart.split("T")[0] === clientThisMonday;
+
+  // Auto-correct: if the server loaded the ISO-Monday default but the user's
+  // preference puts "this week" on a different Monday, silently redirect.
+  useEffect(() => {
+    const serverDefaultMonday = thisWeekStart.split("T")[0];
+    const preferredMonday = getCurrentWeekMonday(weekStartDay);
+    if (
+      preferredMonday !== serverDefaultMonday &&
+      weekStart.split("T")[0] === serverDefaultMonday
+    ) {
+      router.replace(`/grocery-list?week=${preferredMonday}`);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekStartDay]); // only re-run when the preference loads from localStorage
 
   function goWeek(dir: 1 | -1) {
     const target = shiftWeek(weekStart, dir);
@@ -190,7 +248,7 @@ export default function GroceryListClient({
   }
 
   function goThisWeek() {
-    router.push("/grocery-list");
+    router.push(`/grocery-list?week=${getCurrentWeekMonday(weekStartDay)}`);
   }
 
   // Add item form state
