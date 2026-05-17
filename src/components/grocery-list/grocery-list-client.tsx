@@ -278,12 +278,16 @@ export default function GroceryListClient({
       }
       const data = await res.json();
       setList(data.list);
+      // Invalidate the Next.js Router Cache so navigating away and back
+      // replays the fresh server render (with the new list) rather than the
+      // stale cached payload that pre-dates the regeneration.
+      router.refresh();
     } catch {
       setGenerateError("Something went wrong. Please try again.");
     } finally {
       setGenerating(false);
     }
-  }, [weekStart]);
+  }, [weekStart, router]);
 
   // ── Toggle isChecked ─────────────────────────────────────────────────────
 
