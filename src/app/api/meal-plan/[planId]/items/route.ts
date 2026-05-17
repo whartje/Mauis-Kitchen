@@ -23,11 +23,6 @@ export async function POST(
     return NextResponse.json({ error: "Recipe not found" }, { status: 404 });
   }
 
-  // One recipe per slot — remove any existing
-  await prisma.mealPlanRecipe.deleteMany({
-    where: { mealPlanId: planId, dayOfWeek, mealType },
-  });
-
   const item = await prisma.mealPlanRecipe.create({
     data: {
       mealPlanId: planId,

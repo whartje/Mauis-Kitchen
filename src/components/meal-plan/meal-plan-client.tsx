@@ -245,6 +245,7 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart, isPro, p
         ...p,
         items: [...p.items.filter((i) => i.id !== tempId), item],
       }));
+      router.refresh();
     }
   }
 
@@ -254,6 +255,7 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart, isPro, p
     await fetch(`/api/meal-plan/${plan.id}/items/${item.id}`, {
       method: "DELETE",
     });
+    router.refresh();
   }
 
   async function patchServings(itemId: string, servings: number) {
