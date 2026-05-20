@@ -55,7 +55,8 @@ export default async function LandingPage() {
 
           <p className="mt-6 text-lg sm:text-xl text-white/50 max-w-xl mx-auto leading-relaxed">
             Import from YouTube, Instagram, TikTok, any website, or a photo.
-            Plan your week. Generate your grocery list. All in one place.
+            Plan your week. Generate your grocery list.<br />
+            <span className="text-white/70 font-medium">All in one place.</span>
           </p>
 
           <div className="mt-10 flex items-center justify-center">
@@ -102,14 +103,14 @@ export default async function LandingPage() {
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
             </svg>
-            <span className="text-sm font-medium">Any Website</span>
+            <span className="text-sm font-medium">Website</span>
           </div>
           {/* Photo Scan */}
           <div className="flex items-center gap-2.5 text-white/40 hover:text-white/70 transition-colors">
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
               <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
             </svg>
-            <span className="text-sm font-medium">Photo Scan</span>
+            <span className="text-sm font-medium">Photo</span>
           </div>
           {/* Paste Text */}
           <div className="flex items-center gap-2.5 text-white/40 hover:text-white/70 transition-colors">
@@ -150,9 +151,9 @@ export default async function LandingPage() {
             },
             {
               emoji: "📷",
-              title: "Scan a photo or recipe card",
+              title: "Snap a photo of anything",
               description:
-                "Point your camera at a printed recipe, screenshot, or handwritten card. Our AI reads it and structures it perfectly.",
+                "Point your camera at a printed recipe, handwritten card, or screenshot to import it. Or snap your fridge, pantry shelves, or a grocery receipt to instantly update what you have at home.",
               accent: "#A78BFA",
             },
             {
@@ -173,7 +174,7 @@ export default async function LandingPage() {
               emoji: "🥦",
               title: "Smart pantry tracking",
               description:
-                "Tell us what you already have. We flag those items on your list so you never buy duplicates or forget what's in the fridge.",
+                "Snap a photo of your fridge, pantry shelves, or a grocery receipt and we'll update your pantry automatically. Items you already have get flagged on your grocery list so you never double-buy.",
               accent: "#60A5FA",
             },
           ].map((f) => (
