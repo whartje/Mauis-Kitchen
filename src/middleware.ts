@@ -13,6 +13,7 @@ const isPublicRoute = createRouteMatcher([
   // Google OAuth callback is browser-initiated — user is still logged in via Clerk,
   // so we do NOT mark it public. auth() is called inside the route handler.
   "/api/webhooks/(.*)",
+  "/api/health",
   // PWA / SEO assets — must be unauthenticated so iOS and crawlers can fetch them
   "/apple-icon.png",
   "/icon.png",
