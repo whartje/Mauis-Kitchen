@@ -45,7 +45,7 @@ export default async function LandingPage() {
 
         <div className="relative">
           <span className="inline-flex items-center gap-2 text-xs font-medium text-[#E8834A] bg-[#E8834A]/10 border border-[#E8834A]/20 rounded-full px-3 py-1 mb-6">
-            🐱 Free to use · No credit card required
+            Free to use · No credit card required
           </span>
 
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.08] max-w-3xl mx-auto">
@@ -70,7 +70,7 @@ export default async function LandingPage() {
               href="/sign-in"
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/80 font-medium text-base border border-white/10 transition-colors"
             >
-              Sign in to your account
+              Sign in <span>→</span>
             </Link>
           </div>
         </div>
@@ -81,20 +81,49 @@ export default async function LandingPage() {
         <p className="text-center text-xs font-semibold text-white/30 uppercase tracking-widest mb-6">
           Import recipes from anywhere
         </p>
-        <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4 px-6 max-w-3xl mx-auto">
-          {[
-            { icon: "▶", label: "YouTube", color: "#FF0000" },
-            { icon: "📸", label: "Instagram", color: "#E1306C" },
-            { icon: "♪", label: "TikTok", color: "#69C9D0" },
-            { icon: "🔗", label: "Any Website", color: "#E8834A" },
-            { icon: "📷", label: "Photo Scan", color: "#A78BFA" },
-            { icon: "📋", label: "Paste Text", color: "#34D399" },
-          ].map((s) => (
-            <div key={s.label} className="flex items-center gap-2.5 text-white/40 hover:text-white/70 transition-colors">
-              <span className="text-xl">{s.icon}</span>
-              <span className="text-sm font-medium">{s.label}</span>
-            </div>
-          ))}
+        <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-5 px-6 max-w-3xl mx-auto">
+          {/* YouTube */}
+          <div className="flex items-center gap-2.5 text-white/40 hover:text-white/70 transition-colors">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+            </svg>
+            <span className="text-sm font-medium">YouTube</span>
+          </div>
+          {/* Instagram */}
+          <div className="flex items-center gap-2.5 text-white/40 hover:text-white/70 transition-colors">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/>
+            </svg>
+            <span className="text-sm font-medium">Instagram</span>
+          </div>
+          {/* TikTok */}
+          <div className="flex items-center gap-2.5 text-white/40 hover:text-white/70 transition-colors">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.28 8.28 0 0 0 4.84 1.54V6.77a4.85 4.85 0 0 1-1.07-.08z"/>
+            </svg>
+            <span className="text-sm font-medium">TikTok</span>
+          </div>
+          {/* Any Website */}
+          <div className="flex items-center gap-2.5 text-white/40 hover:text-white/70 transition-colors">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+            <span className="text-sm font-medium">Any Website</span>
+          </div>
+          {/* Photo Scan */}
+          <div className="flex items-center gap-2.5 text-white/40 hover:text-white/70 transition-colors">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
+            </svg>
+            <span className="text-sm font-medium">Photo Scan</span>
+          </div>
+          {/* Paste Text */}
+          <div className="flex items-center gap-2.5 text-white/40 hover:text-white/70 transition-colors">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
+            </svg>
+            <span className="text-sm font-medium">Paste Text</span>
+          </div>
         </div>
       </section>
 
@@ -214,10 +243,10 @@ export default async function LandingPage() {
       <section className="py-24 px-4 max-w-5xl mx-auto">
         <div className="text-center mb-14">
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
-            Why not Paprika, Whisk, or Yummly?
+            Beyond the bookmark
           </h2>
           <p className="mt-3 text-white/50 max-w-lg mx-auto">
-            Those apps clip recipes from the web. Maui&apos;s Kitchen goes further.
+            Most recipe apps save a link and call it done. Maui&apos;s Kitchen extracts, structures, plans, and shops — all in one place.
           </p>
         </div>
 
@@ -300,7 +329,7 @@ export default async function LandingPage() {
             </ul>
             <Link
               href="/sign-up"
-              className="block text-center py-2.5 rounded-xl border border-white/15 text-white/80 hover:bg-white/5 text-sm font-medium transition-colors"
+              className="block text-center py-3 rounded-xl border border-white/15 text-white/80 hover:bg-white/5 text-sm font-semibold transition-colors"
             >
               Get started free
             </Link>
@@ -334,7 +363,7 @@ export default async function LandingPage() {
             </ul>
             <Link
               href="/sign-up"
-              className="block text-center py-2.5 rounded-xl bg-[#E8834A] hover:bg-[#d4733c] text-white text-sm font-semibold transition-colors"
+              className="block text-center py-3 rounded-xl bg-[#E8834A] hover:bg-[#d4733c] text-white text-sm font-semibold transition-colors"
             >
               Start Pro free trial
             </Link>
@@ -358,7 +387,7 @@ export default async function LandingPage() {
             href="/sign-up"
             className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-[#E8834A] hover:bg-[#d4733c] text-white font-semibold text-lg transition-all hover:scale-[1.02] shadow-xl shadow-[#E8834A]/20"
           >
-            Get started — it&apos;s free
+            Get started
             <span>→</span>
           </Link>
           <p className="mt-4 text-xs text-white/25">No credit card required · Cancel anytime</p>
