@@ -7,7 +7,7 @@ import { CatIcon } from "@/components/ui/cat-icon";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/",            label: "Home",      icon: LayoutDashboard },
+  { href: "/dashboard",   label: "Home",      icon: LayoutDashboard },
   { href: "/recipes",     label: "Recipes",   icon: BookOpen },
   { href: "/discover",    label: "Discover",  icon: Compass },
   { href: "/meal-plan",   label: "Plan",      icon: CalendarDays },
@@ -50,7 +50,7 @@ export function MobileNav() {
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border z-50">
         <div className="flex">
           {navItems.map(({ href, label, icon: Icon }) => {
-            const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+            const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
             return (
               <Link
                 key={href}

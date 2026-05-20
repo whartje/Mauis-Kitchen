@@ -11,7 +11,7 @@ export const metadata = {
 
 export default async function LandingPage() {
   const { userId } = await auth();
-  if (userId) redirect("/recipes");
+  if (userId) redirect("/dashboard");
 
   return (
     <div className="min-h-screen bg-[#0d0d0d] text-white antialiased overflow-x-hidden">

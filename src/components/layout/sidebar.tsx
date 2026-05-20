@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/recipes", label: "Recipes", icon: BookOpen },
   { href: "/discover", label: "Discover", icon: Compass },
   { href: "/meal-plan", label: "Meal Plan", icon: CalendarDays },
@@ -68,7 +68,7 @@ export function Sidebar() {
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5">
         {navItems.map(({ href, label, icon: Icon }) => {
-          const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+          const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
           return (
             <Link
               key={href}
