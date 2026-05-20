@@ -44,10 +44,6 @@ export default async function LandingPage() {
         <div className="absolute top-24 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-[#E8834A]/10 rounded-full blur-[120px] pointer-events-none" />
 
         <div className="relative">
-          <span className="inline-flex items-center gap-2 text-xs font-medium text-[#E8834A] bg-[#E8834A]/10 border border-[#E8834A]/20 rounded-full px-3 py-1 mb-6">
-            Free to use · No credit card required
-          </span>
-
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.08] max-w-3xl mx-auto">
             Every recipe,<br />
             <span className="text-[#E8834A]">from anywhere.</span>
@@ -139,42 +135,42 @@ export default async function LandingPage() {
               emoji: "🎬",
               title: "Import from a YouTube video",
               description:
-                "Paste any cooking video URL. We pull the transcript, extract every ingredient and step, and save it as a clean recipe — no typing required.",
+                "Paste a cooking video URL. We pull the transcript, extract every ingredient and step, and save a clean recipe — no typing.",
               accent: "#FF6B6B",
             },
             {
               emoji: "📱",
               title: "Grab it from Instagram or TikTok",
               description:
-                "Drop in a Reel or TikTok link and we parse the caption and audio. Social cooking content is finally searchable and usable.",
+                "Drop in a Reel or TikTok link and we parse the caption and audio. Social cooking content, finally searchable.",
               accent: "#E1306C",
             },
             {
               emoji: "📷",
               title: "Snap a photo of anything",
               description:
-                "Point your camera at a printed recipe, handwritten card, or screenshot to import it. Or snap your fridge, pantry shelves, or a grocery receipt to instantly update what you have at home.",
+                "Scan a recipe card, screenshot, or handwritten note to save it. Or snap your fridge, pantry, or a receipt to update what you have.",
               accent: "#A78BFA",
             },
             {
               emoji: "📅",
               title: "Plan your week visually",
               description:
-                "Drag recipes into a day-by-day grid. See your ingredient overlap score — the higher it is, the less you need to buy.",
+                "Drag recipes into a weekly grid. See your ingredient overlap score — the higher it is, the less you need to buy.",
               accent: "#E8834A",
             },
             {
               emoji: "🛒",
               title: "One-tap grocery list",
               description:
-                "Your meal plan becomes a sorted, categorized shopping list instantly. Share via text, email, Google Tasks, or Alexa.",
+                "Your meal plan becomes a sorted, categorized shopping list in one tap. Share via text, email, Google Tasks, or Alexa.",
               accent: "#34D399",
             },
             {
               emoji: "🥦",
               title: "Smart pantry tracking",
               description:
-                "Snap a photo of your fridge, pantry shelves, or a grocery receipt and we'll update your pantry automatically. Items you already have get flagged on your grocery list so you never double-buy.",
+                "Snap your fridge, pantry shelves, or a grocery receipt — we update your pantry automatically and flag what you own on your shopping list.",
               accent: "#60A5FA",
             },
           ].map((f) => (
@@ -210,17 +206,17 @@ export default async function LandingPage() {
             {
               step: "01",
               title: "Import a recipe",
-              desc: "Paste a URL, share from YouTube, scan a photo, or paste text. We extract everything — ingredients, steps, and nutrition.",
+              desc: "Paste a URL, drop a YouTube link, scan a photo, or paste text. We extract ingredients, steps, and nutrition automatically.",
             },
             {
               step: "02",
               title: "Build your week",
-              desc: "Add recipes to your meal plan. We show you ingredient overlap so you can plan a full week of meals that share pantry staples.",
+              desc: "Add recipes to your plan. We surface ingredient overlap so a full week of meals shares the same pantry staples.",
             },
             {
               step: "03",
               title: "Shop smart",
-              desc: "One tap generates your sorted grocery list. Cross-check your pantry so you only buy what you actually need.",
+              desc: "One tap generates your sorted grocery list, cross-checked against your pantry so you only buy what you need.",
             },
           ].map((s) => (
             <div key={s.step} className="flex flex-col items-center text-center">
