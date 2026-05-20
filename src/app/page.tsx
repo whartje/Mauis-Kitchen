@@ -206,7 +206,7 @@ export default async function LandingPage() {
             {
               step: "01",
               title: "Import a recipe",
-              desc: "Paste a URL, drop a YouTube link, scan a photo, or paste text. We extract ingredients, steps, and nutrition automatically.",
+              desc: "Paste a URL, scan a photo, or drop in text. We extract ingredients, steps, and nutrition automatically.",
             },
             {
               step: "02",
