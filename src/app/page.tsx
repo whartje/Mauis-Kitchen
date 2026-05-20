@@ -7,6 +7,80 @@ export const metadata = {
   title: "Maui's Kitchen — Your recipes, beautifully organized",
   description:
     "Import recipes from YouTube, Instagram, TikTok, any website, or a photo. Plan your week and generate a smart grocery list — automatically.",
+  metadataBase: new URL("https://www.mauis-kitchen.com"),
+  openGraph: {
+    title: "Maui's Kitchen — Your recipes, beautifully organized",
+    description:
+      "Import recipes from YouTube, Instagram, TikTok, any website, or a photo. Plan your week and generate a smart grocery list — automatically.",
+    url: "https://www.mauis-kitchen.com",
+    siteName: "Maui's Kitchen",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Maui's Kitchen — Your recipes, beautifully organized",
+    description:
+      "Import recipes from YouTube, Instagram, TikTok, any website, or a photo. Plan your week and generate a smart grocery list — automatically.",
+  },
+  alternates: {
+    canonical: "https://www.mauis-kitchen.com",
+  },
+};
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebApplication",
+      "@id": "https://www.mauis-kitchen.com/#app",
+      name: "Maui's Kitchen",
+      url: "https://www.mauis-kitchen.com",
+      description:
+        "Import recipes from YouTube, Instagram, TikTok, any website, or a photo. Plan your week and generate a smart grocery list — automatically.",
+      applicationCategory: "LifestyleApplication",
+      operatingSystem: "Web, iOS, Android",
+      offers: [
+        {
+          "@type": "Offer",
+          price: "0",
+          priceCurrency: "USD",
+          name: "Free plan",
+        },
+        {
+          "@type": "Offer",
+          price: "6.99",
+          priceCurrency: "USD",
+          name: "Pro plan",
+          billingPeriod: "P1M",
+        },
+      ],
+      featureList: [
+        "Import recipes from YouTube, Instagram, and TikTok",
+        "Import recipes from any website URL",
+        "Scan recipe cards and handwritten notes with photo",
+        "Weekly meal planner with ingredient overlap score",
+        "Automatic grocery list generation",
+        "Smart pantry tracking",
+        "Share grocery list via text, email, or Alexa",
+      ],
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://www.mauis-kitchen.com/#org",
+      name: "Maui's Kitchen",
+      url: "https://www.mauis-kitchen.com",
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://www.mauis-kitchen.com/#site",
+      url: "https://www.mauis-kitchen.com",
+      name: "Maui's Kitchen",
+      potentialAction: {
+        "@type": "SearchAction",
+        target: "https://www.mauis-kitchen.com/sign-up",
+      },
+    },
+  ],
 };
 
 export default async function LandingPage() {
@@ -15,6 +89,10 @@ export default async function LandingPage() {
 
   return (
     <div className="min-h-screen bg-[#0d0d0d] text-white antialiased overflow-x-hidden">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
 
       {/* ── Nav ─────────────────────────────────────────────────────────────── */}
       <nav className="fixed top-0 inset-x-0 z-50 flex items-center justify-between px-6 py-4 bg-[#0d0d0d]/80 backdrop-blur-md border-b border-white/5">

@@ -19,6 +19,9 @@ const isPublicRoute = createRouteMatcher([
   "/icon.png",
   "/manifest.webmanifest",
   "/api/pwa-icon",
+  // SEO crawl files
+  "/sitemap.xml",
+  "/robots.txt",
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
