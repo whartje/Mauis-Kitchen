@@ -14,6 +14,7 @@ const isPublicRoute = createRouteMatcher([
   // so we do NOT mark it public. auth() is called inside the route handler.
   "/api/webhooks/(.*)",
   "/api/health",
+  "/api/admin/migrate-user",
   // PWA / SEO assets — must be unauthenticated so iOS and crawlers can fetch them
   "/apple-icon.png",
   "/icon.png",
