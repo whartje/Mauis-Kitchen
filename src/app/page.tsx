@@ -58,19 +58,13 @@ export default async function LandingPage() {
             Plan your week. Generate your grocery list. All in one place.
           </p>
 
-          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <div className="mt-10 flex items-center justify-center">
             <Link
               href="/sign-up"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-[#E8834A] hover:bg-[#d4733c] text-white font-semibold text-base transition-all hover:scale-[1.02] shadow-lg shadow-[#E8834A]/20"
+              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-[#E8834A] hover:bg-[#d4733c] text-white font-semibold text-base transition-all hover:scale-[1.02] shadow-lg shadow-[#E8834A]/20"
             >
               Start cooking smarter
               <span className="text-lg">→</span>
-            </Link>
-            <Link
-              href="/sign-in"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/80 font-medium text-base border border-white/10 transition-colors"
-            >
-              Sign in <span>→</span>
             </Link>
           </div>
         </div>
@@ -308,7 +302,7 @@ export default async function LandingPage() {
 
         <div className="max-w-3xl mx-auto grid sm:grid-cols-2 gap-6">
           {/* Free */}
-          <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-8">
+          <div className="flex flex-col bg-white/[0.03] border border-white/8 rounded-2xl p-8">
             <p className="text-sm font-semibold text-white/50 uppercase tracking-widest mb-3">Free</p>
             <p className="text-4xl font-bold mb-1">$0</p>
             <p className="text-sm text-white/40 mb-8">Forever free, no card needed</p>
@@ -329,14 +323,14 @@ export default async function LandingPage() {
             </ul>
             <Link
               href="/sign-up"
-              className="block text-center py-3 rounded-xl border border-white/15 text-white/80 hover:bg-white/5 text-sm font-semibold transition-colors"
+              className="mt-auto block text-center py-3 rounded-xl border border-white/15 text-white/80 hover:bg-white/5 text-sm font-semibold transition-colors"
             >
               Get started free
             </Link>
           </div>
 
           {/* Pro */}
-          <div className="relative bg-gradient-to-b from-[#E8834A]/10 to-transparent border border-[#E8834A]/30 rounded-2xl p-8">
+          <div className="relative flex flex-col bg-gradient-to-b from-[#E8834A]/10 to-transparent border border-[#E8834A]/30 rounded-2xl p-8">
             <div className="absolute -top-3 left-6">
               <span className="text-xs font-bold bg-[#E8834A] text-white px-3 py-1 rounded-full">
                 Most popular
@@ -363,7 +357,7 @@ export default async function LandingPage() {
             </ul>
             <Link
               href="/sign-up"
-              className="block text-center py-3 rounded-xl bg-[#E8834A] hover:bg-[#d4733c] text-white text-sm font-semibold transition-colors"
+              className="mt-auto block text-center py-3 rounded-xl bg-[#E8834A] hover:bg-[#d4733c] text-white text-sm font-semibold transition-colors"
             >
               Start Pro free trial
             </Link>
