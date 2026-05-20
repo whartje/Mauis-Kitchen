@@ -3,6 +3,7 @@ import { Inter, Playfair_Display } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "@/components/ui/toaster";
 import { Analytics } from "@vercel/analytics/react";
+import Script from "next/script";
 import "./globals.css";
 
 const inter = Inter({
@@ -61,6 +62,19 @@ export default function RootLayout({
           {children}
           <Toaster />
           <Analytics />
+          {/* Google Analytics 4 */}
+          <Script
+            src="https://www.googletagmanager.com/gtag/js?id=G-9D64L2KFL2"
+            strategy="afterInteractive"
+          />
+          <Script id="google-analytics" strategy="afterInteractive">
+            {`
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', 'G-9D64L2KFL2');
+            `}
+          </Script>
         </body>
       </html>
     </ClerkProvider>
