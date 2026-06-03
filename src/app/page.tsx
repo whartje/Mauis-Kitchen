@@ -234,7 +234,7 @@ export default async function LandingPage() {
               emoji: "📅",
               title: "Plan your week visually",
               description:
-                "Drag recipes into a weekly grid. See your ingredient overlap score — the higher it is, the less you need to buy.",
+                "Drag recipes into a weekly grid. Your ingredient overlap score shows how much a week of meals shares the same staples — less shopping, less waste.",
               accent: "#E8834A",
             },
             {
@@ -338,6 +338,7 @@ export default async function LandingPage() {
                 ["Ingredient overlap scoring", false, true],
                 ["Auto-generated grocery list", "Some", true],
                 ["Pantry cross-reference", false, true],
+                ["AI nutrition analysis", false, true],
                 ["Google Tasks / Alexa sync", false, true],
               ].map(([feature, others, ours], i) => (
                 <tr
@@ -421,7 +422,7 @@ export default async function LandingPage() {
                 "Unlimited saved recipes",
                 "30 YouTube imports / month",
                 "30 social / photo imports / month",
-                "AI nutrition analysis",
+                "AI nutrition analysis — calories, protein, macros per recipe",
                 "Everything in Free",
               ].map((item) => (
                 <li key={item} className="flex items-center gap-3 text-sm text-white/70">
