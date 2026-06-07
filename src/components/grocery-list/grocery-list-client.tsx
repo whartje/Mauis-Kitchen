@@ -210,6 +210,7 @@ export default function GroceryListClient({
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [clearingChecked, setClearingChecked] = useState(false);
+  const [showRegenDialog, setShowRegenDialog] = useState(false);
 
   // Week start day preference (from Settings, stored in localStorage)
   const [weekStartDay, setWeekStartDay] = useState<string>("monday");
@@ -320,14 +321,15 @@ export default function GroceryListClient({
 
   // ── Generate / Regenerate ────────────────────────────────────────────────
 
-  const generateList = useCallback(async () => {
+  const generateList = useCallback(async (preserveChecked = false) => {
     setGenerating(true);
     setGenerateError(null);
+    setShowRegenDialog(false);
     try {
       const res = await fetch("/api/grocery-list", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weekStart }),
+        body: JSON.stringify({ weekStart, preserveChecked }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -336,9 +338,6 @@ export default function GroceryListClient({
       }
       const data = await res.json();
       setList(data.list);
-      // Invalidate the Next.js Router Cache so navigating away and back
-      // replays the fresh server render (with the new list) rather than the
-      // stale cached payload that pre-dates the regeneration.
       router.refresh();
     } catch {
       setGenerateError("Something went wrong. Please try again.");
@@ -878,7 +877,13 @@ export default function GroceryListClient({
             {/* Generate / Regenerate button */}
             <div className="relative group">
               <button
-                onClick={!hasMealPlan ? undefined : generateList}
+                onClick={
+                  !hasMealPlan
+                    ? undefined
+                    : list && hasChecked
+                    ? () => setShowRegenDialog(true)
+                    : () => generateList(false)
+                }
                 disabled={generating || !hasMealPlan}
                 className={[
                   "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
@@ -905,6 +910,50 @@ export default function GroceryListClient({
                 </div>
               )}
             </div>
+
+            {/* ── Regenerate mode dialog ─────────────────────────────────────── */}
+            {showRegenDialog && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                onClick={() => setShowRegenDialog(false)}
+              >
+                <div
+                  className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <h3 className="text-base font-semibold text-foreground mb-1">
+                    Update grocery list
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-5">
+                    You&apos;ve checked off {checkedCount} item{checkedCount !== 1 ? "s" : ""}. How would you like to regenerate?
+                  </p>
+                  <div className="space-y-2.5">
+                    <button
+                      onClick={() => generateList(true)}
+                      disabled={generating}
+                      className="w-full flex flex-col gap-0.5 px-4 py-3 rounded-xl border-2 border-[#E8834A] bg-[#E8834A]/5 hover:bg-[#E8834A]/10 text-left transition-colors disabled:opacity-60"
+                    >
+                      <span className="text-sm font-semibold text-foreground">Keep changes + add new</span>
+                      <span className="text-xs text-muted-foreground">Checked items stay checked. New recipes are added to the list.</span>
+                    </button>
+                    <button
+                      onClick={() => generateList(false)}
+                      disabled={generating}
+                      className="w-full flex flex-col gap-0.5 px-4 py-3 rounded-xl border border-border hover:bg-secondary text-left transition-colors disabled:opacity-60"
+                    >
+                      <span className="text-sm font-semibold text-foreground">Full regeneration</span>
+                      <span className="text-xs text-muted-foreground">Start fresh — all items regenerated, checked state cleared.</span>
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => setShowRegenDialog(false)}
+                    className="mt-4 w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

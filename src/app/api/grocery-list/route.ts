@@ -46,6 +46,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const PostSchema = z.object({
     weekStart: z.string().refine((v) => !isNaN(Date.parse(v)), { message: "weekStart must be a valid date string" }),
+    /** When true, preserve isChecked state from the existing list for matching items */
+    preserveChecked: z.boolean().optional().default(false),
   });
   const parsed = PostSchema.safeParse(body);
   if (!parsed.success) {
@@ -54,7 +56,7 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  const { weekStart } = parsed.data;
+  const { weekStart, preserveChecked } = parsed.data;
 
   const weekStartDate = new Date(weekStart);
 
@@ -602,15 +604,26 @@ export async function POST(req: NextRequest) {
   const day = weekDate.getUTCDate();
   const listName = `Week of ${month} ${day}`;
 
-  // Delete any previous list for this mealPlanId
+  // ── Build a checked-state map from the existing list (when preserving) ────
+  // Key: lowercase trimmed item name → isChecked
+  const checkedMap = new Map<string, boolean>();
+  if (preserveChecked) {
+    const existingList = await prisma.groceryList.findFirst({
+      where: { userId, mealPlanId: mealPlan.id },
+      include: { items: { select: { name: true, isChecked: true } } },
+    });
+    if (existingList) {
+      for (const item of existingList.items) {
+        checkedMap.set(item.name.toLowerCase().trim(), item.isChecked);
+      }
+    }
+  }
+
+  // ── Delete the old list and create a fresh one ─────────────────────────────
   await prisma.groceryList.deleteMany({
-    where: {
-      userId,
-      mealPlanId: mealPlan.id,
-    },
+    where: { userId, mealPlanId: mealPlan.id },
   });
 
-  // Create the new grocery list with items
   const newList = await prisma.groceryList.create({
     data: {
       userId,
@@ -618,23 +631,25 @@ export async function POST(req: NextRequest) {
       name: listName,
       sentToAlexa: false,
       items: {
-        create: ingredientList.map((ingredient, index) => ({
-          name: ingredient.name,
-          quantity: ingredient.quantity,
-          unit: ingredient.unit,
-          raw: ingredient.raw,
-          category: ingredient.category,
-          isChecked: false,
-          sortOrder: index,
-          recipeIds: ingredient.recipeIds,
-          recipeTitles: ingredient.recipeTitles,
-        })),
+        create: ingredientList.map((ingredient, index) => {
+          // Preserve checked state for items whose name matches an existing checked item
+          const wasChecked = checkedMap.get(ingredient.name.toLowerCase().trim()) ?? false;
+          return {
+            name: ingredient.name,
+            quantity: ingredient.quantity,
+            unit: ingredient.unit,
+            raw: ingredient.raw,
+            category: ingredient.category,
+            isChecked: preserveChecked ? wasChecked : false,
+            sortOrder: index,
+            recipeIds: ingredient.recipeIds,
+            recipeTitles: ingredient.recipeTitles,
+          };
+        }),
       },
     },
     include: {
-      items: {
-        orderBy: { sortOrder: "asc" },
-      },
+      items: { orderBy: { sortOrder: "asc" } },
     },
   });
 
