@@ -1044,7 +1044,7 @@ export default function GroceryListClient({
               Generate your grocery list from this week&apos;s meal plan.
             </p>
             <button
-              onClick={generateList}
+              onClick={() => generateList()}
               disabled={generating}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#E8834A] hover:bg-[#d4733c] text-white text-sm font-medium transition-colors disabled:opacity-60"
             >
