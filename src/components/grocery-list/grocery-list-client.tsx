@@ -71,6 +71,8 @@ interface Props {
   hasMealPlan: boolean;
   pantryNames?: string[];
   alexaConnected?: boolean; // kept for backwards compat, no longer used
+  /** ISO strings for all weeks the user has a meal plan — populates the week picker */
+  availableWeeks?: string[];
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -135,6 +137,13 @@ function computeWeekLabel(mondayIso: string, startDay: string): string {
   const end = new Date(start);
   end.setUTCDate(start.getUTCDate() + 6);
   return `${fmtDate(start)} – ${fmtDate(end)}, ${end.getUTCFullYear()}`;
+}
+
+/** Format a week ISO string for display in the week picker dropdown. */
+function fmtWeekOption(isoStr: string, thisWeekMonday: string): string {
+  const d = new Date(isoStr);
+  const label = `Week of ${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+  return isoStr.split("T")[0] === thisWeekMonday.split("T")[0] ? `${label} · this week` : label;
 }
 
 /** Add (or subtract) days from a Monday ISO string; returns a YYYY-MM-DD string. */
@@ -204,13 +213,20 @@ export default function GroceryListClient({
   thisWeekStart,
   hasMealPlan,
   pantryNames = [],
+  availableWeeks = [],
 }: Props) {
   const router = useRouter();
   const [list, setList] = useState<GroceryListWithItems | null>(initialList);
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [clearingChecked, setClearingChecked] = useState(false);
-  const [showRegenDialog, setShowRegenDialog] = useState(false);
+
+  // ── Generation dialog state ──────────────────────────────────────────────
+  const [showGenDialog, setShowGenDialog] = useState(false);
+  // Which week's meal plan to generate from (ISO string, defaults to viewed week)
+  const [selectedGenWeek, setSelectedGenWeek] = useState(weekStart);
+  // Whether to preserve checked items when regenerating
+  const [genPreserveChecked, setGenPreserveChecked] = useState(true);
 
   // Week start day preference (from Settings, stored in localStorage)
   const [weekStartDay, setWeekStartDay] = useState<string>("monday");
@@ -321,15 +337,25 @@ export default function GroceryListClient({
 
   // ── Generate / Regenerate ────────────────────────────────────────────────
 
-  const generateList = useCallback(async (preserveChecked = false) => {
+  /** Opens the dialog, defaulting to the current week if it has a meal plan. */
+  function openGenDialog() {
+    const currentWeekEntry = availableWeeks.find(
+      (w) => w.split("T")[0] === weekStart.split("T")[0]
+    );
+    setSelectedGenWeek(currentWeekEntry ?? availableWeeks[0] ?? weekStart);
+    setGenPreserveChecked(true);
+    setShowGenDialog(true);
+  }
+
+  const generateList = useCallback(async (genWeek: string, preserveChecked: boolean) => {
     setGenerating(true);
     setGenerateError(null);
-    setShowRegenDialog(false);
+    setShowGenDialog(false);
     try {
       const res = await fetch("/api/grocery-list", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weekStart, preserveChecked }),
+        body: JSON.stringify({ weekStart: genWeek, preserveChecked }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -338,13 +364,18 @@ export default function GroceryListClient({
       }
       const data = await res.json();
       setList(data.list);
-      router.refresh();
+      // If we generated from a different week, navigate there so the URL stays in sync
+      if (genWeek.split("T")[0] !== weekStart.split("T")[0]) {
+        router.push(`/grocery-list?week=${genWeek.split("T")[0]}`);
+      } else {
+        router.refresh();
+      }
     } catch {
       setGenerateError("Something went wrong. Please try again.");
     } finally {
       setGenerating(false);
     }
-  }, [weekStart, router]);
+  }, [router, weekStart]);
 
   // ── Toggle isChecked ─────────────────────────────────────────────────────
 
@@ -678,6 +709,8 @@ export default function GroceryListClient({
   const checkedCount = list?.items.filter((it) => it.isChecked).length ?? 0;
   const hasChecked = checkedCount > 0;
   const progressPercent = totalItems > 0 ? (checkedCount / totalItems) * 100 : 0;
+  // The generate/regen button is enabled whenever at least one week has a meal plan
+  const canGenerate = availableWeeks.length > 0;
 
   // Group items by category
   const groupedItems = CATEGORY_ORDER.reduce<
@@ -877,17 +910,11 @@ export default function GroceryListClient({
             {/* Generate / Regenerate button */}
             <div className="relative group">
               <button
-                onClick={
-                  !hasMealPlan
-                    ? undefined
-                    : list && hasChecked
-                    ? () => setShowRegenDialog(true)
-                    : () => generateList(false)
-                }
-                disabled={generating || !hasMealPlan}
+                onClick={canGenerate ? openGenDialog : undefined}
+                disabled={generating || !canGenerate}
                 className={[
                   "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-                  hasMealPlan
+                  canGenerate
                     ? "bg-[#E8834A] hover:bg-[#d4733c] text-white cursor-pointer disabled:opacity-60"
                     : "bg-[#E8834A]/40 text-white/60 cursor-not-allowed",
                 ].join(" ")}
@@ -902,7 +929,7 @@ export default function GroceryListClient({
                 {list ? "Regenerate" : "Generate from Meal Plan"}
               </button>
 
-              {!hasMealPlan && (
+              {!canGenerate && (
                 <div className="absolute right-0 top-full mt-1.5 z-10 hidden group-hover:block">
                   <div className="bg-card border border-border text-muted-foreground text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-lg">
                     Add recipes to your meal plan first
@@ -911,43 +938,94 @@ export default function GroceryListClient({
               )}
             </div>
 
-            {/* ── Regenerate mode dialog ─────────────────────────────────────── */}
-            {showRegenDialog && (
+            {/* ── Generation dialog: week picker + (optional) preserve-checked ── */}
+            {showGenDialog && (
               <div
                 className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-                onClick={() => setShowRegenDialog(false)}
+                onClick={() => setShowGenDialog(false)}
               >
                 <div
                   className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <h3 className="text-base font-semibold text-foreground mb-1">
-                    Update grocery list
+                    {list ? "Regenerate grocery list" : "Generate grocery list"}
                   </h3>
-                  <p className="text-sm text-muted-foreground mb-5">
-                    You&apos;ve checked off {checkedCount} item{checkedCount !== 1 ? "s" : ""}. How would you like to regenerate?
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Choose which week&apos;s meal plan to shop for.
                   </p>
-                  <div className="space-y-2.5">
-                    <button
-                      onClick={() => generateList(true)}
-                      disabled={generating}
-                      className="w-full flex flex-col gap-0.5 px-4 py-3 rounded-xl border-2 border-[#E8834A] bg-[#E8834A]/5 hover:bg-[#E8834A]/10 text-left transition-colors disabled:opacity-60"
-                    >
-                      <span className="text-sm font-semibold text-foreground">Keep changes + add new</span>
-                      <span className="text-xs text-muted-foreground">Checked items stay checked. New recipes are added to the list.</span>
-                    </button>
-                    <button
-                      onClick={() => generateList(false)}
-                      disabled={generating}
-                      className="w-full flex flex-col gap-0.5 px-4 py-3 rounded-xl border border-border hover:bg-secondary text-left transition-colors disabled:opacity-60"
-                    >
-                      <span className="text-sm font-semibold text-foreground">Full regeneration</span>
-                      <span className="text-xs text-muted-foreground">Start fresh — all items regenerated, checked state cleared.</span>
-                    </button>
-                  </div>
+
+                  {/* Week picker */}
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                    Meal plan week
+                  </label>
+                  <select
+                    value={selectedGenWeek}
+                    onChange={(e) => setSelectedGenWeek(e.target.value)}
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#E8834A] focus:border-[#E8834A]"
+                  >
+                    {availableWeeks.map((w) => (
+                      <option key={w} value={w}>
+                        {fmtWeekOption(w, thisWeekStart)}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Preserve-checked section — only when regenerating a list that has checked items */}
+                  {list && hasChecked && (
+                    <div className="mt-4 pt-4 border-t border-border">
+                      <p className="text-xs font-medium text-muted-foreground mb-2.5">
+                        You have {checkedCount} checked item{checkedCount !== 1 ? "s" : ""}. How to regenerate?
+                      </p>
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => setGenPreserveChecked(true)}
+                          className={[
+                            "w-full flex flex-col gap-0.5 px-4 py-3 rounded-xl border-2 text-left transition-colors",
+                            genPreserveChecked
+                              ? "border-[#E8834A] bg-[#E8834A]/5"
+                              : "border-border hover:bg-secondary",
+                          ].join(" ")}
+                        >
+                          <span className="text-sm font-semibold text-foreground">Keep changes + add new</span>
+                          <span className="text-xs text-muted-foreground">Checked items stay checked. New recipes are merged in.</span>
+                        </button>
+                        <button
+                          onClick={() => setGenPreserveChecked(false)}
+                          className={[
+                            "w-full flex flex-col gap-0.5 px-4 py-3 rounded-xl border-2 text-left transition-colors",
+                            !genPreserveChecked
+                              ? "border-[#E8834A] bg-[#E8834A]/5"
+                              : "border-border hover:bg-secondary",
+                          ].join(" ")}
+                        >
+                          <span className="text-sm font-semibold text-foreground">Full regeneration</span>
+                          <span className="text-xs text-muted-foreground">Start fresh — all items regenerated, checked state cleared.</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <button
-                    onClick={() => setShowRegenDialog(false)}
-                    className="mt-4 w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+                    onClick={() =>
+                      generateList(selectedGenWeek, list && hasChecked ? genPreserveChecked : false)
+                    }
+                    disabled={generating}
+                    className="mt-5 w-full flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#E8834A] hover:bg-[#d4733c] text-white text-sm font-semibold transition-colors disabled:opacity-60"
+                  >
+                    {generating ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : list ? (
+                      <RefreshCw className="w-4 h-4" />
+                    ) : (
+                      <ShoppingCart className="w-4 h-4" />
+                    )}
+                    {list ? "Regenerate" : "Generate"}
+                  </button>
+
+                  <button
+                    onClick={() => setShowGenDialog(false)}
+                    className="mt-3 w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
                   >
                     Cancel
                   </button>
@@ -1016,7 +1094,7 @@ export default function GroceryListClient({
         )}
 
         {/* ── Empty States ── */}
-        {!list && !hasMealPlan && (
+        {!list && !canGenerate && (
           <div className="mt-8 bg-card border border-border rounded-xl p-8 text-center">
             <ShoppingCart className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <h2 className="text-lg font-semibold text-foreground mb-2">
@@ -1034,17 +1112,17 @@ export default function GroceryListClient({
           </div>
         )}
 
-        {!list && hasMealPlan && (
+        {!list && canGenerate && (
           <div className="mt-8 bg-card border border-border rounded-xl p-8 text-center">
             <ShoppingCart className="w-12 h-12 text-[#E8834A] mx-auto mb-4" />
             <h2 className="text-lg font-semibold text-foreground mb-2">
               Ready to generate
             </h2>
             <p className="text-muted-foreground text-sm mb-6">
-              Generate your grocery list from this week&apos;s meal plan.
+              Generate your grocery list from a meal plan — pick the week below.
             </p>
             <button
-              onClick={() => generateList()}
+              onClick={openGenDialog}
               disabled={generating}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#E8834A] hover:bg-[#d4733c] text-white text-sm font-medium transition-colors disabled:opacity-60"
             >

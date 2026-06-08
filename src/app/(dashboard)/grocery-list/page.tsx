@@ -37,27 +37,35 @@ export default async function GroceryListPage({ searchParams }: Props) {
   const weekStart = week ? getMondayOf(week) : currentMonday();
   const thisMonday = currentMonday();
 
-  // Find the meal plan for the selected week
-  const mealPlan = await prisma.mealPlan.findFirst({
-    where: { userId, weekStartDate: weekStart },
-  });
-
-  // Find the grocery list linked to that meal plan (if it exists)
-  const [groceryList, pantryItems] = await Promise.all([
-    mealPlan
-      ? prisma.groceryList.findFirst({
-          where: { userId, mealPlanId: mealPlan.id },
-          orderBy: { createdAt: "desc" },
-          include: { items: { orderBy: { sortOrder: "asc" } } },
-        })
-      : Promise.resolve(null),
+  // Find the meal plan for the selected week + all weeks that have meal plans (for the picker)
+  const [mealPlan, pantryItems, allMealPlans] = await Promise.all([
+    prisma.mealPlan.findFirst({
+      where: { userId, weekStartDate: weekStart },
+    }),
     prisma.pantryItem.findMany({
       where: { userId },
       select: { name: true },
     }),
+    prisma.mealPlan.findMany({
+      where: { userId },
+      select: { weekStartDate: true },
+      orderBy: { weekStartDate: "desc" },
+      take: 16, // ~4 months of history
+    }),
   ]);
 
+  // Find the grocery list linked to that meal plan (if it exists)
+  const groceryList = mealPlan
+    ? await prisma.groceryList.findFirst({
+        where: { userId, mealPlanId: mealPlan.id },
+        orderBy: { createdAt: "desc" },
+        include: { items: { orderBy: { sortOrder: "asc" } } },
+      })
+    : null;
+
   const pantryNames = pantryItems.map((p: Pick<PantryItem, "name">) => p.name);
+  // ISO strings for every week the user has a meal plan — passed to the week picker
+  const availableWeeks = allMealPlans.map((mp) => mp.weekStartDate.toISOString());
 
   return (
     <GroceryListClient
@@ -66,6 +74,7 @@ export default async function GroceryListPage({ searchParams }: Props) {
       thisWeekStart={thisMonday.toISOString()}
       hasMealPlan={mealPlan !== null}
       pantryNames={pantryNames}
+      availableWeeks={availableWeeks}
     />
   );
 }
