@@ -88,6 +88,7 @@ export default async function MealPlanPage({ searchParams }: Props) {
       plan={plan as Parameters<typeof MealPlanClient>[0]["plan"]}
       recipes={recipes}
       weekStart={weekStart.toISOString()}
+      thisWeekStart={currentMonday().toISOString()}
       isPro={sub.isPro}
       pantryItems={pantryItems}
     />

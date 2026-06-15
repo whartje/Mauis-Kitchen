@@ -47,7 +47,8 @@ interface Plan {
 interface Props {
   plan: Plan;
   recipes: RecipeForPicker[];
-  weekStart: string; // ISO string — Monday of the displayed week
+  weekStart: string;      // ISO string — Monday of the displayed week
+  thisWeekStart: string;  // ISO string — server's current ISO Monday (used for auto-redirect)
   isPro: boolean;
   pantryItems: PantryItem[];
 }
@@ -137,7 +138,7 @@ const OVERLAP_STYLE: Record<OverlapLevel, string> = {
   High: "text-green-400 bg-green-400/10 border-green-400/20",
 };
 
-export function MealPlanClient({ plan: initialPlan, recipes, weekStart, isPro, pantryItems }: Props) {
+export function MealPlanClient({ plan: initialPlan, recipes, weekStart, thisWeekStart, isPro, pantryItems }: Props) {
   const router = useRouter();
   const [plan, setPlan] = useState<Plan>(initialPlan);
 
@@ -150,11 +151,31 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart, isPro, p
     } catch {}
   }, []);
 
+  // Auto-correct: if the server loaded the ISO-Monday default but the user's
+  // preference puts "this week" on a different Monday, silently redirect.
+  // Mirrors the same logic in grocery-list-client.tsx.
+  useEffect(() => {
+    const serverDefaultMonday = thisWeekStart.split("T")[0];
+    const preferredMonday = getCurrentWeekMonday(weekStartDay);
+    if (
+      preferredMonday !== serverDefaultMonday &&
+      weekStart.split("T")[0] === serverDefaultMonday
+    ) {
+      router.replace(`/meal-plan?week=${preferredMonday}`);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekStartDay]); // only re-run when the preference loads from localStorage
+
   // Ordered list of canonical dayOfWeek indices for display
   const dayOrder = DAY_ORDER[weekStartDay] ?? DAY_ORDER.monday;
   // Date offset: how many days from weekStart (Monday) is the first displayed day?
   // monday→0, sunday→-1, saturday→-2
   const firstDayOffset = weekStartDay === "sunday" ? -1 : weekStartDay === "saturday" ? -2 : 0;
+
+  // "This week" and today detection
+  const clientThisMonday = getCurrentWeekMonday(weekStartDay);
+  const isCurrentWeek = weekStart.split("T")[0] === clientThisMonday;
+  const todayUTCDate = new Date().toISOString().split("T")[0]; // YYYY-MM-DD in UTC
   const [pickerSlot, setPickerSlot] = useState<{
     dayOfWeek: number;
     mealType: MealTypeEnum;
@@ -305,8 +326,13 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart, isPro, p
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Meal Plan</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-2">
             {fmtWeekRange(weekStart, firstDayOffset)}
+            {isCurrentWeek && (
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-[#E8834A] bg-[#E8834A]/10 px-1.5 py-0.5 rounded-full">
+                This week
+              </span>
+            )}
           </p>
         </div>
 
@@ -337,15 +363,17 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart, isPro, p
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <button
-              onClick={() => {
-                const thisMonday = getCurrentWeekMonday(weekStartDay);
-                router.push(`/meal-plan?week=${thisMonday}`);
-              }}
-              className="px-3 py-1.5 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-            >
-              This Week
-            </button>
+            {!isCurrentWeek && (
+              <button
+                onClick={() => {
+                  const thisMonday = getCurrentWeekMonday(weekStartDay);
+                  router.push(`/meal-plan?week=${thisMonday}`);
+                }}
+                className="px-3 py-1.5 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              >
+                This Week
+              </button>
+            )}
             <button
               onClick={() => goWeek(1)}
               className="p-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
@@ -365,17 +393,30 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart, isPro, p
             <div className="p-3" />
             {dayOrder.map((dayIdx, colIdx) => {
               const date = addDays(weekStart, firstDayOffset + colIdx);
+              const isToday = date.toISOString().split("T")[0] === todayUTCDate;
               return (
                 <div
                   key={dayIdx}
-                  className="p-3 text-center border-l border-border"
+                  className={cn(
+                    "p-3 text-center border-l border-border",
+                    isToday && "bg-[#E8834A]/5"
+                  )}
                 >
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  <p className={cn(
+                    "text-xs font-semibold uppercase tracking-wider",
+                    isToday ? "text-[#E8834A]" : "text-muted-foreground"
+                  )}>
                     {ALL_DAY_LABELS[dayIdx]}
                   </p>
-                  <p className="text-sm font-medium text-foreground mt-0.5">
+                  <p className={cn(
+                    "text-sm font-medium mt-0.5",
+                    isToday ? "text-[#E8834A] font-bold" : "text-foreground"
+                  )}>
                     {date.getUTCDate()}
                   </p>
+                  {isToday && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#E8834A] mx-auto mt-0.5" />
+                  )}
                 </div>
               );
             })}
