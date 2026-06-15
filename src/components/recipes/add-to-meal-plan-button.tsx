@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { CalendarPlus, ChevronLeft, ChevronRight, Check, Loader2 } from "lucide-react";
+import { CalendarPlus, ChevronLeft, ChevronRight, Check, Loader2, Minus, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type MealType = "BREAKFAST" | "LUNCH" | "DINNER" | "SNACK";
@@ -43,6 +43,8 @@ export function AddToMealPlanButton({ recipeId, servings }: { recipeId: string; 
   const [selectedDay, setSelectedDay] = useState<number | null>(null); // 0=Mon…6=Sun
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
+  // Serving count — defaults to the recipe's own serving size, adjustable in the popup
+  const [servingCount, setServingCount] = useState(servings ?? 1);
 
   // Portal setup — mounted guards against SSR, isDesktop drives layout mode
   const [mounted, setMounted] = useState(false);
@@ -94,6 +96,7 @@ export function AddToMealPlanButton({ recipeId, servings }: { recipeId: string; 
       setSelectedDay(null);
       setSaved(null);
       setWeekStart(currentMonday());
+      setServingCount(servings ?? 1); // reset to recipe's default each time
     }
     setOpen((v) => !v);
   }
@@ -108,7 +111,7 @@ export function AddToMealPlanButton({ recipeId, servings }: { recipeId: string; 
       await fetch(`/api/meal-plan/${plan.id}/items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recipeId, dayOfWeek: selectedDay, mealType, servings }),
+        body: JSON.stringify({ recipeId, dayOfWeek: selectedDay, mealType, servings: servingCount }),
       });
       setSaved(mealType);
       setTimeout(() => setOpen(false), 1200);
@@ -163,18 +166,36 @@ export function AddToMealPlanButton({ recipeId, servings }: { recipeId: string; 
         })}
       </div>
 
-      {/* Meal type buttons — only shown after a day is selected */}
+      {/* Serving count + meal type — only shown after a day is selected */}
       {selectedDay !== null && (
         <div className="space-y-1.5 pt-1 border-t border-border">
+          {/* Serving count adjuster */}
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              Servings
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setServingCount((n) => Math.max(1, n - 1))}
+                className="w-6 h-6 rounded-full bg-secondary hover:bg-brand-orange/20 flex items-center justify-center transition-colors"
+              >
+                <Minus className="w-3 h-3" />
+              </button>
+              <span className="text-sm font-semibold text-foreground w-6 text-center">
+                {servingCount}
+              </span>
+              <button
+                onClick={() => setServingCount((n) => n + 1)}
+                className="w-6 h-6 rounded-full bg-secondary hover:bg-brand-orange/20 flex items-center justify-center transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
           <div className="flex items-center justify-between">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
               Add to {DAY_NAMES[selectedDay]}&apos;s…
             </p>
-            {servings != null && (
-              <span className="text-[10px] text-muted-foreground">
-                {servings} {servings === 1 ? "serving" : "servings"}
-              </span>
-            )}
           </div>
           {MEAL_TYPES.map(({ value, label }) => {
             const isSaved = saved === value;

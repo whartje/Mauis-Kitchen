@@ -239,13 +239,15 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart, thisWeek
     const recipe = recipes.find((r) => r.id === recipeId);
     if (!recipe) return;
 
+    const defaultServings = recipe.servings ?? 1;
+
     const tempId = `temp-${Date.now()}`;
     const newItem: PlanItem = {
       id: tempId,
       dayOfWeek,
       mealType,
       isLocked: false,
-      servings: recipe.servings ?? 4,
+      servings: defaultServings,
       recipe: { ...recipe, nutrition: null },
     };
 
@@ -258,7 +260,7 @@ export function MealPlanClient({ plan: initialPlan, recipes, weekStart, thisWeek
     const res = await fetch(`/api/meal-plan/${plan.id}/items`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ recipeId, dayOfWeek, mealType }),
+      body: JSON.stringify({ recipeId, dayOfWeek, mealType, servings: defaultServings }),
     });
     if (res.ok) {
       const item: PlanItem = await res.json();
