@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { CalendarPlus, ChevronLeft, ChevronRight, Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -41,14 +42,35 @@ export function AddToMealPlanButton({ recipeId, servings }: { recipeId: string; 
   const [weekStart, setWeekStart] = useState<Date>(currentMonday);
   const [selectedDay, setSelectedDay] = useState<number | null>(null); // 0=Mon…6=Sun
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState<string | null>(null); // "DINNER" etc after success
-  const panelRef = useRef<HTMLDivElement>(null);
+  const [saved, setSaved] = useState<string | null>(null);
 
-  // Close on outside click
+  // Portal setup — mounted guards against SSR, isDesktop drives layout mode
+  const [mounted, setMounted] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
+  // For desktop: position popup relative to the button using bounding rect
+  const [desktopPos, setDesktopPos] = useState<{ top: number; right: number } | null>(null);
+
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+
+  // SSR safety + responsive detection
+  useEffect(() => {
+    setMounted(true);
+    const check = () => setIsDesktop(window.innerWidth >= 640);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  // Close on outside click (checks both button and popup since popup is in a portal)
   useEffect(() => {
     if (!open) return;
     function handler(e: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        popupRef.current && !popupRef.current.contains(target) &&
+        buttonRef.current && !buttonRef.current.contains(target)
+      ) {
         setOpen(false);
       }
     }
@@ -56,7 +78,17 @@ export function AddToMealPlanButton({ recipeId, servings }: { recipeId: string; 
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  // Reset state when opening
+  // Compute desktop dropdown position from button's screen coordinates
+  useEffect(() => {
+    if (open && isDesktop && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDesktopPos({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right,
+      });
+    }
+  }, [open, isDesktop]);
+
   function toggle() {
     if (!open) {
       setSelectedDay(null);
@@ -70,19 +102,15 @@ export function AddToMealPlanButton({ recipeId, servings }: { recipeId: string; 
     if (selectedDay === null) return;
     setSaving(true);
     try {
-      // Fetch or create the plan for this week
       const planRes = await fetch(`/api/meal-plan?week=${toISO(weekStart)}`);
       if (!planRes.ok) return;
       const plan = await planRes.json();
-
       await fetch(`/api/meal-plan/${plan.id}/items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recipeId, dayOfWeek: selectedDay, mealType, servings }),
       });
-
       setSaved(mealType);
-      // Auto-close after a beat
       setTimeout(() => setOpen(false), 1200);
     } finally {
       setSaving(false);
@@ -92,9 +120,95 @@ export function AddToMealPlanButton({ recipeId, servings }: { recipeId: string; 
   const weekEnd = addDays(weekStart, 6);
   const weekLabel = `${MONTHS[weekStart.getUTCMonth()]} ${weekStart.getUTCDate()} – ${MONTHS[weekEnd.getUTCMonth()]} ${weekEnd.getUTCDate()}`;
 
+  // Shared popup content (used by both mobile sheet and desktop dropdown)
+  const popupInner = (
+    <>
+      {/* Week navigator */}
+      <div className="flex items-center justify-between gap-2">
+        <button
+          onClick={() => { setWeekStart((w) => addDays(w, -7)); setSelectedDay(null); setSaved(null); }}
+          className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <span className="text-xs font-medium text-foreground text-center flex-1">{weekLabel}</span>
+        <button
+          onClick={() => { setWeekStart((w) => addDays(w, 7)); setSelectedDay(null); setSaved(null); }}
+          className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Day grid */}
+      <div className="grid grid-cols-7 gap-1">
+        {DAY_NAMES.map((name, i) => {
+          const date = addDays(weekStart, i);
+          const isSelected = selectedDay === i;
+          return (
+            <button
+              key={i}
+              onClick={() => { setSelectedDay(i); setSaved(null); }}
+              className={cn(
+                "flex flex-col items-center rounded-lg py-1.5 px-0.5 transition-colors text-center",
+                isSelected
+                  ? "bg-brand-orange text-black"
+                  : "hover:bg-secondary text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <span className="text-[9px] font-semibold uppercase tracking-wide leading-none">{name}</span>
+              <span className="text-sm font-bold leading-tight mt-0.5">{date.getUTCDate()}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Meal type buttons — only shown after a day is selected */}
+      {selectedDay !== null && (
+        <div className="space-y-1.5 pt-1 border-t border-border">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              Add to {DAY_NAMES[selectedDay]}&apos;s…
+            </p>
+            {servings != null && (
+              <span className="text-[10px] text-muted-foreground">
+                {servings} {servings === 1 ? "serving" : "servings"}
+              </span>
+            )}
+          </div>
+          {MEAL_TYPES.map(({ value, label }) => {
+            const isSaved = saved === value;
+            return (
+              <button
+                key={value}
+                onClick={() => !saving && !saved && addToMealPlan(value)}
+                disabled={saving || !!saved}
+                className={cn(
+                  "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors",
+                  isSaved
+                    ? "bg-green-500/15 text-green-400 border border-green-500/30"
+                    : "hover:bg-brand-orange/10 hover:text-brand-orange text-foreground border border-transparent hover:border-brand-orange/20",
+                  "disabled:cursor-default"
+                )}
+              >
+                <span className="font-medium">{label}</span>
+                {saving && !saved ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                ) : isSaved ? (
+                  <Check className="w-3.5 h-3.5 text-green-400" />
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+
   return (
-    <div className="relative" ref={panelRef}>
+    <>
       <button
+        ref={buttonRef}
         onClick={toggle}
         title="Add to meal plan"
         className={cn(
@@ -107,97 +221,42 @@ export function AddToMealPlanButton({ recipeId, servings }: { recipeId: string; 
         <CalendarPlus className="w-6 h-6" />
       </button>
 
-      {open && (
+      {/*
+       * Portal: renders directly into <body> so it's never clipped or mis-positioned
+       * by the overflow-y-auto scroll container in the dashboard layout.
+       * On iOS Safari, position:fixed inside an overflow:auto parent doesn't behave
+       * as viewport-fixed — the portal bypass fixes this completely.
+       */}
+      {mounted && open && createPortal(
         <>
-          {/* Mobile backdrop */}
-          <div
-            className="fixed inset-0 z-40 bg-black/40 sm:hidden"
-            onClick={() => setOpen(false)}
-          />
-          <div className="fixed inset-x-4 bottom-4 z-50 bg-card border border-border rounded-xl shadow-2xl p-4 space-y-4 max-h-[85dvh] overflow-y-auto sm:absolute sm:inset-auto sm:right-0 sm:bottom-auto sm:top-full sm:mt-2 sm:w-72 sm:max-h-none sm:overflow-visible">
-
-          {/* Week navigator */}
-          <div className="flex items-center justify-between gap-2">
-            <button
-              onClick={() => { setWeekStart((w) => addDays(w, -7)); setSelectedDay(null); setSaved(null); }}
-              className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="text-xs font-medium text-foreground text-center flex-1">{weekLabel}</span>
-            <button
-              onClick={() => { setWeekStart((w) => addDays(w, 7)); setSelectedDay(null); setSaved(null); }}
-              className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Day grid */}
-          <div className="grid grid-cols-7 gap-1">
-            {DAY_NAMES.map((name, i) => {
-              const date = addDays(weekStart, i);
-              const isSelected = selectedDay === i;
-              return (
-                <button
-                  key={i}
-                  onClick={() => { setSelectedDay(i); setSaved(null); }}
-                  className={cn(
-                    "flex flex-col items-center rounded-lg py-1.5 px-0.5 transition-colors text-center",
-                    isSelected
-                      ? "bg-brand-orange text-black"
-                      : "hover:bg-secondary text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <span className="text-[9px] font-semibold uppercase tracking-wide leading-none">{name}</span>
-                  <span className="text-sm font-bold leading-tight mt-0.5">{date.getUTCDate()}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Meal type buttons — only shown after a day is selected */}
-          {selectedDay !== null && (
-            <div className="space-y-1.5 pt-1 border-t border-border">
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Add to {DAY_NAMES[selectedDay]}&apos;s…
-                </p>
-                {servings != null && (
-                  <span className="text-[10px] text-muted-foreground">
-                    {servings} {servings === 1 ? "serving" : "servings"}
-                  </span>
-                )}
-              </div>
-              {MEAL_TYPES.map(({ value, label }) => {
-                const isSaved = saved === value;
-                return (
-                  <button
-                    key={value}
-                    onClick={() => !saving && !saved && addToMealPlan(value)}
-                    disabled={saving || !!saved}
-                    className={cn(
-                      "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors",
-                      isSaved
-                        ? "bg-green-500/15 text-green-400 border border-green-500/30"
-                        : "hover:bg-brand-orange/10 hover:text-brand-orange text-foreground border border-transparent hover:border-brand-orange/20",
-                      "disabled:cursor-default"
-                    )}
-                  >
-                    <span className="font-medium">{label}</span>
-                    {saving && !saved ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
-                    ) : isSaved ? (
-                      <Check className="w-3.5 h-3.5 text-green-400" />
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
+          {/* Backdrop — mobile only */}
+          {!isDesktop && (
+            <div
+              className="fixed inset-0 z-40 bg-black/40"
+              onClick={() => setOpen(false)}
+            />
           )}
+
+          <div
+            ref={popupRef}
+            className={cn(
+              "fixed z-50 bg-card border border-border rounded-xl shadow-2xl p-4 space-y-4 overflow-y-auto",
+              isDesktop
+                ? "w-72 max-h-[80vh]"
+                : "inset-x-4 max-h-[70dvh]"
+            )}
+            style={
+              isDesktop && desktopPos
+                ? { top: desktopPos.top, right: desktopPos.right }
+                // Mobile: sit above the bottom nav bar (5rem) + iOS home indicator
+                : { bottom: "calc(5rem + env(safe-area-inset-bottom) + 0.5rem)" }
+            }
+          >
+            {popupInner}
           </div>
-        </>
+        </>,
+        document.body
       )}
-    </div>
+    </>
   );
 }
