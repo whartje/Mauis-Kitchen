@@ -14,6 +14,8 @@ const isPublicRoute = createRouteMatcher([
   // so we do NOT mark it public. auth() is called inside the route handler.
   "/api/webhooks/(.*)",
   "/api/health",
+  // Vercel Cron invocation — no browser session, protected by CRON_SECRET inside the route
+  "/api/cron/refresh-google-tokens",
   // PWA / SEO assets — must be unauthenticated so iOS and crawlers can fetch them
   "/apple-icon.png",
   "/icon.png",
